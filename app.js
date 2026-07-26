@@ -442,30 +442,44 @@ function showLoggedIn(user){
   }
 }
 
-loginForm.onsubmit=async e=>{
-  e.preventDefault();
-  loginMessage.textContent="Bezig met inloggen…";
+const loginFormElement=document.getElementById("loginForm");
+const loginButtonElement=document.getElementById("loginBtn");
+const loginEmailElement=document.getElementById("loginEmail");
+const loginPasswordElement=document.getElementById("loginPassword");
+const loginMessageElement=document.getElementById("loginMessage");
+
+async function handleLogin(e){
+  if(e) e.preventDefault();
+
+  const email=loginEmailElement.value.trim();
+  const password=loginPasswordElement.value;
+  loginMessageElement.textContent="Bezig met inloggen…";
+  loginButtonElement.disabled=true;
+  loginButtonElement.textContent="Bezig…";
+
+  if(!email || !password){
+    loginMessageElement.textContent="Vul je e-mailadres en wachtwoord in.";
+    loginButtonElement.disabled=false;
+    loginButtonElement.textContent="Inloggen";
+    return;
+  }
 
   if(!auth){
-    loginMessage.textContent="Firebase kon niet worden gestart.";
+    loginMessageElement.textContent="Firebase kon niet worden gestart.";
+    loginButtonElement.disabled=false;
+    loginButtonElement.textContent="Inloggen";
     return;
   }
 
   try{
     const result=await withTimeout(
-      auth.signInWithEmailAndPassword(
-        loginEmail.value.trim(),
-        loginPassword.value
-      ),
+      auth.signInWithEmailAndPassword(email,password),
       12000,
       "Firebase reageert niet op tijd"
     );
-
-    // Open de app direct. Het profiel wordt daarna op de achtergrond geladen.
     showLoggedIn(provisionalProfile(result.user));
   }catch(err){
-    console.error("Firebase login error:", err.code, err.message);
-
+    console.error("Firebase login error:",err?.code,err?.message,err);
     const messages={
       "auth/invalid-credential":"E-mailadres of wachtwoord is niet juist.",
       "auth/wrong-password":"Het wachtwoord is niet juist.",
@@ -474,16 +488,26 @@ loginForm.onsubmit=async e=>{
       "auth/user-disabled":"Dit account is uitgeschakeld.",
       "auth/too-many-requests":"Te vaak geprobeerd. Wacht even en probeer later opnieuw.",
       "auth/network-request-failed":"Geen goede internetverbinding. Probeer opnieuw.",
-      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase.",
+      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase."
     };
-
-    loginMessage.textContent=
-      messages[err.code] ||
-      (err.message==="Firebase reageert niet op tijd"
+    loginMessageElement.textContent=messages[err?.code] ||
+      (err?.message==="Firebase reageert niet op tijd"
         ? "Firebase reageert niet. Controleer internet en probeer opnieuw."
-        : `Inloggen lukt niet (${err.code || "onbekende fout"}).`);
+        : `Inloggen lukt niet (${err?.code || "onbekende fout"}).`);
+  }finally{
+    loginButtonElement.disabled=false;
+    loginButtonElement.textContent="Inloggen";
   }
-};
+}
+
+loginFormElement.addEventListener("submit",handleLogin);
+loginButtonElement.addEventListener("click",e=>{
+  if(!loginFormElement.checkValidity()){
+    loginFormElement.reportValidity();
+    return;
+  }
+  handleLogin(e);
+});
 
 async function loadUserProfile(user){
   const fallback=provisionalProfile(user);
@@ -556,7 +580,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.1");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.2");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
