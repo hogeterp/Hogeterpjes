@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#3f6f5a">
+  <title>Hogeterpjes</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Familie-app</p>
+        <h1>Hogeterpjes</h1>
+      </div>
+      <button id="themeBtn" class="icon-btn" aria-label="Donkere modus">🌙</button>
+    </header>
+
+    <main id="app">
+      <section class="page active" data-page="home">
+        <div class="hero card">
+          <div>
+            <p class="eyebrow">Alles op één plek</p>
+            <h2>Welkom bij Hogeterpjes</h2>
+            <p>Recepten, boodschappen, verlanglijstjes en huishoudens voor de hele familie.</p>
+          </div>
+          <div class="hero-badge">🏠❤️</div>
+        </div>
+
+        <div class="stats-grid">
+          <button class="stat card" data-go="familie">
+            <strong id="statFamily">7</strong><span>familieleden</span>
+          </button>
+          <button class="stat card" data-go="huishoudens">
+            <strong id="statHouseholds">4</strong><span>huishoudens</span>
+          </button>
+          <button class="stat card" data-go="recepten">
+            <strong id="statRecipes">0</strong><span>recepten</span>
+          </button>
+          <button class="stat card" data-go="verlanglijstjes">
+            <strong id="statWishes">0</strong><span>wensen</span>
+          </button>
+        </div>
+
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Binnenkort</p>
+              <h3>Eerstvolgende verjaardag</h3>
+            </div>
+          </div>
+          <div id="nextBirthday" class="birthday-box"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Snel toevoegen</p>
+              <h3>Wat wil je doen?</h3>
+            </div>
+          </div>
+          <div class="quick-grid">
+            <button data-go="recepten" data-action="add-recipe">🍽️ Recept</button>
+            <button data-go="boodschappen">🛒 Boodschap</button>
+            <button data-go="verlanglijstjes" data-action="add-wish">🎁 Wens</button>
+            <button data-go="huishoudens">🏡 Huishouden</button>
+          </div>
+        </section>
+      </section>
+
+      <section class="page" data-page="familie">
+        <div class="page-head">
+          <div><p class="eyebrow">Onze familie</p><h2>Familieleden</h2></div>
+        </div>
+        <div id="familyList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="huishoudens">
+        <div class="page-head">
+          <div><p class="eyebrow">Samen wonen</p><h2>Huishoudens</h2></div>
+          <button id="addHouseholdBtn" class="primary-btn">+ Nieuw</button>
+        </div>
+        <div id="householdList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="recepten">
+        <div class="page-head">
+          <div><p class="eyebrow">Lekker koken</p><h2>Recepten</h2></div>
+          <button id="addRecipeBtn" class="primary-btn">+ Recept</button>
+        </div>
+        <input id="recipeSearch" class="search" placeholder="Zoek recept of ingrediënt">
+        <div id="recipeList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="boodschappen">
+        <div class="page-head">
+          <div><p class="eyebrow">Per huishouden</p><h2>Boodschappen</h2></div>
+          <button id="addGroceryBtn" class="primary-btn">+ Product</button>
+        </div>
+        <select id="groceryHousehold" class="search"></select>
+        <div id="groceryList" class="card checklist"></div>
+      </section>
+
+      <section class="page" data-page="verlanglijstjes">
+        <div class="page-head">
+          <div><p class="eyebrow">Voor later</p><h2>Verlanglijstjes</h2></div>
+          <button id="addWishBtn" class="primary-btn">+ Wens</button>
+        </div>
+        <div class="filters">
+          <select id="wishPersonFilter"></select>
+          <select id="wishOccasionFilter">
+            <option value="">Alle gelegenheden</option>
+            <option>Verjaardag</option>
+            <option>Sinterklaas</option>
+            <option>Kerst</option>
+            <option>Overig</option>
+          </select>
+        </div>
+        <div id="wishList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="instellingen">
+        <div class="page-head">
+          <div><p class="eyebrow">Beheer</p><h2>Instellingen</h2></div>
+        </div>
+        <div class="card settings">
+          <h3>Firebase</h3>
+          <p>Deze versie werkt direct met lokale opslag. Later vullen we de gegevens in <code>firebase-config.js</code> in om alles tussen telefoons te synchroniseren.</p>
+          <div id="firebaseStatus" class="status-pill">Lokale opslag actief</div>
+        </div>
+        <div class="card settings">
+          <h3>App installeren</h3>
+          <p>Na publicatie op GitHub Pages kun je Hogeterpjes via je browser aan het beginscherm toevoegen.</p>
+        </div>
+        <div class="card settings danger-zone">
+          <h3>Testgegevens</h3>
+          <button id="resetDataBtn" class="secondary-btn">Herstel standaardgegevens</button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav" aria-label="Hoofdnavigatie">
+      <button class="active" data-nav="home"><span>🏠</span>Home</button>
+      <button data-nav="recepten"><span>🍽️</span>Recepten</button>
+      <button data-nav="boodschappen"><span>🛒</span>Lijst</button>
+      <button data-nav="verlanglijstjes"><span>🎁</span>Wensen</button>
+      <button data-nav="meer"><span>☰</span>Meer</button>
+    </nav>
+  </div>
+
+  <dialog id="moreDialog" class="sheet">
+    <div class="sheet-head"><h3>Meer</h3><button data-close>✕</button></div>
+    <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
+    <button data-go="huishoudens">🏡 Huishoudens</button>
+    <button data-go="instellingen">⚙️ Instellingen</button>
+  </dialog>
+
+  <dialog id="recipeDialog" class="modal">
+    <form id="recipeForm" method="dialog">
+      <div class="sheet-head"><h3>Recept toevoegen</h3><button type="button" data-close>✕</button></div>
+      <label>Naam<input name="name" required></label>
+      <label>Voor hoeveel personen?<input name="servings" type="number" min="1" value="4" required></label>
+      <label>Foto-URL (optioneel)<input name="photo" type="url" placeholder="https://..."></label>
+      <label>Ingrediënten <small>Één per regel, bijvoorbeeld: 250 | gram | bloem</small>
+        <textarea name="ingredients" rows="7" required></textarea>
+      </label>
+      <label>Bereiding <small>Één stap per regel</small>
+        <textarea name="steps" rows="6" required></textarea>
+      </label>
+      <label>Toegevoegd door<select name="author" id="recipeAuthor"></select></label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
+
+  <dialog id="wishDialog" class="modal">
+    <form id="wishForm" method="dialog">
+      <div class="sheet-head"><h3>Wens toevoegen</h3><button type="button" data-close>✕</button></div>
+      <label>Voor wie?<select name="person" id="wishPerson"></select></label>
+      <label>Gelegenheid<select name="occasion"><option>Verjaardag</option><option>Sinterklaas</option><option>Kerst</option><option>Overig</option></select></label>
+      <label>Cadeauwens<input name="title" required></label>
+      <label>Prijs (€)<input name="price" type="number" step="0.01" min="0"></label>
+      <label>Link<input name="link" type="url" placeholder="https://..."></label>
+      <label>Opmerking<textarea name="note" rows="3"></textarea></label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
+
+  <dialog id="simpleDialog" class="modal">
+    <form id="simpleForm" method="dialog">
+      <div class="sheet-head"><h3 id="simpleTitle">Toevoegen</h3><button type="button" data-close>✕</button></div>
+      <div id="simpleFields"></div>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
+
+  <dialog id="recipeViewDialog" class="modal recipe-view">
+    <div class="sheet-head"><h3 id="viewRecipeTitle"></h3><button type="button" data-close>✕</button></div>
+    <div id="viewRecipeBody"></div>
+  </dialog>
+
+  <script src="firebase-config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

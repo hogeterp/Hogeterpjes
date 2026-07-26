@@ -1,0 +1,10 @@
+{
+  "name": "Hogeterpjes",
+  "short_name": "Hogeterpjes",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f6f3",
+  "theme_color": "#3f6f5a",
+  "description": "Familie-app voor de familie Hogeterp",
+  "icons": []
+}
