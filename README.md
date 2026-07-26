@@ -1,32 +1,19 @@
-# Hogeterpjes v1.1.3
+# Hogeterpjes v1.1.4
 
-Verbeteringen:
-- Specifieke Firebase-foutmeldingen bij het inloggen
-- Geen dubbele profielcontrole meer na het inloggen
-- Betere melding wanneer Firestore-regels nog niet zijn gepubliceerd
-- Cache bijgewerkt naar v1.1.3
-- Klein versienummer v1.1.3 zichtbaar in de app
+Opgelost:
+- De app opent direct na een geslaagde Firebase-login.
+- Het profiel wordt daarna op de achtergrond geladen.
+- De login kan niet meer eindeloos blijven hangen.
+- Na 12 seconden verschijnt een duidelijke time-outmelding.
+- `rohogeterp@gmail.com` wordt voorlopig automatisch aan Rinze gekoppeld.
+- Firestore-profielproblemen blokkeren het openen van de app niet meer.
+- Versienummer v1.1.4 zichtbaar.
 
-## Na uploaden naar GitHub
+## Uploaden
+Upload alle losse bestanden naar de bestaande GitHub-repository en kies **Commit changes**.
 
-### Authorized domain toevoegen
-Ga in Firebase naar:
-
-Authentication → Settings → Authorized domains → Add domain
-
-Voeg exact toe:
-
-hogeterp.github.io
-
-Gebruik geen `https://` en geen `/Hogeterpjes/`.
-
-### Firestore-regels publiceren
-Ga naar:
-
-Firestore → Rules
-
-Vervang de regels door de inhoud van `firestore.rules` en druk op **Publish**.
-
-### Daarna testen
-Log in met het account dat je in Authentication → Users hebt aangemaakt.
-De app toont nu een specifieke foutmelding wanneer iets nog niet goed staat.
+## Test
+1. Open Hogeterpjes.
+2. Controleer of `v1.1.4` zichtbaar is.
+3. Log in met het Firebase-account.
+4. De app hoort direct te openen.

@@ -32,6 +32,32 @@ let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
 const SHARED_DATA_DOC="appData/hogeterpjes";
+const KNOWN_USERS = {
+  "rohogeterp@gmail.com": "Rinze"
+};
+
+function withTimeout(promise, ms, message="Actie duurde te lang"){
+  return Promise.race([
+    promise,
+    new Promise((_, reject)=>setTimeout(()=>reject(new Error(message)), ms))
+  ]);
+}
+
+function provisionalProfile(user){
+  const email=(user?.email || "").toLowerCase();
+  const displayName=
+    KNOWN_USERS[email] ||
+    user?.displayName ||
+    user?.email?.split("@")[0] ||
+    "Familielid";
+
+  return {
+    uid:user.uid,
+    email:user.email || "",
+    displayName
+  };
+}
+
 
 function cloneDefaults(){ return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 function loadData(){
@@ -276,26 +302,38 @@ logoutBtn.onclick=async()=>{
 };
 
 function showLoggedIn(user){
+  const firstOpen=!currentUser;
   currentUser=user;
   loginScreen.classList.add("hidden");
+  loginMessage.textContent="";
   renderProfile();
-  subscribeToCloudData();
+
+  if(firstOpen){
+    subscribeToCloudData();
+  }
 }
 
 loginForm.onsubmit=async e=>{
   e.preventDefault();
-  loginMessage.textContent="";
+  loginMessage.textContent="Bezig met inloggen…";
+
   if(!auth){
-    loginMessage.textContent="Firebase is nog niet gekoppeld. Gebruik voorlopig de demomodus.";
+    loginMessage.textContent="Firebase kon niet worden gestart.";
     return;
   }
+
   try{
-    loginMessage.textContent="Bezig met inloggen…";
-    await auth.signInWithEmailAndPassword(
-      loginEmail.value.trim(),
-      loginPassword.value
+    const result=await withTimeout(
+      auth.signInWithEmailAndPassword(
+        loginEmail.value.trim(),
+        loginPassword.value
+      ),
+      12000,
+      "Firebase reageert niet op tijd"
     );
-    loginMessage.textContent="";
+
+    // Open de app direct. Het profiel wordt daarna op de achtergrond geladen.
+    showLoggedIn(provisionalProfile(result.user));
   }catch(err){
     console.error("Firebase login error:", err.code, err.message);
 
@@ -307,32 +345,42 @@ loginForm.onsubmit=async e=>{
       "auth/user-disabled":"Dit account is uitgeschakeld.",
       "auth/too-many-requests":"Te vaak geprobeerd. Wacht even en probeer later opnieuw.",
       "auth/network-request-failed":"Geen goede internetverbinding. Probeer opnieuw.",
-      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase. Voeg hogeterp.github.io toe bij Authorized domains."
+      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase.",
     };
 
-    loginMessage.textContent=messages[err.code] || `Inloggen lukt niet (${err.code || "onbekende fout"}).`;
+    loginMessage.textContent=
+      messages[err.code] ||
+      (err.message==="Firebase reageert niet op tijd"
+        ? "Firebase reageert niet. Controleer internet en probeer opnieuw."
+        : `Inloggen lukt niet (${err.code || "onbekende fout"}).`);
   }
 };
 
 async function loadUserProfile(user){
-  if(db){
-    const ref=db.collection("profielen").doc(user.uid);
-    const snap=await ref.get();
-    if(snap.exists) return {uid:user.uid,email:user.email,...snap.data()};
+  const fallback=provisionalProfile(user);
 
-    const choices=data.family.map(p=>p.name).join(", ");
-    let chosen=prompt(`Wie ben jij? Kies één van deze namen:\n${choices}`, "");
-    chosen=(chosen||"").trim();
-    const match=data.family.find(p=>p.name.toLowerCase()===chosen.toLowerCase());
-    const displayName=match?.name || user.email?.split("@")[0] || "Familielid";
-    await ref.set({
+  if(!db) return fallback;
+
+  try{
+    const ref=db.collection("profielen").doc(user.uid);
+    const snap=await withTimeout(ref.get(),8000,"Profiel laden duurde te lang");
+
+    if(snap.exists){
+      return {uid:user.uid,email:user.email,...snap.data()};
+    }
+
+    const displayName=fallback.displayName;
+    await withTimeout(ref.set({
       displayName,
       email:user.email || "",
       createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    });
-    return {uid:user.uid,email:user.email,displayName};
+    }),8000,"Profiel opslaan duurde te lang");
+
+    return {...fallback,displayName};
+  }catch(err){
+    console.warn("Profiel laden overgeslagen:",err);
+    return fallback;
   }
-  return {uid:user.uid,email:user.email,displayName:user.displayName || user.email?.split("@")[0]};
 }
 
 function initFirebase(){
@@ -342,23 +390,23 @@ function initFirebase(){
     firebase.initializeApp(settings.config);
     auth=firebase.auth();
     db=firebase.firestore();
-    auth.onAuthStateChanged(async user=>{
-      try{
-        if(user){
-          loginMessage.textContent="";
-          const profile=await loadUserProfile(user);
-          showLoggedIn(profile);
-        }else{
-          loginScreen.classList.remove("hidden");
-        }
-      }catch(err){
-        console.error("Profiel laden mislukt:",err);
+    auth.onAuthStateChanged(user=>{
+      if(!user){
+        currentUser=null;
         loginScreen.classList.remove("hidden");
-        loginMessage.textContent=
-          err.code==="permission-denied"
-            ? "Inloggen lukte, maar Firestore-regels geven nog geen toegang."
-            : "Inloggen lukte, maar het profiel kon niet worden geladen.";
+        return;
       }
+
+      // Meteen openen met een voorlopig profiel.
+      showLoggedIn(provisionalProfile(user));
+
+      // Daarna het echte profiel op de achtergrond laden.
+      loadUserProfile(user)
+        .then(profile=>{
+          currentUser=profile;
+          renderProfile();
+        })
+        .catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
     firebaseStatus.textContent="Firebase gekoppeld";
     setSyncStatus("Wachten op inloggen");
@@ -379,7 +427,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.3");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.4");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
