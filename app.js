@@ -41,6 +41,40 @@ const KNOWN_USERS = {
   "rohogeterp@gmail.com": "Rinze"
 };
 
+const loginScreen=document.getElementById("loginScreen");
+const loginMessage=document.getElementById("loginMessage");
+const firebaseStatus=document.getElementById("firebaseStatus");
+
+function loadScriptOnce(src){
+  return new Promise((resolve,reject)=>{
+    const existing=[...document.scripts].find(s=>s.src===src);
+    if(existing){
+      if(existing.dataset.loaded==="true") return resolve();
+      existing.addEventListener("load",()=>resolve(),{once:true});
+      existing.addEventListener("error",()=>reject(new Error(`Laden mislukt: ${src}`)),{once:true});
+      setTimeout(()=>{
+        if(src.includes("firebase") && window.firebase) resolve();
+      },100);
+      return;
+    }
+    const script=document.createElement("script");
+    script.src=src;
+    script.async=false;
+    script.onload=()=>{script.dataset.loaded="true";resolve();};
+    script.onerror=()=>reject(new Error(`Laden mislukt: ${src}`));
+    document.head.appendChild(script);
+  });
+}
+
+async function ensureFirebaseLibraries(){
+  if(window.firebase?.auth && window.firebase?.firestore) return true;
+  const base="https://www.gstatic.com/firebasejs/10.12.5/";
+  await loadScriptOnce(base+"firebase-app-compat.js");
+  await loadScriptOnce(base+"firebase-auth-compat.js");
+  await loadScriptOnce(base+"firebase-firestore-compat.js");
+  return !!(window.firebase?.auth && window.firebase?.firestore);
+}
+
 function withTimeout(promise, ms, message="Actie duurde te lang"){
   return Promise.race([
     promise,
@@ -501,13 +535,6 @@ async function handleLogin(e){
 }
 
 loginFormElement.addEventListener("submit",handleLogin);
-loginButtonElement.addEventListener("click",e=>{
-  if(!loginFormElement.checkValidity()){
-    loginFormElement.reportValidity();
-    return;
-  }
-  handleLogin(e);
-});
 
 async function loadUserProfile(user){
   const fallback=provisionalProfile(user);
@@ -536,22 +563,24 @@ async function loadUserProfile(user){
   }
 }
 
-function initFirebase(){
+async function initFirebase(){
   const settings=window.HOGETERPJES_FIREBASE;
   if(!settings?.useFirebase){
     loginMessage.textContent="Firebase-instellingen zijn niet geladen. Vernieuw de pagina.";
     return false;
   }
-  if(typeof window.firebase==="undefined"){
-    loginMessage.textContent="Firebase-bibliotheek is niet geladen. Controleer internet en vernieuw de pagina.";
-    return false;
-  }
+
   try{
+    firebaseStatus.textContent="Firebase laden…";
+    const loaded=await ensureFirebaseLibraries();
+    if(!loaded) throw new Error("Firebase-bibliotheken ontbreken");
+
     if(!firebase.apps.length){
       firebase.initializeApp(settings.config);
     }
     auth=firebase.auth();
     db=firebase.firestore();
+
     auth.onAuthStateChanged(user=>{
       if(!user){
         currentUser=null;
@@ -559,10 +588,8 @@ function initFirebase(){
         return;
       }
 
-      // Meteen openen met een voorlopig profiel.
       showLoggedIn(provisionalProfile(user));
 
-      // Daarna uitnodigingen en het echte profiel op de achtergrond laden.
       loadAdminSettings().then(()=>loadUserProfile(user))
         .then(profile=>{
           currentUser=profile;
@@ -570,28 +597,29 @@ function initFirebase(){
         })
         .catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
+
     firebaseStatus.textContent="Firebase gekoppeld";
     setSyncStatus("Wachten op inloggen");
+    loginMessage.textContent="";
     return true;
   }catch(e){
-    console.error("Firebase startfout:", e);
-    firebaseStatus.textContent="Firebase-configuratie bevat een fout";
+    console.error("Firebase startfout:",e);
+    auth=null;
+    db=null;
+    firebaseStatus.textContent="Firebase-fout";
     firebaseStatus.classList.add("error");
-    loginMessage.textContent=`Firebase starten lukt niet (${e?.code || e?.message || "onbekende fout"}).`;
+    loginMessage.textContent=`Firebase starten lukt niet: ${e?.message || "onbekende fout"}`;
     return false;
   }
 }
 
 bindNav();
 renderAll();
-const firebaseActive=initFirebase();
-if(!firebaseActive){
-  loginMessage.textContent="Firebase kon niet worden gestart.";
-}
+initFirebase();
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.3");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.4");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
