@@ -1,13 +1,11 @@
-// Vul deze gegevens later in vanuit Firebase > Projectinstellingen > Jouw apps.
-// Zodra de gegevens zijn ingevuld, zet je useFirebase op true.
 window.HOGETERPJES_FIREBASE = {
-  useFirebase: false,
+  useFirebase: true,
   config: {
-    apiKey: "",
-    authDomain: "",
-    projectId: "",
-    storageBucket: "",
-    messagingSenderId: "",
-    appId: ""
+    apiKey: "AIzaSyBxJOFVYsCbw_uglDP-LODnYNvsNREq_NQ",
+    authDomain: "hogeterpjes.firebaseapp.com",
+    projectId: "hogeterpjes",
+    storageBucket: "hogeterpjes.firebasestorage.app",
+    messagingSenderId: "225365940920",
+    appId: "1:225365940920:web:d0bc3094c9c6da3c93f24d"
   }
 };

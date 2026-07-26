@@ -48,3 +48,8 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .title-with-version h1{margin-right:0}
 .app-version{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.03em;white-space:nowrap}
 .login-card .app-version{font-size:10px}
+
+.login-help{font-size:.86rem;color:var(--muted);text-align:center;margin:.8rem 0 0}
+.sync-status{margin:.65rem 0 0;font-size:.85rem}
+.status-pill.online{background:#dff5e7;color:#23683d}
+.status-pill.error{background:#fde4e4;color:#9b2f2f}

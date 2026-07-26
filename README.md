@@ -1,18 +1,36 @@
-# Hogeterpjes v1.1.1
+# Hogeterpjes v1.1.2
 
-Nieuw en opgelost:
-- Klein versienummer `v1.1.1` bij de titel
-- Versienummer ook zichtbaar op het inlogscherm
-- Fout bij het tonen van de eerstvolgende verjaardag opgelost
-- Verbeterde cache- en updatefunctie
-- Oude appbestanden worden na een update automatisch verwijderd
-- Inlogscherm, demomodus en profielpagina uit v1.1.0
+Deze versie bevat:
+- Firebase-configuratie van project `hogeterpjes`
+- Echte login met e-mailadres en wachtwoord
+- Realtime synchronisatie tussen telefoons
+- Gedeelde recepten, boodschappen, wensen en huishoudens
+- Automatisch familieprofiel kiezen bij de eerste login
+- Veilige Firestore-regels voor ingelogde familieleden
+- Klein zichtbaar versienummer v1.1.2
 
-## Uploaden
-1. Pak het zipbestand uit.
-2. Upload alle losse bestanden naar de bestaande repository `Hogeterpjes`.
-3. Vervang de bestaande bestanden.
-4. Druk op **Commit changes**.
-5. Wacht tot GitHub Pages opnieuw is gepubliceerd.
+## Belangrijk na uploaden
 
-Na de upload moet bij `Hogeterpjes` klein **v1.1.1** staan.
+### 1. GitHub
+Upload alle losse bestanden naar de bestaande repository en kies **Commit changes**.
+
+### 2. Authorized domain
+Ga in Firebase naar:
+Authentication → Settings → Authorized domains
+
+Voeg toe:
+`hogeterp.github.io`
+
+### 3. Firestore-regels
+Ga naar:
+Firestore → Rules
+
+Vervang de regels door de inhoud van `firestore.rules` en druk op **Publish**.
+
+### 4. Accounts aanmaken
+Ga naar:
+Authentication → Users → Add user
+
+Maak voor ieder familielid een account met e-mailadres en tijdelijk wachtwoord.
+
+Bij de eerste login vraagt de app welk familielid bij het account hoort.

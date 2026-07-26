@@ -27,6 +27,11 @@ let simpleMode="";
 let currentUser=null;
 let auth=null;
 let db=null;
+let cloudUnsubscribe=null;
+let cloudReady=false;
+let applyingRemote=false;
+let saveTimer=null;
+const SHARED_DATA_DOC="appData/hogeterpjes";
 
 function cloneDefaults(){ return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 function loadData(){
@@ -35,7 +40,77 @@ function loadData(){
     return saved ? JSON.parse(saved) : cloneDefaults();
   }catch(e){ return cloneDefaults(); }
 }
-function saveData(){ localStorage.setItem(KEY,JSON.stringify(data)); renderAll(); }
+function saveData(){
+  localStorage.setItem(KEY,JSON.stringify(data));
+  renderAll();
+  if(db && currentUser && cloudReady && !applyingRemote){
+    clearTimeout(saveTimer);
+    saveTimer=setTimeout(pushDataToCloud,350);
+  }
+}
+
+async function pushDataToCloud(){
+  if(!db || !currentUser || !cloudReady) return;
+  try{
+    setSyncStatus("Wijzigingen opslaan…");
+    await db.doc(SHARED_DATA_DOC).set({
+      ...data,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: currentUser.uid
+    });
+    setSyncStatus("Alles is gesynchroniseerd");
+  }catch(error){
+    console.error(error);
+    setSyncStatus("Synchroniseren mislukt",true);
+  }
+}
+
+function setSyncStatus(text,isError=false){
+  const el=document.getElementById("syncStatus");
+  if(el) el.textContent=text;
+  if(firebaseStatus){
+    firebaseStatus.textContent=isError ? "Firebase-fout" : (currentUser ? "Firebase online" : "Firebase gekoppeld");
+    firebaseStatus.classList.toggle("online",!isError && !!currentUser);
+    firebaseStatus.classList.toggle("error",isError);
+  }
+}
+
+function subscribeToCloudData(){
+  if(!db || !currentUser) return;
+  if(cloudUnsubscribe) cloudUnsubscribe();
+
+  setSyncStatus("Gegevens laden…");
+  cloudUnsubscribe=db.doc(SHARED_DATA_DOC).onSnapshot(async snap=>{
+    try{
+      if(snap.exists){
+        const remote=snap.data();
+        applyingRemote=true;
+        data={
+          family:Array.isArray(remote.family)?remote.family:cloneDefaults().family,
+          households:Array.isArray(remote.households)?remote.households:cloneDefaults().households,
+          recipes:Array.isArray(remote.recipes)?remote.recipes:[],
+          groceries:Array.isArray(remote.groceries)?remote.groceries:[],
+          wishes:Array.isArray(remote.wishes)?remote.wishes:[]
+        };
+        localStorage.setItem(KEY,JSON.stringify(data));
+        renderAll();
+        applyingRemote=false;
+        cloudReady=true;
+        setSyncStatus("Alles is gesynchroniseerd");
+      }else{
+        cloudReady=true;
+        await pushDataToCloud();
+      }
+    }catch(error){
+      applyingRemote=false;
+      console.error(error);
+      setSyncStatus("Gegevens laden mislukt",true);
+    }
+  },error=>{
+    console.error(error);
+    setSyncStatus("Geen toegang tot Firestore",true);
+  });
+}
 function fmtDate(iso){ return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(iso+"T12:00:00")); }
 function ageFor(iso){
   const b=new Date(iso+"T12:00:00"), n=new Date(); let a=n.getFullYear()-b.getFullYear();
@@ -192,9 +267,11 @@ resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recept
 profileBtn.onclick=()=>navigate("profiel");
 logoutBtn.onclick=async()=>{
   if(auth){ await auth.signOut(); }
+  if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
+  cloudReady=false;
   currentUser=null;
-  localStorage.removeItem(PROFILE_KEY);
   loginScreen.classList.remove("hidden");
+  setSyncStatus("Nog niet ingelogd");
   renderProfile();
 };
 
@@ -202,16 +279,8 @@ function showLoggedIn(user){
   currentUser=user;
   loginScreen.classList.add("hidden");
   renderProfile();
+  subscribeToCloudData();
 }
-
-demoLoginBtn.onclick=()=>{
-  const name=prompt("Met welk familielid wil je de demomodus openen?", "Lisa");
-  if(!name)return;
-  const match=data.family.find(p=>p.name.toLowerCase()===name.trim().toLowerCase());
-  const demo={name:match?.name || name.trim(), displayName:match?.name || name.trim(), email:"demomodus@hogeterpjes.nl"};
-  localStorage.setItem(PROFILE_KEY,JSON.stringify(demo));
-  showLoggedIn(demo);
-};
 
 loginForm.onsubmit=async e=>{
   e.preventDefault();
@@ -231,8 +300,21 @@ loginForm.onsubmit=async e=>{
 
 async function loadUserProfile(user){
   if(db){
-    const snap=await db.collection("profielen").doc(user.uid).get();
+    const ref=db.collection("profielen").doc(user.uid);
+    const snap=await ref.get();
     if(snap.exists) return {uid:user.uid,email:user.email,...snap.data()};
+
+    const choices=data.family.map(p=>p.name).join(", ");
+    let chosen=prompt(`Wie ben jij? Kies één van deze namen:\n${choices}`, "");
+    chosen=(chosen||"").trim();
+    const match=data.family.find(p=>p.name.toLowerCase()===chosen.toLowerCase());
+    const displayName=match?.name || user.email?.split("@")[0] || "Familielid";
+    await ref.set({
+      displayName,
+      email:user.email || "",
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return {uid:user.uid,email:user.email,displayName};
   }
   return {uid:user.uid,email:user.email,displayName:user.displayName || user.email?.split("@")[0]};
 }
@@ -249,9 +331,11 @@ function initFirebase(){
       else loginScreen.classList.remove("hidden");
     });
     firebaseStatus.textContent="Firebase gekoppeld";
+    setSyncStatus("Wachten op inloggen");
     return true;
   }catch(e){
     firebaseStatus.textContent="Firebase-configuratie bevat een fout";
+    firebaseStatus.classList.add("error");
     return false;
   }
 }
@@ -260,13 +344,12 @@ bindNav();
 renderAll();
 const firebaseActive=initFirebase();
 if(!firebaseActive){
-  const demo=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null");
-  if(demo) showLoggedIn(demo);
+  loginMessage.textContent="Firebase kon niet worden gestart.";
 }
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.1");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.2");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
