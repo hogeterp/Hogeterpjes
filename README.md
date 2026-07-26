@@ -1,19 +1,18 @@
-# Hogeterpjes v1.1.4
+# Hogeterpjes v1.2.1
 
-Opgelost:
-- De app opent direct na een geslaagde Firebase-login.
-- Het profiel wordt daarna op de achtergrond geladen.
-- De login kan niet meer eindeloos blijven hangen.
-- Na 12 seconden verschijnt een duidelijke time-outmelding.
-- `rohogeterp@gmail.com` wordt voorlopig automatisch aan Rinze gekoppeld.
-- Firestore-profielproblemen blokkeren het openen van de app niet meer.
-- Versienummer v1.1.4 zichtbaar.
+Complete, gecontroleerde versie met:
+- Hogeterpjes-logo en PWA-iconen;
+- Firebase-inloggen;
+- beheerpagina alleen voor Rinze;
+- familieleden uitnodigen met hun e-mailadres;
+- familieleden kiezen zelf hun wachtwoord;
+- wachtwoord-vergetenfunctie;
+- toegang blokkeren of uitnodigingen verwijderen;
+- aangescherpte Firestore-regels.
 
-## Uploaden
-Upload alle losse bestanden naar de bestaande GitHub-repository en kies **Commit changes**.
+## Eerst Firestore-regels publiceren
+Lees `FIREBASE-STAPPEN.txt` en publiceer de inhoud van `firestore.rules` in:
+Firebase Console → Firestore Database → Regels → Publiceren.
 
-## Test
-1. Open Hogeterpjes.
-2. Controleer of `v1.1.4` zichtbaar is.
-3. Log in met het Firebase-account.
-4. De app hoort direct te openen.
+## Daarna GitHub bijwerken
+Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.

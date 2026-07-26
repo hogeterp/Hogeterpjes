@@ -32,6 +32,9 @@ let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
 const SHARED_DATA_DOC="appData/hogeterpjes";
+const ADMIN_DOC="appAdmin/settings";
+const ADMIN_EMAIL="rohogeterp@gmail.com";
+let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
   "rohogeterp@gmail.com": "Rinze"
 };
@@ -45,7 +48,9 @@ function withTimeout(promise, ms, message="Actie duurde te lang"){
 
 function provisionalProfile(user){
   const email=(user?.email || "").toLowerCase();
+  const invited=adminSettings.accounts?.find(a=>(a.email||"").toLowerCase()===email);
   const displayName=
+    invited?.name ||
     KNOWN_USERS[email] ||
     user?.displayName ||
     user?.email?.split("@")[0] ||
@@ -221,7 +226,7 @@ function renderProfile(){
   const houses=data.households.filter(h=>h.members.includes(name));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); }
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseIngredients(text){
   return text.split("\n").map(x=>x.trim()).filter(Boolean).map(line=>{
@@ -286,6 +291,98 @@ window.openRecipe=id=>{
   }; render(); recipeViewDialog.showModal();
 };
 
+
+function isAdmin(){ return (currentUser?.email || "").toLowerCase()===ADMIN_EMAIL; }
+
+async function loadAdminSettings(){
+  if(!db || !firebase.auth().currentUser) return;
+  try{
+    const ref=db.doc(ADMIN_DOC);
+    const snap=await ref.get();
+    if(snap.exists){
+      const remote=snap.data();
+      adminSettings={
+        allowedEmails:Array.isArray(remote.allowedEmails)?remote.allowedEmails.map(x=>String(x).toLowerCase()):[ADMIN_EMAIL],
+        accounts:Array.isArray(remote.accounts)?remote.accounts:[]
+      };
+    }else if((firebase.auth().currentUser.email||"").toLowerCase()===ADMIN_EMAIL){
+      await ref.set(adminSettings);
+    }
+    const mapped=adminSettings.accounts?.find(a=>(a.email||"").toLowerCase()===(firebase.auth().currentUser.email||"").toLowerCase());
+    if(mapped && currentUser){ currentUser.displayName=mapped.name; }
+    renderProfile();
+    renderAccountManagement();
+  }catch(err){ console.warn("Accountinstellingen laden mislukt",err); }
+}
+
+async function saveAdminSettings(){
+  if(!db || !isAdmin()) throw new Error("Alleen de beheerder kan dit wijzigen.");
+  adminSettings.allowedEmails=adminSettings.accounts.filter(a=>a.active!==false && a.email).map(a=>a.email.toLowerCase());
+  if(!adminSettings.allowedEmails.includes(ADMIN_EMAIL)) adminSettings.allowedEmails.push(ADMIN_EMAIL);
+  await db.doc(ADMIN_DOC).set(adminSettings,{merge:false});
+  renderAccountManagement();
+}
+
+function renderAccountManagement(){
+  const adminVisible=isAdmin();
+  document.querySelectorAll('.admin-only').forEach(el=>el.classList.toggle('visible',adminVisible));
+  if(!window.inviteName || !window.accountList) return;
+  inviteName.innerHTML=data.family.map(p=>`<option>${p.name}</option>`).join('');
+  accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
+}
+
+window.toggleAccountAccess=async email=>{
+  const a=adminSettings.accounts.find(x=>x.email===email); if(!a)return;
+  a.active=a.active===false?true:false;
+  try{await saveAdminSettings();}catch(e){alert(e.message);}
+};
+window.removeInvite=async email=>{
+  if(!confirm('Uitnodiging verwijderen?'))return;
+  adminSettings.accounts=adminSettings.accounts.filter(x=>x.email!==email);
+  try{await saveAdminSettings();}catch(e){alert(e.message);}
+};
+
+inviteForm.onsubmit=async e=>{
+  e.preventDefault();
+  const name=inviteName.value, email=inviteEmail.value.trim().toLowerCase();
+  inviteMessage.textContent='Uitnodiging opslaan…';
+  const existing=adminSettings.accounts.find(a=>a.email.toLowerCase()===email);
+  if(existing){ existing.name=name; existing.active=true; }
+  else adminSettings.accounts.push({name,email,active:true});
+  const member=data.family.find(p=>p.name===name); if(member) member.email=email;
+  try{
+    await saveAdminSettings();
+    saveData();
+    inviteMessage.textContent=`Klaar. Stuur ${name} nu de link van Hogeterpjes. ${name} kiest zelf een wachtwoord.`;
+    inviteForm.reset();
+  }catch(err){ inviteMessage.textContent=err.message; }
+};
+
+showSignupBtn.onclick=()=>{ signupMessage.textContent=''; signupDialog.showModal(); };
+forgotPasswordBtn.onclick=async()=>{
+  const email=loginEmail.value.trim();
+  if(!email){ loginMessage.textContent='Vul eerst je e-mailadres in.'; return; }
+  try{ await auth.sendPasswordResetEmail(email); loginMessage.textContent='Er is een e-mail verstuurd waarmee je zelf een nieuw wachtwoord kiest.'; }
+  catch(err){ loginMessage.textContent='De resetmail kon niet worden verstuurd. Controleer het e-mailadres.'; }
+};
+signupForm.onsubmit=async e=>{
+  e.preventDefault();
+  const email=signupEmail.value.trim().toLowerCase(), p1=signupPassword.value, p2=signupPassword2.value;
+  if(p1!==p2){ signupMessage.textContent='De wachtwoorden zijn niet hetzelfde.'; return; }
+  signupMessage.textContent='Account aanmaken…';
+  try{
+    const result=await auth.createUserWithEmailAndPassword(email,p1);
+    const snap=await db.doc(ADMIN_DOC).get();
+    const allowed=snap.exists && (snap.data().allowedEmails||[]).map(x=>String(x).toLowerCase()).includes(email);
+    if(!allowed){ await result.user.delete(); signupMessage.textContent='Dit e-mailadres is nog niet door Rinze uitgenodigd.'; return; }
+    signupDialog.close();
+    loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
+  }catch(err){
+    const msgs={"auth/email-already-in-use":"Voor dit e-mailadres bestaat al een account.","auth/weak-password":"Kies een wachtwoord van minimaal 6 tekens.","auth/invalid-email":"Dit e-mailadres is niet geldig."};
+    signupMessage.textContent=msgs[err.code]||'Account aanmaken lukt niet.';
+  }
+};
+
 themeBtn.onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("hogeterpjes-theme",document.body.classList.contains("dark")?"dark":"light");themeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
 if(localStorage.getItem("hogeterpjes-theme")==="dark"){document.body.classList.add("dark");themeBtn.textContent="☀️";}
 resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recepten en wensen worden verwijderd.")){data=cloneDefaults();saveData();}};
@@ -309,7 +406,7 @@ function showLoggedIn(user){
   renderProfile();
 
   if(firstOpen){
-    subscribeToCloudData();
+    loadAdminSettings().finally(()=>subscribeToCloudData());
   }
 }
 
@@ -400,8 +497,8 @@ function initFirebase(){
       // Meteen openen met een voorlopig profiel.
       showLoggedIn(provisionalProfile(user));
 
-      // Daarna het echte profiel op de achtergrond laden.
-      loadUserProfile(user)
+      // Daarna uitnodigingen en het echte profiel op de achtergrond laden.
+      loadAdminSettings().then(()=>loadUserProfile(user))
         .then(profile=>{
           currentUser=profile;
           renderProfile();
@@ -427,7 +524,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.4");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.1");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

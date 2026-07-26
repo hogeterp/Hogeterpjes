@@ -1,0 +1,17 @@
+HOGETERPJES v1.2.1 – FIREBASE INSTELLEN
+
+1. Open Firebase Console en kies project “hogeterpjes”.
+2. Kies links: Firestore Database.
+3. Tik bovenaan op: Rules / Regels.
+4. Open in deze map het bestand: firestore.rules.
+5. Selecteer en kopieer alle tekst uit dat bestand.
+6. Verwijder in Firebase de oude regels en plak de nieuwe regels.
+7. Tik op: Publish / Publiceren.
+8. Upload daarna de webbestanden naar GitHub Pages.
+
+BELANGRIJK
+- Upload firestore.rules NIET naar GitHub om het te activeren.
+- De inhoud moet apart in Firebase bij Firestore Database > Regels worden geplakt.
+- Rinze logt in met rohogeterp@gmail.com en ziet daarna het menu Beheer.
+- Rinze nodigt een familielid uit met het juiste e-mailadres.
+- Het familielid opent Hogeterpjes, kiest “Eerste keer? Account aanmaken” en kiest zelf een wachtwoord.

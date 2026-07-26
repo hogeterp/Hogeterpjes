@@ -12,9 +12,9 @@
 
   <section id="loginScreen" class="login-screen">
     <div class="login-card">
-      <div class="login-logo">🏠❤️</div>
+      <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.1.4</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -27,7 +27,7 @@
         <button class="primary-btn wide" type="submit">Inloggen</button>
       </form>
 
-      <p class="login-help">Accounts worden door de familiebeheerder aangemaakt.</p>
+      <div class="login-links"><button id="showSignupBtn" type="button" class="text-btn">Eerste keer? Account aanmaken</button><button id="forgotPasswordBtn" type="button" class="text-btn">Wachtwoord vergeten</button></div><p class="login-help">Je kunt alleen een account maken als Rinze jouw e-mailadres eerst heeft uitgenodigd.</p>
       <p id="loginMessage" class="login-message"></p>
     </div>
   </section>
@@ -36,8 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <h1>Hogeterpjes</h1>
-          <span class="app-version">v1.1.4</span>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -163,6 +162,13 @@
         </div>
       </section>
 
+
+      <section class="page" data-page="beheer">
+        <div class="page-head"><div><p class="eyebrow">Alleen voor Rinze</p><h2>Accountbeheer</h2></div></div>
+        <div class="card settings"><h3>Familielid uitnodigen</h3><p>Vul het e-mailadres in. Het familielid maakt daarna zelf een wachtwoord.</p>
+          <form id="inviteForm"><label>Familielid<select id="inviteName" required></select></label><label>E-mailadres<input id="inviteEmail" type="email" required></label><button class="primary-btn wide" type="submit">Uitnodiging klaarzetten</button></form><p id="inviteMessage" class="login-message"></p></div>
+        <div class="card settings"><div class="section-head"><div><p class="eyebrow">Toegang</p><h3>Uitgenodigde accounts</h3></div></div><div id="accountList"></div></div>
+      </section>
       <section class="page" data-page="instellingen">
         <div class="page-head">
           <div><p class="eyebrow">Beheer</p><h2>Instellingen</h2></div>
@@ -198,6 +204,7 @@
     <button data-go="profiel">👤 Mijn profiel</button>
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
+    <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
 
@@ -244,6 +251,16 @@
     <div id="viewRecipeBody"></div>
   </dialog>
 
+
+  <dialog id="signupDialog" class="modal">
+    <form id="signupForm" method="dialog"><div class="sheet-head"><h3>Eigen account maken</h3><button type="button" data-close>✕</button></div>
+      <p class="muted">Gebruik precies het e-mailadres dat Rinze heeft uitgenodigd. Je kiest zelf je wachtwoord.</p>
+      <label>E-mailadres<input id="signupEmail" type="email" required></label>
+      <label>Nieuw wachtwoord<input id="signupPassword" type="password" minlength="6" required></label>
+      <label>Herhaal wachtwoord<input id="signupPassword2" type="password" minlength="6" required></label>
+      <button class="primary-btn wide" type="submit">Account aanmaken</button><p id="signupMessage" class="login-message"></p>
+    </form>
+  </dialog>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
