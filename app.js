@@ -290,11 +290,27 @@ loginForm.onsubmit=async e=>{
     return;
   }
   try{
-    const result=await auth.signInWithEmailAndPassword(loginEmail.value,loginPassword.value);
-    const profile=await loadUserProfile(result.user);
-    showLoggedIn(profile);
+    loginMessage.textContent="Bezig met inloggen…";
+    await auth.signInWithEmailAndPassword(
+      loginEmail.value.trim(),
+      loginPassword.value
+    );
+    loginMessage.textContent="";
   }catch(err){
-    loginMessage.textContent="Inloggen lukt niet. Controleer e-mailadres en wachtwoord.";
+    console.error("Firebase login error:", err.code, err.message);
+
+    const messages={
+      "auth/invalid-credential":"E-mailadres of wachtwoord is niet juist.",
+      "auth/wrong-password":"Het wachtwoord is niet juist.",
+      "auth/user-not-found":"Er bestaat geen account met dit e-mailadres.",
+      "auth/invalid-email":"Dit is geen geldig e-mailadres.",
+      "auth/user-disabled":"Dit account is uitgeschakeld.",
+      "auth/too-many-requests":"Te vaak geprobeerd. Wacht even en probeer later opnieuw.",
+      "auth/network-request-failed":"Geen goede internetverbinding. Probeer opnieuw.",
+      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase. Voeg hogeterp.github.io toe bij Authorized domains."
+    };
+
+    loginMessage.textContent=messages[err.code] || `Inloggen lukt niet (${err.code || "onbekende fout"}).`;
   }
 };
 
@@ -327,8 +343,22 @@ function initFirebase(){
     auth=firebase.auth();
     db=firebase.firestore();
     auth.onAuthStateChanged(async user=>{
-      if(user) showLoggedIn(await loadUserProfile(user));
-      else loginScreen.classList.remove("hidden");
+      try{
+        if(user){
+          loginMessage.textContent="";
+          const profile=await loadUserProfile(user);
+          showLoggedIn(profile);
+        }else{
+          loginScreen.classList.remove("hidden");
+        }
+      }catch(err){
+        console.error("Profiel laden mislukt:",err);
+        loginScreen.classList.remove("hidden");
+        loginMessage.textContent=
+          err.code==="permission-denied"
+            ? "Inloggen lukte, maar Firestore-regels geven nog geen toegang."
+            : "Inloggen lukte, maar het profiel kon niet worden geladen.";
+      }
     });
     firebaseStatus.textContent="Firebase gekoppeld";
     setSyncStatus("Wachten op inloggen");
@@ -349,7 +379,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.2");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.3");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
