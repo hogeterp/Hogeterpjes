@@ -538,9 +538,18 @@ async function loadUserProfile(user){
 
 function initFirebase(){
   const settings=window.HOGETERPJES_FIREBASE;
-  if(!settings?.useFirebase) return false;
+  if(!settings?.useFirebase){
+    loginMessage.textContent="Firebase-instellingen zijn niet geladen. Vernieuw de pagina.";
+    return false;
+  }
+  if(typeof window.firebase==="undefined"){
+    loginMessage.textContent="Firebase-bibliotheek is niet geladen. Controleer internet en vernieuw de pagina.";
+    return false;
+  }
   try{
-    firebase.initializeApp(settings.config);
+    if(!firebase.apps.length){
+      firebase.initializeApp(settings.config);
+    }
     auth=firebase.auth();
     db=firebase.firestore();
     auth.onAuthStateChanged(user=>{
@@ -565,8 +574,10 @@ function initFirebase(){
     setSyncStatus("Wachten op inloggen");
     return true;
   }catch(e){
+    console.error("Firebase startfout:", e);
     firebaseStatus.textContent="Firebase-configuratie bevat een fout";
     firebaseStatus.classList.add("error");
+    loginMessage.textContent=`Firebase starten lukt niet (${e?.code || e?.message || "onbekende fout"}).`;
     return false;
   }
 }
@@ -580,7 +591,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.2");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.3");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
