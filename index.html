@@ -9,13 +9,38 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <section id="loginScreen" class="login-screen">
+    <div class="login-card">
+      <div class="login-logo">🏠❤️</div>
+      <p class="eyebrow">Familie-app</p>
+      <h1>Hogeterpjes</h1>
+      <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
+
+      <form id="loginForm">
+        <label>E-mailadres
+          <input id="loginEmail" type="email" autocomplete="email" required>
+        </label>
+        <label>Wachtwoord
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+        </label>
+        <button class="primary-btn wide" type="submit">Inloggen</button>
+      </form>
+
+      <button id="demoLoginBtn" class="secondary-btn wide">Demomodus openen</button>
+      <p id="loginMessage" class="login-message"></p>
+    </div>
+  </section>
   <div class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">Familie-app</p>
+        <p class="eyebrow" id="topGreeting">Familie-app</p>
         <h1>Hogeterpjes</h1>
       </div>
-      <button id="themeBtn" class="icon-btn" aria-label="Donkere modus">🌙</button>
+      <div class="top-actions">
+        <button id="profileBtn" class="avatar-btn" aria-label="Profiel">?</button>
+        <button id="themeBtn" class="icon-btn" aria-label="Donkere modus">🌙</button>
+      </div>
     </header>
 
     <main id="app">
@@ -121,6 +146,20 @@
         <div id="wishList" class="list-grid"></div>
       </section>
 
+
+      <section class="page" data-page="profiel">
+        <div class="page-head">
+          <div><p class="eyebrow">Jouw account</p><h2>Profiel</h2></div>
+        </div>
+        <div class="card profile-card">
+          <div id="profileAvatar" class="profile-avatar">?</div>
+          <h3 id="profileName">Niet ingelogd</h3>
+          <p id="profileEmail" class="muted"></p>
+          <div id="profileHouseholds" class="chips"></div>
+          <button id="logoutBtn" class="secondary-btn wide">Uitloggen</button>
+        </div>
+      </section>
+
       <section class="page" data-page="instellingen">
         <div class="page-head">
           <div><p class="eyebrow">Beheer</p><h2>Instellingen</h2></div>
@@ -152,6 +191,7 @@
 
   <dialog id="moreDialog" class="sheet">
     <div class="sheet-head"><h3>Meer</h3><button data-close>✕</button></div>
+    <button data-go="profiel">👤 Mijn profiel</button>
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
@@ -200,6 +240,9 @@
     <div id="viewRecipeBody"></div>
   </dialog>
 
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="firebase-config.js"></script>
   <script src="app.js"></script>
 </body>

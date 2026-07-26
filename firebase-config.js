@@ -1,5 +1,5 @@
 // Vul deze gegevens later in vanuit Firebase > Projectinstellingen > Jouw apps.
-// Laat useFirebase op false staan zolang Firebase nog niet is gekoppeld.
+// Zodra de gegevens zijn ingevuld, zet je useFirebase op true.
 window.HOGETERPJES_FIREBASE = {
   useFirebase: false,
   config: {

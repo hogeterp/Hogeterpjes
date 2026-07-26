@@ -1,12 +1,12 @@
 const DEFAULT_DATA = {
   family: [
-    {name:"Rinze", birth:"1966-12-18"},
-    {name:"Christa", birth:"1971-03-08"},
-    {name:"Tessa", birth:"2000-06-20"},
-    {name:"Maaike", birth:"2002-02-28"},
-    {name:"Jasmijn", birth:"2005-10-25"},
-    {name:"Lisa", birth:"2011-08-05"},
-    {name:"Rivaldo", birth:"1999-04-21"}
+    {name:"Rinze", birth:"1966-12-18", email:""},
+    {name:"Christa", birth:"1971-03-08", email:""},
+    {name:"Tessa", birth:"2000-06-20", email:""},
+    {name:"Maaike", birth:"2002-02-28", email:""},
+    {name:"Jasmijn", birth:"2005-10-25", email:""},
+    {name:"Lisa", birth:"2011-08-05", email:""},
+    {name:"Rivaldo", birth:"1999-04-21", email:""}
   ],
   households: [
     {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa"]},
@@ -18,10 +18,15 @@ const DEFAULT_DATA = {
   groceries: [],
   wishes: []
 };
+
 const KEY="hogeterpjes-data-v1";
+const PROFILE_KEY="hogeterpjes-demo-profile";
 let data=loadData();
 let currentHousehold=data.households[0]?.id || "";
 let simpleMode="";
+let currentUser=null;
+let auth=null;
+let db=null;
 
 function cloneDefaults(){ return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
 function loadData(){
@@ -45,6 +50,8 @@ function nextBirthday(){
     return {...p,next,days:Math.round((next-now)/86400000)};
   }).sort((a,b)=>a.days-b.days)[0];
 }
+function initials(name=""){ return name.split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase() || "?"; }
+
 function navigate(page){
   if(page==="meer"){ document.querySelector("#moreDialog").showModal(); return; }
   document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
@@ -59,6 +66,7 @@ function bindNav(){
   });
 }
 function closeDialogs(){ document.querySelectorAll("dialog[open]").forEach(d=>d.close()); }
+
 function renderFamily(){
   familyList.innerHTML=data.family.map(p=>`<article class="item-card"><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar</div></article>`).join("");
 }
@@ -101,7 +109,18 @@ function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
   recipeAuthor.innerHTML=opts; wishPerson.innerHTML=opts; wishPersonFilter.innerHTML=`<option value="">Iedereen</option>${opts}`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); }
+function renderProfile(){
+  const name=currentUser?.displayName || currentUser?.name || "Niet ingelogd";
+  const email=currentUser?.email || "";
+  profileName.textContent=name;
+  profileEmail.textContent=email;
+  profileAvatar.textContent=initials(name);
+  profileBtn.textContent=initials(name);
+  topGreeting.textContent=currentUser ? `Hallo ${name}` : "Familie-app";
+  const houses=data.households.filter(h=>h.members.includes(name));
+  profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
+}
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); }
 
 function parseIngredients(text){
   return text.split("\n").map(x=>x.trim()).filter(Boolean).map(line=>{
@@ -109,10 +128,12 @@ function parseIngredients(text){
     return {amount:parts[0]||"",unit:parts[1]||"",name:parts.slice(2).join(" | ")||parts[1]||parts[0]};
   });
 }
+
 addRecipeBtn.onclick=()=>recipeDialog.showModal();
 addWishBtn.onclick=()=>wishDialog.showModal();
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>recipeDialog.showModal(),150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(()=>wishDialog.showModal(),150);
+
 recipeForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(recipeForm);
   data.recipes.unshift({id:crypto.randomUUID(),name:f.get("name"),servings:Number(f.get("servings")),photo:f.get("photo"),ingredients:parseIngredients(f.get("ingredients")),steps:f.get("steps").split("\n").filter(Boolean),author:f.get("author")});
@@ -123,6 +144,7 @@ wishForm.onsubmit=e=>{
   data.wishes.unshift({id:crypto.randomUUID(),person:f.get("person"),occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note")});
   wishForm.reset(); wishDialog.close(); saveData();
 };
+
 recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
 groceryHousehold.onchange=()=>{currentHousehold=groceryHousehold.value;renderGroceries();};
 
@@ -140,6 +162,7 @@ simpleForm.onsubmit=e=>{
   if(simpleMode==="household") data.households.push({id:crypto.randomUUID(),name:f.get("name"),members:f.getAll("members")});
   simpleForm.reset(); simpleDialog.close(); saveData();
 };
+
 window.toggleGrocery=id=>{const g=data.groceries.find(x=>x.id===id);if(g){g.done=!g.done;saveData();}};
 window.deleteGrocery=id=>{data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
 window.addRecipeToGroceries=id=>{
@@ -165,6 +188,79 @@ window.openRecipe=id=>{
 themeBtn.onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("hogeterpjes-theme",document.body.classList.contains("dark")?"dark":"light");themeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
 if(localStorage.getItem("hogeterpjes-theme")==="dark"){document.body.classList.add("dark");themeBtn.textContent="☀️";}
 resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recepten en wensen worden verwijderd.")){data=cloneDefaults();saveData();}};
-bindNav();renderAll();
 
+profileBtn.onclick=()=>navigate("profiel");
+logoutBtn.onclick=async()=>{
+  if(auth){ await auth.signOut(); }
+  currentUser=null;
+  localStorage.removeItem(PROFILE_KEY);
+  loginScreen.classList.remove("hidden");
+  renderProfile();
+};
+
+function showLoggedIn(user){
+  currentUser=user;
+  loginScreen.classList.add("hidden");
+  renderProfile();
+}
+
+demoLoginBtn.onclick=()=>{
+  const name=prompt("Met welk familielid wil je de demomodus openen?", "Lisa");
+  if(!name)return;
+  const match=data.family.find(p=>p.name.toLowerCase()===name.trim().toLowerCase());
+  const demo={name:match?.name || name.trim(), displayName:match?.name || name.trim(), email:"demomodus@hogeterpjes.nl"};
+  localStorage.setItem(PROFILE_KEY,JSON.stringify(demo));
+  showLoggedIn(demo);
+};
+
+loginForm.onsubmit=async e=>{
+  e.preventDefault();
+  loginMessage.textContent="";
+  if(!auth){
+    loginMessage.textContent="Firebase is nog niet gekoppeld. Gebruik voorlopig de demomodus.";
+    return;
+  }
+  try{
+    const result=await auth.signInWithEmailAndPassword(loginEmail.value,loginPassword.value);
+    const profile=await loadUserProfile(result.user);
+    showLoggedIn(profile);
+  }catch(err){
+    loginMessage.textContent="Inloggen lukt niet. Controleer e-mailadres en wachtwoord.";
+  }
+};
+
+async function loadUserProfile(user){
+  if(db){
+    const snap=await db.collection("profielen").doc(user.uid).get();
+    if(snap.exists) return {uid:user.uid,email:user.email,...snap.data()};
+  }
+  return {uid:user.uid,email:user.email,displayName:user.displayName || user.email?.split("@")[0]};
+}
+
+function initFirebase(){
+  const settings=window.HOGETERPJES_FIREBASE;
+  if(!settings?.useFirebase) return false;
+  try{
+    firebase.initializeApp(settings.config);
+    auth=firebase.auth();
+    db=firebase.firestore();
+    auth.onAuthStateChanged(async user=>{
+      if(user) showLoggedIn(await loadUserProfile(user));
+      else loginScreen.classList.remove("hidden");
+    });
+    firebaseStatus.textContent="Firebase gekoppeld";
+    return true;
+  }catch(e){
+    firebaseStatus.textContent="Firebase-configuratie bevat een fout";
+    return false;
+  }
+}
+
+bindNav();
+renderAll();
+const firebaseActive=initFirebase();
+if(!firebaseActive){
+  const demo=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null");
+  if(demo) showLoggedIn(demo);
+}
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("service-worker.js").catch(()=>{}); }

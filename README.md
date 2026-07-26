@@ -1,27 +1,21 @@
-# Hogeterpjes
+# Hogeterpjes v1.1
 
-Familie-app voor de familie Hogeterp.
+Nieuwe functies:
+- Inlogscherm
+- Firebase Authentication voorbereid
+- Persoonlijke begroeting
+- Profielpagina
+- Huishoudens bij het profiel
+- Uitloggen
+- Demomodus zolang Firebase nog niet gekoppeld is
 
-## In deze eerste versie
-- Familieleden en verjaardagen
-- Huishoudens
-- Recepten met porties en ingrediënten
-- Boodschappen per huishouden
-- Verlanglijstjes
-- Donkere modus
-- Installeren als webapp
-- Lokale opslag als veilige start
+## Uploaden
+Upload alle bestanden opnieuw naar de bestaande GitHub-repository en overschrijf de oude versies.
 
-## GitHub Pages activeren
-1. Open de repository op GitHub.
-2. Ga naar **Settings**.
-3. Kies **Pages**.
-4. Bij **Source** kies je **Deploy from a branch**.
-5. Kies branch **main** en map **/(root)**.
-6. Tik op **Save**.
-
-De website verschijnt daarna op:
-`https://hogeterp.github.io/Hogeterpjes/`
-
-## Firebase
-Firebase is nog niet actief. Vul later `firebase-config.js` in en zet `useFirebase` op `true`.
+## Daarna
+Koppel Firebase Authentication:
+1. Maak of open het Firebase-project.
+2. Voeg een web-app toe.
+3. Kopieer de configuratie naar `firebase-config.js`.
+4. Zet `useFirebase` op `true`.
+5. Schakel bij Authentication de methode E-mail/wachtwoord in.
