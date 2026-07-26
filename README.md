@@ -1,21 +1,18 @@
-# Hogeterpjes v1.1
+# Hogeterpjes v1.1.1
 
-Nieuwe functies:
-- Inlogscherm
-- Firebase Authentication voorbereid
-- Persoonlijke begroeting
-- Profielpagina
-- Huishoudens bij het profiel
-- Uitloggen
-- Demomodus zolang Firebase nog niet gekoppeld is
+Nieuw en opgelost:
+- Klein versienummer `v1.1.1` bij de titel
+- Versienummer ook zichtbaar op het inlogscherm
+- Fout bij het tonen van de eerstvolgende verjaardag opgelost
+- Verbeterde cache- en updatefunctie
+- Oude appbestanden worden na een update automatisch verwijderd
+- Inlogscherm, demomodus en profielpagina uit v1.1.0
 
 ## Uploaden
-Upload alle bestanden opnieuw naar de bestaande GitHub-repository en overschrijf de oude versies.
+1. Pak het zipbestand uit.
+2. Upload alle losse bestanden naar de bestaande repository `Hogeterpjes`.
+3. Vervang de bestaande bestanden.
+4. Druk op **Commit changes**.
+5. Wacht tot GitHub Pages opnieuw is gepubliceerd.
 
-## Daarna
-Koppel Firebase Authentication:
-1. Maak of open het Firebase-project.
-2. Voeg een web-app toe.
-3. Kopieer de configuratie naar `firebase-config.js`.
-4. Zet `useFirebase` op `true`.
-5. Schakel bij Authentication de methode E-mail/wachtwoord in.
+Na de upload moet bij `Hogeterpjes` klein **v1.1.1** staan.

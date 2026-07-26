@@ -41,7 +41,7 @@ function ageFor(iso){
   const b=new Date(iso+"T12:00:00"), n=new Date(); let a=n.getFullYear()-b.getFullYear();
   if(n < new Date(n.getFullYear(),b.getMonth(),b.getDate())) a--; return a;
 }
-function nextBirthday(){
+function getNextBirthday(){
   const now=new Date(); now.setHours(0,0,0,0);
   return data.family.map(p=>{
     const b=new Date(p.birth+"T12:00:00");
@@ -102,8 +102,8 @@ function renderWishes(){
 }
 function renderHome(){
   statFamily.textContent=data.family.length; statHouseholds.textContent=data.households.length; statRecipes.textContent=data.recipes.length; statWishes.textContent=data.wishes.length;
-  const b=nextBirthday();
-  nextBirthday.innerHTML=b?`<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`:"";
+  const b=getNextBirthday();
+  document.getElementById("nextBirthday").innerHTML=b?`<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`:"";
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -263,4 +263,20 @@ if(!firebaseActive){
   const demo=JSON.parse(localStorage.getItem(PROFILE_KEY)||"null");
   if(demo) showLoggedIn(demo);
 }
-if("serviceWorker" in navigator){ navigator.serviceWorker.register("service-worker.js").catch(()=>{}); }
+if("serviceWorker" in navigator){
+  window.addEventListener("load", async ()=>{
+    try{
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.1.1");
+      await registration.update();
+      let refreshing=false;
+      navigator.serviceWorker.addEventListener("controllerchange",()=>{
+        if(refreshing)return;
+        refreshing=true;
+        window.location.reload();
+      });
+      if(registration.waiting) registration.waiting.postMessage({type:"SKIP_WAITING"});
+    }catch(e){
+      console.warn("Service worker kon niet worden bijgewerkt.",e);
+    }
+  });
+}

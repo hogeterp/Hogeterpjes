@@ -43,3 +43,8 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .login-card h1{font-size:2.3rem;margin:.2rem 0}.login-logo{font-size:3.2rem}.login-intro{color:var(--muted);line-height:1.5}
 .login-message{min-height:1.4em;color:#b33434;font-weight:700;text-align:center}
 .profile-card{text-align:center}.profile-avatar{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;background:var(--primary);color:white;font-size:2.2rem;font-weight:900}
+
+.title-with-version{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.title-with-version h1{margin-right:0}
+.app-version{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.03em;white-space:nowrap}
+.login-card .app-version{font-size:10px}
