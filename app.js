@@ -718,6 +718,112 @@ function parseNumberValue(value){
   return null;
 }
 
+
+const INGREDIENT_UNITS=[
+  ["","Geen eenheid"],
+  ["g","g"],
+  ["kg","kg"],
+  ["ml","ml"],
+  ["l","liter"],
+  ["tl","tl"],
+  ["el","el"],
+  ["stuk","stuk"],
+  ["stuks","stuks"],
+  ["blik","blik"],
+  ["pak","pak"],
+  ["zakje","zakje"],
+  ["snufje","snufje"],
+  ["teen","teen"],
+  ["tenen","tenen"],
+  ["bosje","bosje"],
+  ["kopje","kopje"]
+];
+
+function ingredientUnitOptions(selected=""){
+  return INGREDIENT_UNITS.map(([value,label])=>
+    `<option value="${value}" ${value===selected?"selected":""}>${label}</option>`
+  ).join("");
+}
+
+function addIngredientRow(ingredient={amount:"",unit:"",name:""}){
+  const row=document.createElement("div");
+  row.className="ingredient-entry";
+  row.innerHTML=`
+    <div class="ingredient-entry-top">
+      <span>Ingrediënt</span>
+      <button class="ingredient-remove" type="button" aria-label="Ingrediënt verwijderen">🗑️</button>
+    </div>
+    <input class="ingredient-name" type="text" placeholder="Bijvoorbeeld: slagroom" value="${escapeHtml(ingredient.name||"")}">
+    <div class="ingredient-amount-row">
+      <label>
+        <span>Hoeveelheid</span>
+        <input class="ingredient-amount" type="text" inputmode="decimal" placeholder="Bijv. 0,5" value="${escapeHtml(String(ingredient.amount||""))}">
+      </label>
+      <label>
+        <span>Eenheid</span>
+        <select class="ingredient-unit">${ingredientUnitOptions(ingredient.unit||"")}</select>
+      </label>
+    </div>
+  `;
+
+  row.querySelector(".ingredient-remove").onclick=()=>{
+    row.remove();
+    if(!ingredientRows.children.length) addIngredientRow();
+    updateIngredientRemoveButtons();
+  };
+
+  ingredientRows.appendChild(row);
+  updateIngredientRemoveButtons();
+}
+
+function updateIngredientRemoveButtons(){
+  const buttons=[...ingredientRows.querySelectorAll(".ingredient-remove")];
+  buttons.forEach(button=>{
+    button.disabled=buttons.length===1;
+    button.title=buttons.length===1 ? "Minimaal één ingrediënt nodig" : "Ingrediënt verwijderen";
+  });
+}
+
+function resetIngredientEditor(ingredients=[]){
+  ingredientRows.innerHTML="";
+  const rows=ingredients.length ? ingredients : [{amount:"",unit:"",name:""}];
+  rows.forEach(addIngredientRow);
+  ingredientError.textContent="";
+}
+
+function collectIngredientRows(){
+  const rows=[...ingredientRows.querySelectorAll(".ingredient-entry")].map(row=>({
+    name:row.querySelector(".ingredient-name").value.trim(),
+    amount:row.querySelector(".ingredient-amount").value.trim().replace(".",","),
+    unit:row.querySelector(".ingredient-unit").value
+  }));
+
+  return rows.filter(item=>item.name || item.amount || item.unit);
+}
+
+function validateIngredientRows(ingredients){
+  if(!ingredients.length){
+    ingredientError.textContent="Voeg minimaal één ingrediënt toe.";
+    return false;
+  }
+
+  if(ingredients.some(item=>!item.name)){
+    ingredientError.textContent="Vul bij ieder ingrediënt een naam in.";
+    return false;
+  }
+
+  const invalidAmount=ingredients.find(item=>
+    item.amount && parseNumberValue(item.amount)===null
+  );
+  if(invalidAmount){
+    ingredientError.textContent=`"${invalidAmount.amount}" is geen geldige hoeveelheid. Gebruik bijvoorbeeld 0,5 of 1/2.`;
+    return false;
+  }
+
+  ingredientError.textContent="";
+  return true;
+}
+
 function parseIngredientLine(line){
   const clean=String(line||"").trim();
   if(!clean) return null;
@@ -990,7 +1096,7 @@ window.deleteAgendaEvent=(id,visibility)=>{
   saveData();
 };
 
-addRecipeBtn.onclick=()=>{ resetRecipePhoto(); recipeDialog.showModal(); };
+addRecipeBtn.onclick=()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); };
 function openWishDialog(){
   fillSelects();
   resetWishPhoto();
@@ -998,14 +1104,31 @@ function openWishDialog(){
   wishDialog.showModal();
 }
 addWishBtn.onclick=openWishDialog;
-document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); recipeDialog.showModal(); },150);
+document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); },150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 
+addIngredientRowBtn.onclick=()=>addIngredientRow();
+
 recipeForm.onsubmit=e=>{
-  e.preventDefault(); const f=new FormData(recipeForm);
-  data.recipes.unshift({id:crypto.randomUUID(),name:f.get("name"),servings:Number(f.get("servings")),photo:recipePhotoData.value,ingredients:parseIngredients(f.get("ingredients")),steps:f.get("steps").split("\n").filter(Boolean),author:f.get("author")});
+  e.preventDefault();
+  const f=new FormData(recipeForm);
+  const ingredients=collectIngredientRows();
+
+  if(!validateIngredientRows(ingredients)) return;
+
+  data.recipes.unshift({
+    id:crypto.randomUUID(),
+    name:String(f.get("name")||"").trim(),
+    servings:Number(f.get("servings")),
+    photo:recipePhotoData.value,
+    ingredients,
+    steps:String(f.get("steps")||"").split("\n").map(x=>x.trim()).filter(Boolean),
+    author:f.get("author")
+  });
+
   recipeForm.reset();
   resetRecipePhoto();
+  resetIngredientEditor();
   recipeDialog.close();
   saveData();
 };
@@ -1476,6 +1599,7 @@ function initFirebase(){
 }
 
 bindNav();
+resetIngredientEditor();
 renderAll();
 const firebaseActive=initFirebase();
 if(!firebaseActive){
@@ -1484,7 +1608,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.9");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.0");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -140,3 +140,27 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 @media(max-width:480px){
   .member-checks{grid-template-columns:1fr}
 }
+
+
+.ingredient-editor{margin:0 0 16px}
+.ingredient-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ingredient-editor-head>div{display:flex;flex-direction:column;gap:3px}
+.ingredient-editor-head small{color:var(--muted)}
+.compact-btn{padding:9px 12px;white-space:nowrap}
+.ingredient-rows{display:grid;gap:10px}
+.ingredient-entry{border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:11px}
+.ingredient-entry-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.ingredient-entry-top span{font-size:.82rem;font-weight:800;color:var(--muted)}
+.ingredient-remove{border:0;background:transparent;padding:4px 6px;font-size:1rem;border-radius:8px}
+.ingredient-remove:disabled{opacity:.3}
+.ingredient-entry input,.ingredient-entry select{margin:0}
+.ingredient-name{width:100%;margin-bottom:8px!important}
+.ingredient-amount-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,.8fr);gap:8px}
+.ingredient-amount-row label{margin:0;display:flex;flex-direction:column;gap:4px}
+.ingredient-amount-row label span{font-size:.75rem;color:var(--muted);font-weight:700}
+@media(max-width:430px){
+  .ingredient-editor-head{align-items:stretch}
+  .ingredient-editor-head .compact-btn{padding:8px 9px;font-size:.85rem}
+  .ingredient-entry{padding:9px}
+  .ingredient-amount-row{grid-template-columns:1fr 105px}
+}
