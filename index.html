@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.0">
-  <link rel="stylesheet" href="style.css?v=1.3.0">
+  <link rel="manifest" href="manifest.json?v=1.2.7">
+  <link rel="stylesheet" href="style.css?v=1.2.7">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.0</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.0</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -47,49 +47,16 @@
 
     <main id="app">
       <section class="page active" data-page="home">
-        <div class="hero card dashboard-hero">
+        <div class="hero card">
           <div>
-            <p class="eyebrow" id="dashboardDate">Vandaag</p>
-            <h2 id="dashboardWelcome">Welkom bij Hogeterpjes</h2>
-            <p>Alles wat vandaag en deze week belangrijk is, op één plek.</p>
+            <p class="eyebrow">Alles op één plek</p>
+            <h2>Welkom bij Hogeterpjes</h2>
+            <p>Recepten, boodschappen, verlanglijstjes en huishoudens voor de hele familie.</p>
           </div>
           <div class="hero-badge">🏠❤️</div>
         </div>
 
-        <div class="dashboard-grid">
-          <section class="card dashboard-card">
-            <div class="section-head">
-              <div><p class="eyebrow">Vandaag</p><h3>🍽️ Op het menu</h3></div>
-              <button class="text-btn" data-go="weekmenu">Open</button>
-            </div>
-            <div id="dashboardMeals"></div>
-          </section>
-
-          <section class="card dashboard-card">
-            <div class="section-head">
-              <div><p class="eyebrow">Agenda</p><h3>📅 Vandaag en binnenkort</h3></div>
-              <button class="text-btn" data-go="agenda">Open</button>
-            </div>
-            <div id="dashboardAgenda"></div>
-          </section>
-
-          <section class="card dashboard-card">
-            <div class="section-head">
-              <div><p class="eyebrow">Boodschappen</p><h3>🛒 Nog te halen</h3></div>
-              <button class="text-btn" data-go="boodschappen">Open</button>
-            </div>
-            <div id="dashboardGroceries"></div>
-          </section>
-
-          <section class="card dashboard-card">
-            <div class="section-head">
-              <div><p class="eyebrow">Familie</p><h3>🎂 Eerstvolgende verjaardag</h3></div>
-            </div>
-            <div id="nextBirthday" class="birthday-box"></div>
-          </section>
-        </div>
-
-        <div class="stats-grid dashboard-stats">
+        <div class="stats-grid">
           <button class="stat card" data-go="familie">
             <strong id="statFamily">7</strong><span>familieleden</span>
           </button>
@@ -106,13 +73,26 @@
 
         <section class="card">
           <div class="section-head">
-            <div><p class="eyebrow">Snel toevoegen</p><h3>Wat wil je doen?</h3></div>
+            <div>
+              <p class="eyebrow">Binnenkort</p>
+              <h3>Eerstvolgende verjaardag</h3>
+            </div>
+          </div>
+          <div id="nextBirthday" class="birthday-box"></div>
+        </section>
+
+        <section class="card">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Snel toevoegen</p>
+              <h3>Wat wil je doen?</h3>
+            </div>
           </div>
           <div class="quick-grid">
             <button data-go="recepten" data-action="add-recipe">🍽️ Recept</button>
             <button data-go="boodschappen">🛒 Boodschap</button>
             <button data-go="verlanglijstjes" data-action="add-wish">🎁 Wens</button>
-            <button data-go="weekmenu">📅 Weekmenu</button>
+            <button data-go="huishoudens">🏡 Huishouden</button>
           </div>
         </section>
       </section>
@@ -129,7 +109,6 @@
           <div><p class="eyebrow">Samen wonen</p><h2>Huishoudens</h2></div>
           <button id="addHouseholdBtn" class="primary-btn">+ Nieuw</button>
         </div>
-        <div class="card household-help">Een familielid kan in meerdere huishoudens tegelijk zitten.</div>
         <div id="householdList" class="list-grid"></div>
       </section>
 
@@ -173,39 +152,6 @@
       </section>
 
 
-
-
-      <section class="page" data-page="weekmenu">
-        <div class="page-head">
-          <div><p class="eyebrow">Per huishouden</p><h2>Weekmenu</h2></div>
-          <button id="addWeekMealBtn" class="primary-btn">+ Gerecht</button>
-        </div>
-
-        <div class="card weekmenu-toolbar">
-          <label>Huishouden
-            <select id="weekmenuHousehold"></select>
-          </label>
-          <div class="week-switcher">
-            <button id="previousWeekBtn" class="secondary-btn" type="button">← Vorige</button>
-            <div>
-              <strong id="weekmenuWeekLabel">Deze week</strong>
-              <small id="weekmenuDateRange"></small>
-            </div>
-            <button id="nextWeekBtn" class="secondary-btn" type="button">Volgende →</button>
-          </div>
-        </div>
-
-        <div class="weekmenu-actions">
-          <button id="copyWeekmenuBtn" class="secondary-btn" type="button">📄 Kopieer naar volgende week</button>
-          <button id="weekmenuGroceriesBtn" class="primary-btn" type="button">🛒 Maak boodschappenlijst</button>
-        </div>
-
-        <div class="card weekmenu-privacy">
-          🏡 Alleen leden van het gekozen huishouden kunnen dit weekmenu zien en wijzigen.
-        </div>
-
-        <div id="weekmenuList" class="weekmenu-grid"></div>
-      </section>
 
       <section class="page" data-page="agenda">
         <div class="page-head">
@@ -293,7 +239,6 @@
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="agenda">📅 Agenda</button>
-    <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -321,17 +266,9 @@
         </div>
         <input id="recipePhotoData" name="photo" type="hidden">
       </div>
-      <div class="ingredient-editor">
-        <div class="ingredient-editor-head">
-          <div>
-            <span class="field-label">Ingrediënten</span>
-            <small>Vul per ingrediënt de naam, hoeveelheid en eenheid in.</small>
-          </div>
-          <button id="addIngredientRowBtn" class="secondary-btn compact-btn" type="button">+ Ingrediënt</button>
-        </div>
-        <div id="ingredientRows" class="ingredient-rows"></div>
-        <p id="ingredientError" class="login-message"></p>
-      </div>
+      <label>Ingrediënten <small>Één per regel, bijvoorbeeld: 250 | gram | bloem</small>
+        <textarea name="ingredients" rows="7" required></textarea>
+      </label>
       <label>Bereiding <small>Één stap per regel</small>
         <textarea name="steps" rows="6" required></textarea>
       </label>
@@ -385,69 +322,6 @@
   </dialog>
 
 
-
-
-
-  <dialog id="householdEditDialog" class="modal">
-    <form id="householdEditForm" method="dialog">
-      <div class="sheet-head"><h3 id="householdEditTitle">Huishouden bewerken</h3><button type="button" data-close>✕</button></div>
-      <input id="householdEditId" type="hidden">
-
-      <label>Naam
-        <input id="householdEditName" required>
-      </label>
-
-      <fieldset class="member-fieldset">
-        <legend>Leden</legend>
-        <p class="muted">Een persoon mag bij meerdere huishoudens horen.</p>
-        <div id="householdMemberChecks" class="member-checks"></div>
-      </fieldset>
-
-      <p id="householdEditMessage" class="login-message"></p>
-      <button class="primary-btn wide" type="submit">Opslaan</button>
-      <button id="deleteHouseholdBtn" class="secondary-btn wide danger-button" type="button">Huishouden verwijderen</button>
-    </form>
-  </dialog>
-
-  <dialog id="weekMealDialog" class="modal">
-    <form id="weekMealForm" method="dialog">
-      <div class="sheet-head"><h3>Gerecht plannen</h3><button type="button" data-close>✕</button></div>
-
-      <label>Dag
-        <select id="weekMealDay" name="day" required>
-          <option value="0">Maandag</option>
-          <option value="1">Dinsdag</option>
-          <option value="2">Woensdag</option>
-          <option value="3">Donderdag</option>
-          <option value="4">Vrijdag</option>
-          <option value="5">Zaterdag</option>
-          <option value="6">Zondag</option>
-        </select>
-      </label>
-
-      <label>Hoe wil je het gerecht invullen?
-        <select id="weekMealType" name="mealType">
-          <option value="recipe">Kies bestaand recept</option>
-          <option value="manual">Zelf gerecht typen</option>
-        </select>
-      </label>
-
-      <label id="weekMealRecipeLabel">Recept
-        <select id="weekMealRecipe" name="recipeId"></select>
-      </label>
-
-      <label id="weekMealManualLabel" class="hidden">Gerecht
-        <input id="weekMealManual" name="manualName" placeholder="Bijvoorbeeld: Broodjes hamburger">
-      </label>
-
-      <label>Opmerking
-        <textarea name="note" rows="3" placeholder="Optioneel"></textarea>
-      </label>
-
-      <input id="weekMealEditId" name="editId" type="hidden">
-      <button class="primary-btn wide" type="submit">Opslaan</button>
-    </form>
-  </dialog>
 
   <dialog id="agendaDialog" class="modal">
     <form id="agendaForm" method="dialog">
@@ -504,7 +378,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.0"></script>
-  <script src="app.js?v=1.3.0"></script>
+  <script src="firebase-config.js?v=1.2.7"></script>
+  <script src="app.js?v=1.2.7"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@ const DEFAULT_DATA = {
     {name:"Rivaldo", birth:"1999-04-21", email:""}
   ],
   households: [
-    {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa","Jasmijn","Maaike"]},
+    {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa"]},
     {id:crypto.randomUUID(), name:"Tessa & Rivaldo", members:["Tessa","Rivaldo"]},
     {id:crypto.randomUUID(), name:"Maaike", members:["Maaike"]},
     {id:crypto.randomUUID(), name:"Jasmijn", members:["Jasmijn"]}
@@ -17,8 +17,7 @@ const DEFAULT_DATA = {
   recipes: [],
   groceries: [],
   wishes: [],
-  events: [],
-  weekMenus: []
+  events: []
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -27,8 +26,6 @@ const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 let data=loadData();
 let currentHousehold=data.households[0]?.id || "";
-let currentWeekmenuHousehold="";
-let currentWeekStart=getMonday(new Date());
 let simpleMode="";
 let currentUser=null;
 let auth=null;
@@ -128,8 +125,7 @@ function subscribeToCloudData(){
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
-          events:Array.isArray(remote.events)?remote.events:[],
-          weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[]
+          events:Array.isArray(remote.events)?remote.events:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -180,165 +176,6 @@ function canManageWish(wish){
   return wish.person===currentPersonName();
 }
 
-
-
-const WEEK_DAYS=["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
-
-function getMonday(value){
-  const date=new Date(value);
-  date.setHours(12,0,0,0);
-  const day=date.getDay();
-  const diff=day===0 ? -6 : 1-day;
-  date.setDate(date.getDate()+diff);
-  return date;
-}
-
-function isoDate(date){
-  const d=new Date(date);
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,"0");
-  const day=String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
-}
-
-function addDays(date,days){
-  const d=new Date(date);
-  d.setDate(d.getDate()+days);
-  return d;
-}
-
-function getIsoWeek(date){
-  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
-  const dayNum=d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate()+4-dayNum);
-  const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  return Math.ceil((((d-yearStart)/86400000)+1)/7);
-}
-
-function accessibleHouseholds(){
-  const ids=userHouseholdIds();
-  return data.households.filter(h=>ids.includes(h.id));
-}
-
-function weekMenuKey(){
-  return isoDate(currentWeekStart);
-}
-
-function getWeekMeals(householdId=currentWeekmenuHousehold,weekStart=weekMenuKey()){
-  return (data.weekMenus || []).filter(m=>m.householdId===householdId && m.weekStart===weekStart);
-}
-
-function getMealForDay(dayIndex){
-  return getWeekMeals().find(m=>Number(m.dayIndex)===Number(dayIndex));
-}
-
-function recipeMealName(meal){
-  if(meal.recipeId){
-    return data.recipes.find(r=>r.id===meal.recipeId)?.name || meal.name || "Onbekend recept";
-  }
-  return meal.name || "Gerecht";
-}
-
-function formatWeekRange(){
-  const end=addDays(currentWeekStart,6);
-  const formatter=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"});
-  return `${formatter.format(currentWeekStart)} t/m ${formatter.format(end)}`;
-}
-
-function fillWeekmenuHouseholds(){
-  if(!window.weekmenuHousehold) return;
-  const allowed=accessibleHouseholds();
-
-  if(!allowed.some(h=>h.id===currentWeekmenuHousehold)){
-    currentWeekmenuHousehold=allowed[0]?.id || "";
-  }
-
-  weekmenuHousehold.innerHTML=allowed.length
-    ? allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("")
-    : `<option value="">Geen huishouden gekoppeld</option>`;
-  weekmenuHousehold.value=currentWeekmenuHousehold;
-
-  addWeekMealBtn.disabled=!currentWeekmenuHousehold;
-  copyWeekmenuBtn.disabled=!currentWeekmenuHousehold;
-  weekmenuGroceriesBtn.disabled=!currentWeekmenuHousehold;
-}
-
-function renderWeekmenu(){
-  if(!window.weekmenuList) return;
-  fillWeekmenuHouseholds();
-
-  const weekNumber=getIsoWeek(currentWeekStart);
-  weekmenuWeekLabel.textContent=`Week ${weekNumber}`;
-  weekmenuDateRange.textContent=formatWeekRange();
-
-  if(!currentWeekmenuHousehold){
-    weekmenuList.innerHTML=`<div class="card muted">Je account is nog niet gekoppeld aan een huishouden.</div>`;
-    return;
-  }
-
-  weekmenuList.innerHTML=WEEK_DAYS.map((day,index)=>{
-    const meal=getMealForDay(index);
-    const actualDate=addDays(currentWeekStart,index);
-    const dateLabel=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"}).format(actualDate);
-
-    return `<article class="card weekmenu-day ${meal?"has-meal":""}">
-      <div class="weekmenu-day-head">
-        <div><span>${dateLabel}</span><h3>${day}</h3></div>
-        ${meal?`<button class="mini-btn danger-mini" type="button" onclick="deleteWeekMeal('${meal.id}')">Verwijder</button>`:""}
-      </div>
-      ${meal?`
-        <button class="weekmenu-meal" type="button" onclick="editWeekMeal('${meal.id}')">
-          <strong>${meal.recipeId?"📖":"🍽️"} ${recipeMealName(meal)}</strong>
-          ${meal.note?`<span>${meal.note}</span>`:""}
-          <small>Tik om te wijzigen</small>
-        </button>
-      `:`
-        <button class="weekmenu-empty" type="button" onclick="openWeekMealForDay(${index})">+ Gerecht toevoegen</button>
-      `}
-    </article>`;
-  }).join("");
-}
-
-function showWeekMealFields(){
-  const manual=weekMealType.value==="manual";
-  weekMealManualLabel.classList.toggle("hidden",!manual);
-  weekMealRecipeLabel.classList.toggle("hidden",manual);
-  weekMealManual.required=manual;
-  weekMealRecipe.required=!manual;
-}
-
-function fillWeekMealRecipes(){
-  weekMealRecipe.innerHTML=data.recipes.length
-    ? data.recipes.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")
-    : `<option value="">Nog geen recepten beschikbaar</option>`;
-}
-
-function openWeekMealDialog(dayIndex=0,meal=null){
-  if(!currentWeekmenuHousehold) return;
-  weekMealForm.reset();
-  fillWeekMealRecipes();
-  weekMealDay.value=String(dayIndex);
-  weekMealEditId.value=meal?.id || "";
-
-  if(meal){
-    weekMealType.value=meal.recipeId ? "recipe" : "manual";
-    weekMealRecipe.value=meal.recipeId || "";
-    weekMealManual.value=meal.name || "";
-    weekMealForm.elements.note.value=meal.note || "";
-  }else{
-    weekMealType.value=data.recipes.length ? "recipe" : "manual";
-  }
-
-  showWeekMealFields();
-  weekMealDialog.showModal();
-}
-
-function scaledIngredientText(ingredient,recipeServings,householdSize){
-  const i=normalizeIngredient(ingredient);
-  const factor=householdSize/Math.max(1,Number(recipeServings)||1);
-  const amount=formatScaledAmount(i.amount,factor);
-  return [amount,i.unit,i.name].filter(Boolean).join(" ");
-}
 
 function loadPrivateEvents(){
   try{
@@ -455,27 +292,10 @@ function renderFamily(){
   </article>`).join("");
 }
 function renderHouseholds(){
-  const admin=isAdmin();
-  const visibleHouseholds=admin ? data.households : accessibleHouseholds();
-
-  householdList.innerHTML=visibleHouseholds.length ? visibleHouseholds.map(h=>`<article class="item-card">
-    <div class="family-card-head">
-      <div>
-        <h3>🏡 ${h.name}</h3>
-        <div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div>
-      </div>
-      ${admin?`<button class="mini-btn" type="button" onclick="openHouseholdEditor('${h.id}')">Bewerken</button>`:""}
-    </div>
-  </article>`).join("") : `<div class="card muted">Je bent nog niet aan een huishouden gekoppeld.</div>`;
-
-  addHouseholdBtn.classList.toggle("hidden",!admin);
-  groceryHousehold.innerHTML=accessibleHouseholds().map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
-
-  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)){
-    currentHousehold=accessibleHouseholds()[0]?.id||"";
-  }
+  householdList.innerHTML=data.households.map(h=>`<article class="item-card"><h3>🏡 ${h.name}</h3><div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div></article>`).join("") || `<div class="card muted">Nog geen huishoudens.</div>`;
+  groceryHousehold.innerHTML=data.households.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
+  if(!data.households.some(h=>h.id===currentHousehold)) currentHousehold=data.households[0]?.id||"";
   groceryHousehold.value=currentHousehold;
-  fillWeekmenuHouseholds();
 }
 
 function resetRecipePhoto(){
@@ -613,62 +433,9 @@ function renderWishes(){
   </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
 }
 function renderHome(){
-  statFamily.textContent=data.family.length;
-  statHouseholds.textContent=data.households.length;
-  statRecipes.textContent=data.recipes.length;
-  statWishes.textContent=data.wishes.filter(w=>w.person===currentPersonName()).length;
-
-  const now=new Date();
-  const todayIso=isoDate(now);
-  const person=currentPersonName() || "familielid";
-  dashboardWelcome.textContent=`Hallo ${person}`;
-  dashboardDate.textContent=new Intl.DateTimeFormat("nl-NL",{
-    weekday:"long",day:"numeric",month:"long",year:"numeric"
-  }).format(now);
-
+  statFamily.textContent=data.family.length; statHouseholds.textContent=data.households.length; statRecipes.textContent=data.recipes.length; statWishes.textContent=data.wishes.length;
   const b=getNextBirthday();
-  document.getElementById("nextBirthday").innerHTML=b
-    ? `<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`
-    : `<div class="muted">Geen verjaardag gevonden.</div>`;
-
-  const houses=accessibleHouseholds();
-  const monday=isoDate(getMonday(now));
-  const dayIndex=(now.getDay()+6)%7;
-  const meals=(data.weekMenus || []).filter(m=>
-    houses.some(h=>h.id===m.householdId) &&
-    m.weekStart===monday &&
-    Number(m.dayIndex)===dayIndex
-  );
-
-  dashboardMeals.innerHTML=meals.length ? meals.map(meal=>{
-    const house=data.households.find(h=>h.id===meal.householdId);
-    return `<div class="dashboard-row"><div><strong>${recipeMealName(meal)}</strong><span>${house?.name || ""}</span></div></div>`;
-  }).join("") : `<p class="muted">Voor vandaag staat nog niets gepland.</p>`;
-
-  const visibleAgenda=getVisibleAgendaEvents()
-    .filter(e=>e.date>=todayIso)
-    .sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")))
-    .slice(0,4);
-
-  dashboardAgenda.innerHTML=visibleAgenda.length ? visibleAgenda.map(e=>`
-    <div class="dashboard-row">
-      <div><strong>${e.title}</strong><span>${formatAgendaDate(e)} · ${agendaScopeLabel(e)}</span></div>
-    </div>
-  `).join("") : `<p class="muted">Geen komende afspraken.</p>`;
-
-  const groceryRows=(data.groceries || []).filter(g=>
-    houses.some(h=>h.id===g.householdId) && !g.done
-  );
-  const groceryByHouse=houses.map(h=>({
-    house:h,
-    count:groceryRows.filter(g=>g.householdId===h.id).length
-  })).filter(x=>x.count>0);
-
-  dashboardGroceries.innerHTML=groceryByHouse.length ? groceryByHouse.map(x=>`
-    <div class="dashboard-row">
-      <div><strong>${x.count} ${x.count===1?"product":"producten"}</strong><span>${x.house.name}</span></div>
-    </div>
-  `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
+  document.getElementById("nextBirthday").innerHTML=b?`<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`:"";
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -700,10 +467,10 @@ function renderProfile(){
 
   profileBtn.textContent=initials(name);
   topGreeting.textContent=currentUser ? `Hallo ${name}` : "Familie-app";
-  const houses=data.households.filter(h=>h.members.includes(currentPersonName()));
+  const houses=data.households.filter(h=>h.members.includes(name));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -716,112 +483,6 @@ function parseNumberValue(value){
   }
   if(/^\d+(?:\.\d+)?$/.test(raw)) return Number(raw);
   return null;
-}
-
-
-const INGREDIENT_UNITS=[
-  ["","Geen eenheid"],
-  ["g","g"],
-  ["kg","kg"],
-  ["ml","ml"],
-  ["l","liter"],
-  ["tl","tl"],
-  ["el","el"],
-  ["stuk","stuk"],
-  ["stuks","stuks"],
-  ["blik","blik"],
-  ["pak","pak"],
-  ["zakje","zakje"],
-  ["snufje","snufje"],
-  ["teen","teen"],
-  ["tenen","tenen"],
-  ["bosje","bosje"],
-  ["kopje","kopje"]
-];
-
-function ingredientUnitOptions(selected=""){
-  return INGREDIENT_UNITS.map(([value,label])=>
-    `<option value="${value}" ${value===selected?"selected":""}>${label}</option>`
-  ).join("");
-}
-
-function addIngredientRow(ingredient={amount:"",unit:"",name:""}){
-  const row=document.createElement("div");
-  row.className="ingredient-entry";
-  row.innerHTML=`
-    <div class="ingredient-entry-top">
-      <span>Ingrediënt</span>
-      <button class="ingredient-remove" type="button" aria-label="Ingrediënt verwijderen">🗑️</button>
-    </div>
-    <input class="ingredient-name" type="text" placeholder="Bijvoorbeeld: slagroom" value="${escapeHtml(ingredient.name||"")}">
-    <div class="ingredient-amount-row">
-      <label>
-        <span>Hoeveelheid</span>
-        <input class="ingredient-amount" type="text" inputmode="decimal" placeholder="Bijv. 0,5" value="${escapeHtml(String(ingredient.amount||""))}">
-      </label>
-      <label>
-        <span>Eenheid</span>
-        <select class="ingredient-unit">${ingredientUnitOptions(ingredient.unit||"")}</select>
-      </label>
-    </div>
-  `;
-
-  row.querySelector(".ingredient-remove").onclick=()=>{
-    row.remove();
-    if(!ingredientRows.children.length) addIngredientRow();
-    updateIngredientRemoveButtons();
-  };
-
-  ingredientRows.appendChild(row);
-  updateIngredientRemoveButtons();
-}
-
-function updateIngredientRemoveButtons(){
-  const buttons=[...ingredientRows.querySelectorAll(".ingredient-remove")];
-  buttons.forEach(button=>{
-    button.disabled=buttons.length===1;
-    button.title=buttons.length===1 ? "Minimaal één ingrediënt nodig" : "Ingrediënt verwijderen";
-  });
-}
-
-function resetIngredientEditor(ingredients=[]){
-  ingredientRows.innerHTML="";
-  const rows=ingredients.length ? ingredients : [{amount:"",unit:"",name:""}];
-  rows.forEach(addIngredientRow);
-  ingredientError.textContent="";
-}
-
-function collectIngredientRows(){
-  const rows=[...ingredientRows.querySelectorAll(".ingredient-entry")].map(row=>({
-    name:row.querySelector(".ingredient-name").value.trim(),
-    amount:row.querySelector(".ingredient-amount").value.trim().replace(".",","),
-    unit:row.querySelector(".ingredient-unit").value
-  }));
-
-  return rows.filter(item=>item.name || item.amount || item.unit);
-}
-
-function validateIngredientRows(ingredients){
-  if(!ingredients.length){
-    ingredientError.textContent="Voeg minimaal één ingrediënt toe.";
-    return false;
-  }
-
-  if(ingredients.some(item=>!item.name)){
-    ingredientError.textContent="Vul bij ieder ingrediënt een naam in.";
-    return false;
-  }
-
-  const invalidAmount=ingredients.find(item=>
-    item.amount && parseNumberValue(item.amount)===null
-  );
-  if(invalidAmount){
-    ingredientError.textContent=`"${invalidAmount.amount}" is geen geldige hoeveelheid. Gebruik bijvoorbeeld 0,5 of 1/2.`;
-    return false;
-  }
-
-  ingredientError.textContent="";
-  return true;
 }
 
 function parseIngredientLine(line){
@@ -875,168 +536,6 @@ function parseIngredients(text){
     .filter(Boolean);
 }
 
-
-
-addWeekMealBtn.onclick=()=>openWeekMealDialog(0);
-weekMealType.onchange=showWeekMealFields;
-weekmenuHousehold.onchange=()=>{
-  currentWeekmenuHousehold=weekmenuHousehold.value;
-  renderWeekmenu();
-};
-
-previousWeekBtn.onclick=()=>{
-  currentWeekStart=addDays(currentWeekStart,-7);
-  renderWeekmenu();
-};
-
-nextWeekBtn.onclick=()=>{
-  currentWeekStart=addDays(currentWeekStart,7);
-  renderWeekmenu();
-};
-
-weekMealForm.onsubmit=e=>{
-  e.preventDefault();
-  if(!currentWeekmenuHousehold) return;
-
-  const f=new FormData(weekMealForm);
-  const dayIndex=Number(f.get("day"));
-  const mealType=f.get("mealType");
-  const recipeId=mealType==="recipe" ? String(f.get("recipeId")||"") : "";
-  const manualName=mealType==="manual" ? String(f.get("manualName")||"").trim() : "";
-
-  if(mealType==="recipe" && !recipeId){
-    alert("Voeg eerst een recept toe of kies 'Zelf gerecht typen'.");
-    return;
-  }
-  if(mealType==="manual" && !manualName){
-    alert("Vul een gerecht in.");
-    return;
-  }
-
-  data.weekMenus=data.weekMenus || [];
-  const editId=String(f.get("editId")||"");
-  const existing=data.weekMenus.find(m=>m.id===editId);
-  const sameDay=data.weekMenus.find(m=>
-    m.householdId===currentWeekmenuHousehold &&
-    m.weekStart===weekMenuKey() &&
-    Number(m.dayIndex)===dayIndex &&
-    m.id!==editId
-  );
-
-  if(sameDay){
-    data.weekMenus=data.weekMenus.filter(m=>m.id!==sameDay.id);
-  }
-
-  const record={
-    id:existing?.id || crypto.randomUUID(),
-    householdId:currentWeekmenuHousehold,
-    weekStart:weekMenuKey(),
-    dayIndex,
-    recipeId,
-    name:manualName,
-    note:String(f.get("note")||"").trim(),
-    updatedBy:currentPersonName(),
-    updatedAt:new Date().toISOString()
-  };
-
-  if(existing){
-    Object.assign(existing,record);
-  }else{
-    data.weekMenus.push(record);
-  }
-
-  weekMealDialog.close();
-  saveData();
-};
-
-window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
-
-window.editWeekMeal=id=>{
-  const meal=(data.weekMenus || []).find(m=>m.id===id);
-  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  openWeekMealDialog(meal.dayIndex,meal);
-};
-
-window.deleteWeekMeal=id=>{
-  const meal=(data.weekMenus || []).find(m=>m.id===id);
-  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  if(!confirm(`"${recipeMealName(meal)}" uit het weekmenu verwijderen?`)) return;
-  data.weekMenus=data.weekMenus.filter(m=>m.id!==id);
-  saveData();
-};
-
-copyWeekmenuBtn.onclick=()=>{
-  const source=getWeekMeals();
-  if(!source.length){
-    alert("Deze week bevat nog geen gerechten.");
-    return;
-  }
-
-  const nextStart=isoDate(addDays(currentWeekStart,7));
-  const existingNext=(data.weekMenus || []).filter(m=>
-    m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart
-  );
-
-  if(existingNext.length && !confirm("De volgende week bevat al gerechten. Deze vervangen?")){
-    return;
-  }
-
-  data.weekMenus=(data.weekMenus || []).filter(m=>
-    !(m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart)
-  );
-
-  source.forEach(meal=>{
-    data.weekMenus.push({
-      ...meal,
-      id:crypto.randomUUID(),
-      weekStart:nextStart,
-      updatedBy:currentPersonName(),
-      updatedAt:new Date().toISOString()
-    });
-  });
-
-  saveData();
-  alert("Het weekmenu is naar de volgende week gekopieerd.");
-};
-
-weekmenuGroceriesBtn.onclick=()=>{
-  const household=data.households.find(h=>h.id===currentWeekmenuHousehold);
-  const meals=getWeekMeals();
-  const recipeMeals=meals.filter(m=>m.recipeId);
-
-  if(!meals.length){
-    alert("Deze week bevat nog geen gerechten.");
-    return;
-  }
-  if(!recipeMeals.length){
-    alert("Er zijn alleen handmatig ingevulde gerechten. Daarvan zijn geen ingrediënten bekend.");
-    return;
-  }
-
-  let added=0;
-  const householdSize=Math.max(1,household?.members?.length || 1);
-
-  recipeMeals.forEach(meal=>{
-    const recipe=data.recipes.find(r=>r.id===meal.recipeId);
-    if(!recipe) return;
-
-    recipe.ingredients.forEach(ingredient=>{
-      data.groceries.push({
-        id:crypto.randomUUID(),
-        householdId:currentWeekmenuHousehold,
-        text:scaledIngredientText(ingredient,recipe.servings,householdSize),
-        done:false,
-        source:`Weekmenu ${weekMenuKey()}`
-      });
-      added++;
-    });
-  });
-
-  currentHousehold=currentWeekmenuHousehold;
-  saveData();
-  navigate("boodschappen");
-  alert(`${added} ingrediënten zijn toegevoegd aan de boodschappenlijst van ${household?.name || "het huishouden"}.`);
-};
 
 addAgendaBtn.onclick=()=>{
   agendaForm.reset();
@@ -1096,7 +595,7 @@ window.deleteAgendaEvent=(id,visibility)=>{
   saveData();
 };
 
-addRecipeBtn.onclick=()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); };
+addRecipeBtn.onclick=()=>{ resetRecipePhoto(); recipeDialog.showModal(); };
 function openWishDialog(){
   fillSelects();
   resetWishPhoto();
@@ -1104,31 +603,14 @@ function openWishDialog(){
   wishDialog.showModal();
 }
 addWishBtn.onclick=openWishDialog;
-document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); },150);
+document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); recipeDialog.showModal(); },150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 
-addIngredientRowBtn.onclick=()=>addIngredientRow();
-
 recipeForm.onsubmit=e=>{
-  e.preventDefault();
-  const f=new FormData(recipeForm);
-  const ingredients=collectIngredientRows();
-
-  if(!validateIngredientRows(ingredients)) return;
-
-  data.recipes.unshift({
-    id:crypto.randomUUID(),
-    name:String(f.get("name")||"").trim(),
-    servings:Number(f.get("servings")),
-    photo:recipePhotoData.value,
-    ingredients,
-    steps:String(f.get("steps")||"").split("\n").map(x=>x.trim()).filter(Boolean),
-    author:f.get("author")
-  });
-
+  e.preventDefault(); const f=new FormData(recipeForm);
+  data.recipes.unshift({id:crypto.randomUUID(),name:f.get("name"),servings:Number(f.get("servings")),photo:recipePhotoData.value,ingredients:parseIngredients(f.get("ingredients")),steps:f.get("steps").split("\n").filter(Boolean),author:f.get("author")});
   recipeForm.reset();
   resetRecipePhoto();
-  resetIngredientEditor();
   recipeDialog.close();
   saveData();
 };
@@ -1165,10 +647,13 @@ function openSimple(title, fields, mode){
   simpleFields.innerHTML=fields; simpleDialog.showModal();
 }
 addGroceryBtn.onclick=()=>openSimple("Product toevoegen",`<label>Product<input name="text" required></label>`,"grocery");
-addHouseholdBtn.onclick=()=>openHouseholdEditor("");
+addHouseholdBtn.onclick=()=>openSimple("Huishouden toevoegen",`
+  <label>Naam<input name="name" required></label>
+  <label>Leden <small>Meerdere kiezen is mogelijk</small><select name="members" multiple size="7">${data.family.map(p=>`<option>${p.name}</option>`).join("")}</select></label>`,"household");
 simpleForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(simpleForm);
   if(simpleMode==="grocery") data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:f.get("text"),done:false});
+  if(simpleMode==="household") data.households.push({id:crypto.randomUUID(),name:f.get("name"),members:f.getAll("members")});
   simpleForm.reset(); simpleDialog.close(); saveData();
 };
 
@@ -1245,84 +730,6 @@ function renderAccountManagement(){
   accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
 }
 
-
-
-window.openHouseholdEditor=id=>{
-  if(!isAdmin()) return;
-
-  const household=id ? data.households.find(h=>h.id===id) : null;
-  householdEditId.value=household?.id || "";
-  householdEditTitle.textContent=household ? "Huishouden bewerken" : "Huishouden toevoegen";
-  householdEditName.value=household?.name || "";
-  householdEditMessage.textContent="";
-
-  householdMemberChecks.innerHTML=data.family.map(person=>`
-    <label class="member-check">
-      <input type="checkbox" value="${person.name}" ${household?.members?.includes(person.name)?"checked":""}>
-      <span>${person.name}</span>
-    </label>
-  `).join("");
-
-  deleteHouseholdBtn.classList.toggle("hidden",!household);
-  householdEditDialog.showModal();
-};
-
-householdEditForm.onsubmit=e=>{
-  e.preventDefault();
-  if(!isAdmin()) return;
-
-  const id=householdEditId.value;
-  const name=householdEditName.value.trim();
-  const members=[...householdMemberChecks.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
-
-  if(!name){
-    householdEditMessage.textContent="Vul een naam in.";
-    return;
-  }
-  if(!members.length){
-    householdEditMessage.textContent="Kies minimaal één lid.";
-    return;
-  }
-  if(data.households.some(h=>h.id!==id && h.name.toLowerCase()===name.toLowerCase())){
-    householdEditMessage.textContent="Er bestaat al een huishouden met deze naam.";
-    return;
-  }
-
-  if(id){
-    const household=data.households.find(h=>h.id===id);
-    if(!household) return;
-    household.name=name;
-    household.members=members;
-  }else{
-    data.households.push({
-      id:crypto.randomUUID(),
-      name,
-      members
-    });
-  }
-
-  householdEditDialog.close();
-  saveData();
-};
-
-deleteHouseholdBtn.onclick=()=>{
-  if(!isAdmin()) return;
-  const id=householdEditId.value;
-  const household=data.households.find(h=>h.id===id);
-  if(!household) return;
-
-  if(!confirm(`Huishouden "${household.name}" verwijderen? Weekmenu's, afspraken en boodschappen van dit huishouden worden ook verwijderd.`)){
-    return;
-  }
-
-  data.households=data.households.filter(h=>h.id!==id);
-  data.weekMenus=(data.weekMenus || []).filter(m=>m.householdId!==id);
-  data.events=(data.events || []).filter(e=>e.householdId!==id);
-  data.groceries=(data.groceries || []).filter(g=>g.householdId!==id);
-
-  householdEditDialog.close();
-  saveData();
-};
 
 window.openFamilyEditor=name=>{
   if(!isAdmin()) return;
@@ -1483,10 +890,8 @@ function showLoggedIn(user){
   loginMessage.textContent="";
   fillSelects();
   renderProfile();
-  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)) currentHousehold=accessibleHouseholds()[0]?.id || "";
   renderWishes();
   renderAgenda();
-  renderWeekmenu();
 
   if(firstOpen){
     loadAdminSettings().finally(()=>subscribeToCloudData());
@@ -1599,7 +1004,6 @@ function initFirebase(){
 }
 
 bindNav();
-resetIngredientEditor();
 renderAll();
 const firebaseActive=initFirebase();
 if(!firebaseActive){
@@ -1608,7 +1012,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.0");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.7");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

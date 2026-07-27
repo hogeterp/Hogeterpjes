@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.0
+# Hogeterpjes v1.2.7
 
 Complete, gecontroleerde versie met:
 - Hogeterpjes-logo en PWA-iconen;
@@ -18,7 +18,7 @@ Firebase Console → Firestore Database → Regels → Publiceren.
 Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - De werkende Firebase-login van v1.2.1 is ongewijzigd gebleven.
 - Rinze kan familieleden bewerken via de familiepagina.
 - Naam, geboortedatum en e-mailadres kunnen worden aangepast.
@@ -26,7 +26,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - Ieder familielid ziet standaard alleen het eigen verlanglijstje.
 - Bij het toevoegen van een wens wordt automatisch de ingelogde persoon gekozen.
 - Gewone gebruikers kunnen niet namens iemand anders wensen toevoegen.
@@ -36,7 +36,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - Iedereen, ook Rinze, ziet alleen het eigen verlanglijstje.
 - Beheerrechten geven geen toegang tot de privéwensen van anderen.
 - Bij recepten kun je direct een foto maken met de camera.
@@ -46,7 +46,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - Ingrediëntenhoeveelheden veranderen nu mee als je het aantal personen verhoogt of verlaagt.
 - Zowel `250 gram bloem` als `250 | gram | bloem` wordt herkend.
 - Decimalen en eenvoudige breuken zoals `0,5` en `1/2` worden ondersteund.
@@ -55,7 +55,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - Bij een wens kun je direct een foto maken.
 - Je kunt een bestaande foto of screenshot uit de galerij kiezen.
 - De afbeelding wordt automatisch verkleind.
@@ -64,7 +64,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.3.0
+## Nieuw in v1.2.7
 - Nieuwe agenda met privé-, familie- en huishoudafspraken.
 - Privé-afspraken staan alleen op het eigen apparaat.
 - Familieafspraken zijn zichtbaar voor alle ingelogde familieleden.
@@ -72,49 +72,3 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Filteren op soort afspraak en huishouden.
 - Locatie, begin- en eindtijd en opmerkingen toevoegen.
 - Geen nieuwe Firestore Rules nodig.
-
-
-## Nieuw in v1.3.0
-- Weekmenu per huishouden.
-- Alleen leden van een huishouden zien en wijzigen het betreffende weekmenu.
-- Plannen van maandag tot en met zondag.
-- Bestaand recept kiezen of zelf een gerecht typen.
-- Vorige en volgende week bekijken.
-- Een compleet weekmenu naar de volgende week kopiëren.
-- Ingrediënten van recepten met één knop aan de boodschappenlijst toevoegen.
-- Hoeveelheden worden aangepast aan het aantal leden van het huishouden.
-- De bestaande Firebase-login is niet aangepast.
-- Geen nieuwe Firestore Rules nodig.
-
-
-## Nieuw in v1.3.0
-- Nieuw gezinsdashboard met:
-  - vandaag op het menu;
-  - komende zichtbare afspraken;
-  - openstaande boodschappen per huishouden;
-  - eerstvolgende verjaardag;
-  - actuele aantallen familieleden, huishoudens, recepten en eigen wensen.
-- Rinze kan huishoudens toevoegen, bewerken en verwijderen.
-- De naam en leden van een huishouden kunnen worden aangepast.
-- Eén familielid kan bij meerdere huishoudens tegelijk horen.
-- Standaard horen Jasmijn en Maaike nu ook bij het huishouden Rinze & Christa, naast hun eigen huishouden.
-- Gewone gebruikers zien alleen huishoudens waar ze zelf lid van zijn.
-- Het verwijderen van een huishouden ruimt gekoppelde weekmenu's, huishoudafspraken en boodschappen op.
-- De bestaande Firebase-login is niet aangepast.
-- Privéafspraken en privéwensen blijven afgeschermd.
-- Geen nieuwe Firestore Rules nodig.
-
-
-## Nieuw in v1.3.0
-- Ingrediënten worden nu compact en overzichtelijk per kaartje ingevuld.
-- Per ingrediënt zijn er aparte velden voor:
-  - naam;
-  - hoeveelheid;
-  - eenheid.
-- Eenheden worden gekozen via een keuzelijst, zoals g, kg, ml, liter, tl, el, blik en stuks.
-- Met **+ Ingrediënt** kunnen onbeperkt nieuwe ingrediënten worden toegevoegd.
-- Ieder ingrediënt kan met het prullenbakje worden verwijderd.
-- Halve en andere decimale hoeveelheden zijn mogelijk, bijvoorbeeld `0,5 el`.
-- Ook breuken zoals `1/2` blijven ondersteund.
-- De invoer is extra compact gemaakt voor gebruik op een telefoon.
-- De Firebase-login en bestaande privacyinstellingen zijn niet aangepast.
