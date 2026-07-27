@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.2.5">
-  <link rel="stylesheet" href="style.css?v=1.2.5">
+  <link rel="manifest" href="manifest.json?v=1.2.7">
+  <link rel="stylesheet" href="style.css?v=1.2.7">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.5</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.5</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -152,6 +152,31 @@
       </section>
 
 
+
+      <section class="page" data-page="agenda">
+        <div class="page-head">
+          <div><p class="eyebrow">Privé en samen</p><h2>Agenda</h2></div>
+          <button id="addAgendaBtn" class="primary-btn">+ Afspraak</button>
+        </div>
+
+        <div class="card agenda-info">
+          <strong>🔒 Privé-afspraken</strong>
+          <p>Privé-afspraken staan alleen op dit apparaat. Familie- en huishoudafspraken worden gedeeld.</p>
+        </div>
+
+        <div class="filters agenda-filters">
+          <select id="agendaTypeFilter">
+            <option value="">Alles</option>
+            <option value="private">Alleen privé</option>
+            <option value="family">Alleen familie</option>
+            <option value="household">Alleen huishouden</option>
+          </select>
+          <select id="agendaHouseholdFilter"></select>
+        </div>
+
+        <div id="agendaList" class="list-grid"></div>
+      </section>
+
       <section class="page" data-page="profiel">
         <div class="page-head">
           <div><p class="eyebrow">Jouw account</p><h2>Profiel</h2></div>
@@ -213,6 +238,7 @@
     <button data-go="profiel">👤 Mijn profiel</button>
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
+    <button data-go="agenda">📅 Agenda</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -260,6 +286,24 @@
       <label>Prijs (€)<input name="price" type="number" step="0.01" min="0"></label>
       <label>Link<input name="link" type="url" placeholder="https://..."></label>
       <label>Opmerking<textarea name="note" rows="3"></textarea></label>
+      <div class="wish-photo-field">
+        <span class="field-label">Foto of screenshot (optioneel)</span>
+        <div class="photo-action-row">
+          <label class="secondary-btn photo-action">
+            📷 Maak een foto
+            <input id="wishCameraInput" type="file" accept="image/*" capture="environment">
+          </label>
+          <label class="secondary-btn photo-action">
+            🖼️ Kies foto of screenshot
+            <input id="wishGalleryInput" type="file" accept="image/*">
+          </label>
+        </div>
+        <div id="wishPhotoPreviewWrap" class="recipe-photo-preview hidden">
+          <img id="wishPhotoPreview" alt="Voorbeeld van wensfoto">
+          <button id="removeWishPhotoBtn" class="text-btn" type="button">Foto verwijderen</button>
+        </div>
+        <input id="wishPhotoData" name="wishPhoto" type="hidden">
+      </div>
       <button class="primary-btn wide" type="submit">Opslaan</button>
     </form>
   </dialog>
@@ -277,6 +321,38 @@
     <div id="viewRecipeBody"></div>
   </dialog>
 
+
+
+  <dialog id="agendaDialog" class="modal">
+    <form id="agendaForm" method="dialog">
+      <div class="sheet-head"><h3>Afspraak toevoegen</h3><button type="button" data-close>✕</button></div>
+
+      <label>Titel<input name="title" required placeholder="Bijvoorbeeld: Tandarts"></label>
+      <label>Datum<input name="date" type="date" required></label>
+
+      <div class="agenda-time-grid">
+        <label>Begintijd<input name="startTime" type="time"></label>
+        <label>Eindtijd<input name="endTime" type="time"></label>
+      </div>
+
+      <label>Voor wie?
+        <select id="agendaVisibility" name="visibility" required>
+          <option value="private">🔒 Alleen voor mij</option>
+          <option value="family">👨‍👩‍👧‍👦 Hele familie</option>
+          <option value="household">🏡 Mijn huishouden</option>
+        </select>
+      </label>
+
+      <label id="agendaHouseholdLabel" class="hidden">Huishouden
+        <select id="agendaHousehold" name="householdId"></select>
+      </label>
+
+      <label>Locatie<input name="location" placeholder="Optioneel"></label>
+      <label>Opmerking<textarea name="note" rows="3"></textarea></label>
+
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
 
   <dialog id="familyEditDialog" class="modal">
     <form id="familyEditForm" method="dialog">
@@ -302,7 +378,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.2.5"></script>
-  <script src="app.js?v=1.2.5"></script>
+  <script src="firebase-config.js?v=1.2.7"></script>
+  <script src="app.js?v=1.2.7"></script>
 </body>
 </html>

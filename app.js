@@ -16,12 +16,14 @@ const DEFAULT_DATA = {
   ],
   recipes: [],
   groceries: [],
-  wishes: []
+  wishes: [],
+  events: []
 };
 
 const KEY="hogeterpjes-data-v1";
 const PROFILE_KEY="hogeterpjes-demo-profile";
 const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
+const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 let data=loadData();
 let currentHousehold=data.households[0]?.id || "";
 let simpleMode="";
@@ -122,7 +124,8 @@ function subscribeToCloudData(){
           households:Array.isArray(remote.households)?remote.households:cloneDefaults().households,
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
-          wishes:Array.isArray(remote.wishes)?remote.wishes:[]
+          wishes:Array.isArray(remote.wishes)?remote.wishes:[],
+          events:Array.isArray(remote.events)?remote.events:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -171,6 +174,97 @@ function currentPersonName(){
 
 function canManageWish(wish){
   return wish.person===currentPersonName();
+}
+
+
+function loadPrivateEvents(){
+  try{
+    const all=JSON.parse(localStorage.getItem(PRIVATE_AGENDA_KEY) || "{}");
+    return Array.isArray(all[currentUser?.uid]) ? all[currentUser.uid] : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function savePrivateEvents(events){
+  try{
+    const all=JSON.parse(localStorage.getItem(PRIVATE_AGENDA_KEY) || "{}");
+    if(currentUser?.uid) all[currentUser.uid]=events;
+    localStorage.setItem(PRIVATE_AGENDA_KEY,JSON.stringify(all));
+  }catch(e){
+    console.warn("Privé-agenda opslaan mislukt",e);
+  }
+}
+
+function userHouseholdIds(){
+  const person=currentPersonName();
+  return data.households.filter(h=>h.members.includes(person)).map(h=>h.id);
+}
+
+function canSeeSharedEvent(event){
+  if(event.visibility==="family") return true;
+  if(event.visibility==="household") return userHouseholdIds().includes(event.householdId);
+  return false;
+}
+
+function formatAgendaDate(event){
+  const date=new Date(event.date+"T12:00:00");
+  const dateText=new Intl.DateTimeFormat("nl-NL",{
+    weekday:"short",day:"numeric",month:"short",year:"numeric"
+  }).format(date);
+  const times=[event.startTime,event.endTime].filter(Boolean).join(" – ");
+  return times ? `${dateText} · ${times}` : dateText;
+}
+
+function agendaScopeLabel(event){
+  if(event.visibility==="private") return "🔒 Privé";
+  if(event.visibility==="family") return "👨‍👩‍👧‍👦 Familie";
+  const household=data.households.find(h=>h.id===event.householdId);
+  return `🏡 ${household?.name || "Huishouden"}`;
+}
+
+function getVisibleAgendaEvents(){
+  const privateEvents=loadPrivateEvents().map(e=>({...e,visibility:"private"}));
+  const sharedEvents=(data.events || []).filter(canSeeSharedEvent);
+  return [...privateEvents,...sharedEvents];
+}
+
+function renderAgenda(){
+  if(!window.agendaList) return;
+
+  const type=agendaTypeFilter.value || "";
+  const householdId=agendaHouseholdFilter.value || "";
+
+  agendaHouseholdFilter.innerHTML=
+    `<option value="">Alle huishoudens</option>`+
+    data.households
+      .filter(h=>userHouseholdIds().includes(h.id))
+      .map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
+  agendaHouseholdFilter.value=householdId;
+
+  let rows=getVisibleAgendaEvents();
+  rows=rows.filter(e=>!type || e.visibility===type);
+  rows=rows.filter(e=>!householdId || e.householdId===householdId);
+  rows.sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")));
+
+  agendaList.innerHTML=rows.length?rows.map(e=>`<article class="item-card agenda-card">
+    <div class="agenda-card-head">
+      <div>
+        <span class="agenda-scope">${agendaScopeLabel(e)}</span>
+        <h3>${e.title}</h3>
+        <div class="meta">${formatAgendaDate(e)}</div>
+      </div>
+      <button class="mini-btn danger-mini" type="button" onclick="deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
+    </div>
+    ${e.location?`<p>📍 ${e.location}</p>`:""}
+    ${e.note?`<p>${e.note}</p>`:""}
+  </article>`).join(""):`<div class="card muted">Nog geen afspraken zichtbaar.</div>`;
+}
+
+function fillAgendaHouseholds(){
+  const allowed=data.households.filter(h=>userHouseholdIds().includes(h.id));
+  agendaHousehold.innerHTML=allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
+  agendaHouseholdLabel.classList.toggle("hidden",agendaVisibility.value!=="household");
 }
 
 function navigate(page){
@@ -268,6 +362,55 @@ function renderGroceries(){
     <span>${g.text}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
   </div>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
 }
+
+function resetWishPhoto(){
+  wishPhotoData.value="";
+  wishCameraInput.value="";
+  wishGalleryInput.value="";
+  wishPhotoPreview.removeAttribute("src");
+  wishPhotoPreviewWrap.classList.add("hidden");
+}
+
+function setWishPhoto(dataUrl){
+  wishPhotoData.value=dataUrl;
+  wishPhotoPreview.src=dataUrl;
+  wishPhotoPreviewWrap.classList.remove("hidden");
+}
+
+function processWishPhoto(file){
+  if(!file) return;
+  if(!file.type.startsWith("image/")){
+    alert("Kies een geldige foto of screenshot.");
+    return;
+  }
+  if(file.size>10*1024*1024){
+    alert("Kies een afbeelding kleiner dan 10 MB.");
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=1200;
+      const scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      setWishPhoto(canvas.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+wishCameraInput.onchange=()=>processWishPhoto(wishCameraInput.files?.[0]);
+wishGalleryInput.onchange=()=>processWishPhoto(wishGalleryInput.files?.[0]);
+removeWishPhotoBtn.onclick=resetWishPhoto;
+
 function renderWishes(){
   const ownName=currentPersonName();
   const occasion=wishOccasionFilter.value||"";
@@ -285,6 +428,7 @@ function renderWishes(){
       </div>
       <button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>
     </div>
+    ${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${w.title}">`:""}
     ${w.note?`<p>${w.note}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
   </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
 }
@@ -326,7 +470,7 @@ function renderProfile(){
   const houses=data.households.filter(h=>h.members.includes(name));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); renderAccountManagement(); }
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -392,10 +536,70 @@ function parseIngredients(text){
     .filter(Boolean);
 }
 
+
+addAgendaBtn.onclick=()=>{
+  agendaForm.reset();
+  agendaForm.elements.date.value=new Date().toISOString().slice(0,10);
+  fillAgendaHouseholds();
+  agendaDialog.showModal();
+};
+
+agendaVisibility.onchange=fillAgendaHouseholds;
+agendaTypeFilter.onchange=renderAgenda;
+agendaHouseholdFilter.onchange=renderAgenda;
+
+agendaForm.onsubmit=e=>{
+  e.preventDefault();
+  const f=new FormData(agendaForm);
+  const visibility=f.get("visibility");
+
+  const event={
+    id:crypto.randomUUID(),
+    title:String(f.get("title")||"").trim(),
+    date:f.get("date"),
+    startTime:f.get("startTime"),
+    endTime:f.get("endTime"),
+    visibility,
+    householdId:visibility==="household" ? f.get("householdId") : "",
+    location:String(f.get("location")||"").trim(),
+    note:String(f.get("note")||"").trim(),
+    createdBy:currentUser?.uid || "",
+    createdByName:currentPersonName(),
+    createdAt:new Date().toISOString()
+  };
+
+  if(visibility==="private"){
+    const privateEvents=loadPrivateEvents();
+    privateEvents.push(event);
+    savePrivateEvents(privateEvents);
+    renderAgenda();
+  }else{
+    data.events=data.events || [];
+    data.events.push(event);
+    saveData();
+  }
+
+  agendaDialog.close();
+};
+
+window.deleteAgendaEvent=(id,visibility)=>{
+  if(!confirm("Deze afspraak verwijderen?")) return;
+
+  if(visibility==="private"){
+    savePrivateEvents(loadPrivateEvents().filter(e=>e.id!==id));
+    renderAgenda();
+    return;
+  }
+
+  data.events=(data.events || []).filter(e=>e.id!==id);
+  saveData();
+};
+
 addRecipeBtn.onclick=()=>{ resetRecipePhoto(); recipeDialog.showModal(); };
 function openWishDialog(){
   fillSelects();
-  if(!isAdmin()) wishPerson.value=currentPersonName();
+  resetWishPhoto();
+  wishPerson.value=currentPersonName();
   wishDialog.showModal();
 }
 addWishBtn.onclick=openWishDialog;
@@ -425,10 +629,14 @@ wishForm.onsubmit=e=>{
     price:f.get("price"),
     link:f.get("link"),
     note:f.get("note"),
+    photo:wishPhotoData.value,
     createdBy:currentUser?.uid || "",
     createdAt:new Date().toISOString()
   });
-  wishForm.reset(); wishDialog.close(); saveData();
+  wishForm.reset();
+  resetWishPhoto();
+  wishDialog.close();
+  saveData();
 };
 
 recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
@@ -683,6 +891,7 @@ function showLoggedIn(user){
   fillSelects();
   renderProfile();
   renderWishes();
+  renderAgenda();
 
   if(firstOpen){
     loadAdminSettings().finally(()=>subscribeToCloudData());
@@ -803,7 +1012,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.5");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.7");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
