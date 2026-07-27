@@ -182,3 +182,22 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .grocery-store-group:last-child{border-bottom:0}
 .grocery-store-title{margin:12px 12px 5px;font-size:1rem}
 @media(max-width:480px){.product-two-columns{grid-template-columns:1fr}}
+
+.page-head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.quick-products{margin:12px 0}
+.quick-products h3{font-size:.92rem;margin:0 0 8px}
+.quick-product-row{display:flex;gap:8px;overflow:auto;padding-bottom:5px}
+.quick-product-row button{white-space:nowrap;border:1px solid var(--border);background:var(--surface);padding:9px 12px;border-radius:999px;color:var(--text)}
+.product-card-photo{width:100%;height:150px;object-fit:cover;border-radius:16px;margin-bottom:10px}
+.product-photo-preview{display:grid;gap:8px;margin:8px 0 14px}
+.product-photo-preview img{width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:var(--primary-2)}
+.product-stock{padding:8px 10px;border-radius:10px;background:var(--primary-2)}
+.product-stock.stock-low{font-weight:700}
+.stores-list{display:grid;gap:8px;margin:12px 0}
+.store-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:12px}
+.store-row button{border:0;background:transparent}
+.inline-add{display:flex;gap:8px}
+.inline-add input{flex:1}
+.row-actions{display:flex;gap:2px}
+.grocery-store-title{display:flex;justify-content:space-between;align-items:center}
+.grocery-store-title small{font-weight:400;color:var(--muted)}

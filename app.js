@@ -20,7 +20,8 @@ const DEFAULT_DATA = {
   events: [],
   weekMenus: [],
   notifications: [],
-  products: []
+  products: [],
+  stores: ["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"]
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -29,6 +30,7 @@ const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 let data=loadData();
 data.products=Array.isArray(data.products)?data.products:[];
+data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
 let currentHousehold=data.households[0]?.id || "";
 let currentWeekmenuHousehold="";
 let currentWeekStart=getMonday(new Date());
@@ -134,7 +136,8 @@ function subscribeToCloudData(){
           events:Array.isArray(remote.events)?remote.events:[],
           weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[],
           notifications:Array.isArray(remote.notifications)?remote.notifications:[],
-          products:Array.isArray(remote.products)?remote.products:[]
+          products:Array.isArray(remote.products)?remote.products:[],
+          stores:Array.isArray(remote.stores)&&remote.stores.length?remote.stores:data.stores
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -591,10 +594,11 @@ function renderGroceries(){
   });
   const stores=Object.keys(grouped).sort((a,b)=>a.localeCompare(b,"nl"));
   groceryList.innerHTML=rows.length?stores.map(store=>`<section class="grocery-store-group">
-    <h3 class="grocery-store-title">🏪 ${escapeHtml(store)}</h3>
-    ${grouped[store].map(g=>`<div class="check-row ${g.done?"done":""}">
+    <h3 class="grocery-store-title">🏪 ${escapeHtml(store)} <small>${grouped[store].filter(g=>!g.done).length} open</small></h3>
+    ${grouped[store].sort((a,b)=>Number(a.done)-Number(b.done)).map(g=>`<div class="check-row ${g.done?"done":""}">
       <input type="checkbox" ${g.done?"checked":""} onchange="toggleGrocery('${g.id}')">
-      <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source?`<small class="grocery-meta">${g.source?escapeHtml(g.source):""}${g.source&&g.addedBy?" · ":""}${g.addedBy?`door ${escapeHtml(g.addedBy)}`:""}</small>`:""}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
+      <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source||g.note?`<small class="grocery-meta">${[g.source,g.note,g.addedBy?`door ${g.addedBy}`:""].filter(Boolean).map(escapeHtml).join(" · ")}</small>`:""}</span>
+      <div class="row-actions"><button onclick="editGrocery('${g.id}')" aria-label="Bewerken">✏️</button><button onclick="deleteGrocery('${g.id}')" aria-label="Verwijderen">🗑️</button></div>
     </div>`).join("")}
   </section>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
 }
@@ -604,20 +608,28 @@ function renderProducts(){
   const q=(productSearch.value||"").toLowerCase();
   const store=productStoreFilter.value||"";
   const category=productCategoryFilter.value||"";
-  const stores=[...new Set(data.products.flatMap(productStores))].sort((a,b)=>a.localeCompare(b,"nl"));
+  const stores=[...new Set([...data.stores,...data.products.flatMap(productStores)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,"nl"));
   const categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"nl"));
   const oldStore=productStoreFilter.value, oldCat=productCategoryFilter.value;
   productStoreFilter.innerHTML='<option value="">Alle winkels</option>'+stores.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
   productCategoryFilter.innerHTML='<option value="">Alle categorieën</option>'+categories.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
   productStoreFilter.value=stores.includes(oldStore)?oldStore:"";
   productCategoryFilter.value=categories.includes(oldCat)?oldCat:"";
+  refreshStoreOptions();
   const rows=data.products.filter(p=>{
     const hay=[p.name,p.brand,p.category,p.store,p.otherStores,p.note].join(" ").toLowerCase();
     return (!q||hay.includes(q)) && (!store||productStores(p).includes(store)) && (!category||p.category===category);
   }).sort((a,b)=>(Number(b.favorite)-Number(a.favorite)) || (Number(b.timesUsed||0)-Number(a.timesUsed||0)) || String(a.name).localeCompare(String(b.name),"nl"));
+  const fav=data.products.filter(p=>p.favorite).slice().sort((a,b)=>Number(b.timesUsed||0)-Number(a.timesUsed||0)).slice(0,6);
+  const frequent=data.products.filter(p=>Number(p.timesUsed||0)>0).slice().sort((a,b)=>Number(b.timesUsed||0)-Number(a.timesUsed||0)).slice(0,6);
+  const recent=data.products.filter(p=>p.lastUsedAt).slice().sort((a,b)=>String(b.lastUsedAt).localeCompare(String(a.lastUsedAt))).slice(0,6);
+  const quick=(title,items)=>items.length?`<section class="quick-products"><h3>${title}</h3><div class="quick-product-row">${items.map(p=>`<button onclick="addProductToGroceries('${p.id}')">${escapeHtml(p.name)}</button>`).join("")}</div></section>`:"";
+  productQuickSections.innerHTML=!q&&!store&&!category?quick("⭐ Favorieten",fav)+quick("🕘 Recent gebruikt",recent)+quick("📈 Vaak gekocht",frequent):"";
   productList.innerHTML=rows.length?rows.map(p=>`<article class="item-card product-card">
+    ${p.photo?`<img class="product-card-photo" src="${p.photo}" alt="">`:""}
     <div class="product-card-head"><div><h3>${p.favorite?"⭐ ":""}${escapeHtml(p.name)}</h3><div class="meta">${[p.brand,p.amount&&p.unit?`${p.amount} ${p.unit}`:p.amount||p.unit,p.category].filter(Boolean).map(escapeHtml).join(" · ")}</div></div><button class="mini-btn" onclick="editProduct('${p.id}')">Bewerk</button></div>
     ${p.store?`<p class="product-store">🏪 Meestal bij <strong>${escapeHtml(p.store)}</strong>${p.otherStores?`<br><small>Ook: ${escapeHtml(p.otherStores)}</small>`:""}</p>`:""}
+    <p class="product-stock ${Number(p.stock||0)<=Number(p.minStock||0)?"stock-low":""}">📦 Voorraad: <strong>${Number(p.stock||0)}</strong>${Number(p.minStock||0)>0?` · minimum ${Number(p.minStock)}`:""}${Number(p.stock||0)<=Number(p.minStock||0)?" · bijna op":""}</p>
     ${p.price?`<p>€ ${Number(p.price).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2})}</p>`:""}
     ${p.note?`<p class="muted">${escapeHtml(p.note)}</p>`:""}
     <button class="primary-btn wide" onclick="addProductToGroceries('${p.id}')">+ Naar boodschappenlijst</button>
@@ -1274,6 +1286,52 @@ wishForm.onsubmit=e=>{
 };
 
 
+function normalizeProductKey(p){
+  return [p.name,p.brand,p.amount,p.unit].map(x=>String(x||"").trim().toLowerCase()).join("|");
+}
+function refreshStoreOptions(){
+  if(!window.storeOptions) return;
+  storeOptions.innerHTML=(data.stores||[]).map(s=>`<option value="${escapeHtml(s)}"></option>`).join("");
+}
+function setProductPhoto(value=""){
+  productPhotoData.value=value;
+  if(value){ productPhotoPreview.src=value; productPhotoPreviewWrap.classList.remove("hidden"); }
+  else { productPhotoPreview.removeAttribute("src"); productPhotoPreviewWrap.classList.add("hidden"); }
+}
+function compressProductPhoto(file){
+  if(!file||!file.type.startsWith("image/")) return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=500, scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale);
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      setProductPhoto(canvas.toDataURL("image/jpeg",0.72));
+    };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function renderStores(){
+  storesList.innerHTML=(data.stores||[]).map((s,i)=>`<div class="store-row"><span>${escapeHtml(s)}</span><button type="button" onclick="removeStore(${i})">🗑️</button></div>`).join("");
+}
+window.removeStore=i=>{
+  const s=data.stores[i];
+  if(!confirm(`Winkel "${s}" uit de keuzelijst verwijderen?`)) return;
+  data.stores.splice(i,1); renderStores(); saveData();
+};
+manageStoresBtn.onclick=()=>{renderStores();newStoreName.value="";storesDialog.showModal();};
+addStoreBtn.onclick=()=>{
+  const s=newStoreName.value.trim();
+  if(!s) return;
+  if(data.stores.some(x=>x.toLowerCase()===s.toLowerCase())){alert("Deze winkel bestaat al.");return;}
+  data.stores.push(s);data.stores.sort((a,b)=>a.localeCompare(b,"nl"));newStoreName.value="";renderStores();saveData();
+};
+productPhotoInput.onchange=()=>compressProductPhoto(productPhotoInput.files[0]);
+removeProductPhotoBtn.onclick=()=>setProductPhoto("");
+
 function openProductDialog(id=""){
   const p=(data.products||[]).find(x=>x.id===id);
   productEditId.value=p?.id||"";
@@ -1288,6 +1346,10 @@ function openProductDialog(id=""){
   productPrice.value=p?.price||"";
   productNote.value=p?.note||"";
   productFavorite.checked=!!p?.favorite;
+  productStock.value=Number(p?.stock||0);
+  productMinStock.value=Number(p?.minStock||0);
+  productPhotoInput.value="";
+  setProductPhoto(p?.photo||"");
   deleteProductBtn.classList.toggle("hidden",!p);
   productDialog.showModal();
 }
@@ -1296,6 +1358,7 @@ window.editProduct=id=>openProductDialog(id);
 productForm.onsubmit=e=>{
   e.preventDefault();
   const id=productEditId.value;
+  const existing=(data.products||[]).find(p=>p.id===id);
   const record={
     id:id||crypto.randomUUID(),
     name:productName.value.trim(),
@@ -1308,14 +1371,24 @@ productForm.onsubmit=e=>{
     price:productPrice.value,
     note:productNote.value.trim(),
     favorite:productFavorite.checked,
-    timesUsed:(data.products||[]).find(p=>p.id===id)?.timesUsed||0,
+    stock:Number(productStock.value||0),
+    minStock:Number(productMinStock.value||0),
+    photo:productPhotoData.value||"",
+    timesUsed:existing?.timesUsed||0,
+    lastUsedAt:existing?.lastUsedAt||"",
     updatedBy:currentPersonName(),
     updatedAt:new Date().toISOString()
   };
   if(!record.name) return;
   data.products=data.products||[];
+  const duplicate=data.products.find(p=>p.id!==id && normalizeProductKey(p)===normalizeProductKey(record));
+  if(duplicate){
+    const useExisting=confirm(`Dit product bestaat mogelijk al als "${productLabel(duplicate)}".\n\nDruk op OK om het bestaande product te openen, of Annuleren om toch apart op te slaan.`);
+    if(useExisting){ openProductDialog(duplicate.id); return; }
+  }
   const pos=data.products.findIndex(p=>p.id===id);
   if(pos>=0) data.products[pos]=record; else data.products.unshift(record);
+  if(record.store && !data.stores.some(s=>s.toLowerCase()===record.store.toLowerCase())) data.stores.push(record.store);
   productDialog.close();
   addNotification({text:`${currentPersonName()} heeft product “${record.name}” ${pos>=0?"aangepast":"toegevoegd"}.`});
   saveData();
@@ -1332,6 +1405,7 @@ window.addProductToGroceries=id=>{
   const p=(data.products||[]).find(x=>x.id===id);
   if(!p||!currentHousehold) return;
   p.timesUsed=Number(p.timesUsed||0)+1;
+  p.lastUsedAt=new Date().toISOString();
   data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:productLabel(p),store:p.store||"",productId:p.id,done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
   addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${productLabel(p)}” toegevoegd aan de boodschappenlijst${p.store?` voor ${p.store}`:""}.`});
   saveData();
@@ -1348,19 +1422,27 @@ function openSimple(title, fields, mode){
   simpleFields.innerHTML=fields; simpleDialog.showModal();
 }
 addGroceryBtn.onclick=()=>{
-  const options=(data.products||[]).sort((a,b)=>(Number(b.favorite)-Number(a.favorite))||(Number(b.timesUsed||0)-Number(a.timesUsed||0))).map(p=>`<option value="${escapeHtml(productLabel(p))}">${escapeHtml(productLabel(p))}${p.store?` — ${escapeHtml(p.store)}`:""}</option>`).join("");
-  openSimple("Product toevoegen",`<label>Kies uit productdatabase<select name="productId"><option value="">Zelf invoeren</option>${options}</select></label><label>Of typ product<input name="text" placeholder="Bijv. melk"></label><label>Winkel<input name="store" list="storeOptions" placeholder="Bijv. Jumbo"></label>`,"grocery");
+  const options=(data.products||[]).sort((a,b)=>(Number(b.favorite)-Number(a.favorite))||(Number(b.timesUsed||0)-Number(a.timesUsed||0))).map(p=>`<option value="${p.id}">${escapeHtml(productLabel(p))}${p.store?` — ${escapeHtml(p.store)}`:""}</option>`).join("");
+  openSimple("Product toevoegen",`<label>Zoek of kies product<select name="productId"><option value="">Zelf invoeren</option>${options}</select></label><label>Of typ product<input name="text" list="productNameSuggestions" placeholder="Begin met typen..."></label><datalist id="productNameSuggestions">${(data.products||[]).map(p=>`<option value="${escapeHtml(productLabel(p))}"></option>`).join("")}</datalist><label>Winkel<input name="store" list="storeOptions" placeholder="Bijv. Jumbo"></label>`,"grocery");
 };
 addHouseholdBtn.onclick=()=>openHouseholdEditor("");
 simpleForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(simpleForm);
-  if(simpleMode==="grocery"){
+  if(simpleMode==="editGrocery"){
+    const g=data.groceries.find(x=>x.id===String(f.get("id")||""));
+    if(g){
+      g.text=String(f.get("text")||"").trim();
+      g.store=String(f.get("store")||"").trim();
+      g.note=String(f.get("note")||"").trim();
+      addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” aangepast op de boodschappenlijst.`});
+    }
+  } else if(simpleMode==="grocery"){
     const selected=String(f.get("productId")||"");
-    const product=(data.products||[]).find(p=>productLabel(p)===selected);
+    const product=(data.products||[]).find(p=>p.id===selected);
     const text=(product?productLabel(product):String(f.get("text")||"").trim());
     if(!text){ alert("Kies of typ eerst een product."); return; }
     const store=String(f.get("store")||product?.store||"").trim();
-    if(product) product.timesUsed=Number(product.timesUsed||0)+1;
+    if(product){ product.timesUsed=Number(product.timesUsed||0)+1; product.lastUsedAt=new Date().toISOString(); }
     data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,store,productId:product?.id||"",done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
     addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${text}” toegevoegd aan de boodschappenlijst${store?` voor ${store}`:""}.`});
   }
@@ -1375,8 +1457,24 @@ window.deleteWish=id=>{
   saveData();
 };
 
-window.toggleGrocery=id=>{const g=data.groceries.find(x=>x.id===id);if(g){g.done=!g.done;addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” ${g.done?"afgevinkt":"teruggezet"}.`});saveData();}};
+window.toggleGrocery=id=>{
+  const g=data.groceries.find(x=>x.id===id);
+  if(g){
+    g.done=!g.done;
+    const p=(data.products||[]).find(x=>x.id===g.productId);
+    if(p && g.done && !g.stockProcessed){ p.stock=Number(p.stock||0)+1; g.stockProcessed=true; }
+    if(p && !g.done && g.stockProcessed){ p.stock=Math.max(0,Number(p.stock||0)-1); g.stockProcessed=false; }
+    addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” ${g.done?"afgevinkt":"teruggezet"}.`});
+    saveData();
+  }
+};
 window.deleteGrocery=id=>{const g=data.groceries.find(x=>x.id===id); if(g)addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” verwijderd van de boodschappenlijst.`}); data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
+window.editGrocery=id=>{
+  const g=data.groceries.find(x=>x.id===id); if(!g)return;
+  const stores=(data.stores||[]).map(s=>`<option value="${escapeHtml(s)}"></option>`).join("");
+  openSimple("Boodschap bewerken",`<input type="hidden" name="id" value="${g.id}"><label>Product<input name="text" required value="${escapeHtml(g.text)}"></label><label>Winkel<input name="store" list="groceryStoreOptions" value="${escapeHtml(g.store||"")}"></label><datalist id="groceryStoreOptions">${stores}</datalist><label>Notitie<input name="note" value="${escapeHtml(g.note||"")}" placeholder="Bijv. 2 pakken"></label>`,"editGrocery");
+};
+
 window.addRecipeToGroceries=id=>{
   const r=data.recipes.find(x=>x.id===id); if(!r||!currentHousehold)return;
   r.ingredients.forEach(i=>{
@@ -1814,7 +1912,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.3");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.4");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

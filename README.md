@@ -24,3 +24,14 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Vaste winkel en andere winkels per product
 - Producten direct naar een huishoudelijke boodschappenlijst
 - Boodschappen gegroepeerd per winkel
+
+
+## Versie 1.3.4
+- Dubbele producten herkennen
+- Eigen winkels beheren
+- Boodschappen achteraf bewerken
+- Favorieten, recent gebruikt en vaak gekocht
+- Voorraad en minimumvoorraad per product
+- Optionele productfoto
+- Zoekvoorstellen tijdens typen
+- Correcte map-, app- en cacheversie 1.3.4
