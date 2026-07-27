@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.2.2">
-  <link rel="stylesheet" href="style.css?v=1.2.2">
+  <link rel="manifest" href="manifest.json?v=1.2.3">
+  <link rel="stylesheet" href="style.css?v=1.2.3">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.2</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.3</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.2</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.3</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -132,8 +132,11 @@
 
       <section class="page" data-page="verlanglijstjes">
         <div class="page-head">
-          <div><p class="eyebrow">Voor later</p><h2>Verlanglijstjes</h2></div>
+          <div><p class="eyebrow">Persoonlijk</p><h2 id="wishPageTitle">Mijn wensen</h2></div>
           <button id="addWishBtn" class="primary-btn">+ Wens</button>
+        </div>
+        <div id="wishPrivacyNote" class="card wish-privacy-note">
+          Je ziet en beheert hier je eigen verlanglijstje.
         </div>
         <div class="filters">
           <select id="wishPersonFilter"></select>
@@ -282,7 +285,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.2.2"></script>
-  <script src="app.js?v=1.2.2"></script>
+  <script src="firebase-config.js?v=1.2.3"></script>
+  <script src="app.js?v=1.2.3"></script>
 </body>
 </html>

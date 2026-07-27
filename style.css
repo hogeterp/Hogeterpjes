@@ -61,3 +61,9 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .photo-upload input{display:none}
 .profile-photo-help{font-size:.8rem;margin:.4rem 0 1rem}
 .profile-avatar.has-photo{background-size:cover;background-position:center;color:transparent}
+
+.wish-privacy-note{margin-bottom:14px;padding:14px 16px;font-size:.93rem}
+.wish-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.wish-card-head h3{margin:0 0 6px}
+.danger-mini{white-space:nowrap}
+.hidden{display:none!important}
