@@ -328,11 +328,68 @@ function renderProfile(){
 }
 function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
-function parseIngredients(text){
-  return text.split("\n").map(x=>x.trim()).filter(Boolean).map(line=>{
-    const parts=line.split("|").map(x=>x.trim());
-    return {amount:parts[0]||"",unit:parts[1]||"",name:parts.slice(2).join(" | ")||parts[1]||parts[0]};
+function parseNumberValue(value){
+  const raw=String(value||"").trim().replace(",",".");
+  if(!raw) return null;
+
+  // Ondersteunt gehele getallen, decimalen en eenvoudige breuken zoals 1/2.
+  if(/^\d+\s*\/\s*\d+$/.test(raw)){
+    const [a,b]=raw.split("/").map(Number);
+    return b ? a/b : null;
+  }
+  if(/^\d+(?:\.\d+)?$/.test(raw)) return Number(raw);
+  return null;
+}
+
+function parseIngredientLine(line){
+  const clean=String(line||"").trim();
+  if(!clean) return null;
+
+  // Oude/instructie-indeling: 250 | gram | bloem
+  if(clean.includes("|")){
+    const parts=clean.split("|").map(x=>x.trim());
+    return {
+      amount:parts[0]||"",
+      unit:parts[1]||"",
+      name:parts.slice(2).join(" | ")||parts[1]||parts[0]
+    };
+  }
+
+  // Eenvoudige invoer werkt nu ook: 250 gram bloem
+  // of: 1/2 theelepel zout
+  const match=clean.match(/^(\d+(?:[.,]\d+)?|\d+\s*\/\s*\d+)\s+(\S+)\s+(.+)$/);
+  if(match){
+    return {amount:match[1],unit:match[2],name:match[3]};
+  }
+
+  // Zonder hoeveelheid blijft de tekst gewoon staan.
+  return {amount:"",unit:"",name:clean};
+}
+
+function normalizeIngredient(ingredient){
+  if(!ingredient) return {amount:"",unit:"",name:""};
+
+  // Herstel recepten die in een oudere versie als één hele regel zijn opgeslagen.
+  if(ingredient.amount && !ingredient.unit && ingredient.name===ingredient.amount){
+    return parseIngredientLine(ingredient.amount) || ingredient;
+  }
+  return ingredient;
+}
+
+function formatScaledAmount(value, factor){
+  const number=parseNumberValue(value);
+  if(number===null) return value || "";
+
+  const scaled=number*factor;
+  return scaled.toLocaleString("nl-NL",{
+    maximumFractionDigits:2
   });
+}
+
+function parseIngredients(text){
+  return text.split("\\n")
+    .map(parseIngredientLine)
+    .filter(Boolean);
 }
 
 addRecipeBtn.onclick=()=>{ resetRecipePhoto(); recipeDialog.showModal(); };
@@ -414,9 +471,12 @@ window.openRecipe=id=>{
     viewRecipeTitle.textContent=r.name;
     viewRecipeBody.innerHTML=`${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
       <div class="portion-control"><button id="minusPortion">−</button><strong>Voor ${portions} personen</strong><button id="plusPortion">+</button></div>
-      <h3>Ingrediënten</h3><ul class="ingredient-list">${r.ingredients.map(i=>{
-        const amount=i.amount && !isNaN(String(i.amount).replace(",",".")) ? (Number(String(i.amount).replace(",","."))*portions/r.servings).toLocaleString("nl-NL",{maximumFractionDigits:2}) : i.amount;
-        return `<li><input type="checkbox"><span><strong>${amount} ${i.unit}</strong> ${i.name}</span></li>`;
+      <h3>Ingrediënten</h3><ul class="ingredient-list">${r.ingredients.map(rawIngredient=>{
+        const i=normalizeIngredient(rawIngredient);
+        const factor=portions/Math.max(1,Number(r.servings)||1);
+        const amount=formatScaledAmount(i.amount,factor);
+        const quantity=[amount,i.unit].filter(Boolean).join(" ");
+        return `<li><input type="checkbox"><span>${quantity?`<strong>${quantity}</strong> `:""}${i.name}</span></li>`;
       }).join("")}</ul><h3>Bereiding</h3><ol class="steps">${r.steps.map(s=>`<li>${s}</li>`).join("")}</ol>`;
     minusPortion.onclick=()=>{if(portions>1){portions--;render();}}; plusPortion.onclick=()=>{portions++;render();};
   }; render(); recipeViewDialog.showModal();
@@ -743,7 +803,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.4");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.5");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
