@@ -18,7 +18,8 @@ const DEFAULT_DATA = {
   groceries: [],
   wishes: [],
   events: [],
-  weekMenus: []
+  weekMenus: [],
+  notifications: []
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -129,7 +130,8 @@ function subscribeToCloudData(){
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
           events:Array.isArray(remote.events)?remote.events:[],
-          weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[]
+          weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[],
+          notifications:Array.isArray(remote.notifications)?remote.notifications:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -179,6 +181,38 @@ function currentPersonName(){
 function canManageWish(wish){
   return wish.person===currentPersonName();
 }
+
+function householdById(id){ return data.households.find(h=>h.id===id); }
+function mealAttendees(meal){
+  const household=householdById(meal?.householdId || currentWeekmenuHousehold);
+  if(Array.isArray(meal?.attendees)) return meal.attendees;
+  return (household?.members || []).map(name=>({type:"family",name}));
+}
+function attendeeCount(meal){ return Math.max(1,mealAttendees(meal).length); }
+function addNotification({householdId="",text="",type="info"}){
+  data.notifications=data.notifications || [];
+  data.notifications.unshift({id:crypto.randomUUID(),householdId,text,type,createdBy:currentPersonName(),createdAt:new Date().toISOString(),readBy:[]});
+  data.notifications=data.notifications.slice(0,150);
+}
+function visibleNotifications(){
+  const ids=userHouseholdIds();
+  return (data.notifications || []).filter(n=>!n.householdId || ids.includes(n.householdId));
+}
+function renderNotifications(){
+  if(!window.notificationList) return;
+  const email=(currentUser?.email || "").toLowerCase();
+  const rows=visibleNotifications();
+  notificationList.innerHTML=rows.length?rows.map(n=>`<article class="item-card notification-item ${n.readBy?.includes(email)?"is-read":""}">
+    <div><strong>${escapeHtml(n.text)}</strong><div class="meta">${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}).format(new Date(n.createdAt))}${n.createdBy?` · door ${escapeHtml(n.createdBy)}`:""}</div></div>
+    <button class="mini-btn" onclick="markNotificationRead('${n.id}')">${n.readBy?.includes(email)?"Gelezen":"Markeer gelezen"}</button>
+  </article>`).join(""):`<div class="card muted">Nog geen meldingen.</div>`;
+  const unread=rows.filter(n=>!n.readBy?.includes(email)).length;
+  if(window.notificationBadge){ notificationBadge.textContent=unread; notificationBadge.classList.toggle("hidden",!unread); }
+}
+window.markNotificationRead=id=>{
+  const n=(data.notifications || []).find(x=>x.id===id); if(!n)return;
+  const email=(currentUser?.email || "").toLowerCase(); n.readBy=Array.from(new Set([...(n.readBy||[]),email])); saveData();
+};
 
 
 
@@ -289,9 +323,13 @@ function renderWeekmenu(){
       ${meal?`
         <button class="weekmenu-meal" type="button" onclick="editWeekMeal('${meal.id}')">
           <strong>${meal.recipeId?"📖":"🍽️"} ${recipeMealName(meal)}</strong>
-          ${meal.note?`<span>${meal.note}</span>`:""}
+          ${meal.note?`<span>${escapeHtml(meal.note)}</span>`:""}
           <small>Tik om te wijzigen</small>
         </button>
+        <div class="eaters-block">
+          <div class="eaters-title"><strong>👥 Wie eet mee? (${attendeeCount(meal)})</strong><button class="mini-btn" type="button" onclick="openAttendees('${meal.id}')">Aanpassen</button></div>
+          <div class="chips">${mealAttendees(meal).map(a=>`<span class="chip">${a.type==="guest"?"Gast: ":""}${escapeHtml(a.name)}</span>`).join("") || `<span class="muted">Niemand geselecteerd</span>`}</div>
+        </div>
       `:`
         <button class="weekmenu-empty" type="button" onclick="openWeekMealForDay(${index})">+ Gerecht toevoegen</button>
       `}
@@ -539,7 +577,7 @@ function renderGroceries(){
   const rows=data.groceries.filter(g=>g.householdId===currentHousehold);
   groceryList.innerHTML=rows.length?rows.map(g=>`<div class="check-row ${g.done?"done":""}">
     <input type="checkbox" ${g.done?"checked":""} onchange="toggleGrocery('${g.id}')">
-    <span>${g.text}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
+    <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source?`<small class="grocery-meta">${g.source?escapeHtml(g.source):""}${g.source&&g.addedBy?" · ":""}${g.addedBy?`door ${escapeHtml(g.addedBy)}`:""}</small>`:""}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
   </div>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
 }
 
@@ -703,7 +741,8 @@ function renderProfile(){
   const houses=data.households.filter(h=>h.members.includes(currentPersonName()));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
+function renderAll(){
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -945,7 +984,8 @@ weekMealForm.onsubmit=e=>{
     name:manualName,
     note:String(f.get("note")||"").trim(),
     updatedBy:currentPersonName(),
-    updatedAt:new Date().toISOString()
+    updatedAt:new Date().toISOString(),
+    attendees: existing?.attendees || (householdById(currentWeekmenuHousehold)?.members || []).map(name=>({type:"family",name}))
   };
 
   if(existing){
@@ -954,8 +994,29 @@ weekMealForm.onsubmit=e=>{
     data.weekMenus.push(record);
   }
 
+  addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
   weekMealDialog.close();
   saveData();
+};
+
+
+window.openAttendees=id=>{
+  const meal=(data.weekMenus||[]).find(m=>m.id===id);
+  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
+  attendeesMealId.value=id;
+  const selected=mealAttendees(meal);
+  attendeeFamilyChecks.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.some(a=>a.type==="family"&&a.name===p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
+  attendeeGuests.value=selected.filter(a=>a.type==="guest").map(a=>a.name).join("\n");
+  attendeesDialog.showModal();
+};
+attendeesForm.onsubmit=e=>{
+  e.preventDefault();
+  const meal=(data.weekMenus||[]).find(m=>m.id===attendeesMealId.value); if(!meal)return;
+  const family=[...attendeeFamilyChecks.querySelectorAll('input:checked')].map(x=>({type:"family",name:x.value}));
+  const guests=attendeeGuests.value.split("\n").map(x=>x.trim()).filter(Boolean).map(name=>({type:"guest",name}));
+  meal.attendees=[...family,...guests]; meal.updatedBy=currentPersonName(); meal.updatedAt=new Date().toISOString();
+  addNotification({householdId:meal.householdId,text:`${currentPersonName()} heeft de mee-eters voor ${WEEK_DAYS[meal.dayIndex].toLowerCase()} aangepast (${meal.attendees.length} eters).`});
+  attendeesDialog.close(); saveData();
 };
 
 window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
@@ -1033,14 +1094,17 @@ weekmenuGroceriesBtn.onclick=()=>{
       data.groceries.push({
         id:crypto.randomUUID(),
         householdId:currentWeekmenuHousehold,
-        text:scaledIngredientText(ingredient,recipe.servings,householdSize),
+        text:scaledIngredientText(ingredient,recipe.servings,attendeeCount(meal)),
         done:false,
-        source:`Weekmenu ${weekMenuKey()}`
+        source:`Weekmenu ${weekMenuKey()}`,
+        addedBy:currentPersonName(),
+        addedAt:new Date().toISOString()
       });
       added++;
     });
   });
 
+  addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft ${added} ingrediënten uit het weekmenu toegevoegd aan de boodschappenlijst.`});
   currentHousehold=currentWeekmenuHousehold;
   saveData();
   navigate("boodschappen");
@@ -1177,7 +1241,7 @@ addGroceryBtn.onclick=()=>openSimple("Product toevoegen",`<label>Product<input n
 addHouseholdBtn.onclick=()=>openHouseholdEditor("");
 simpleForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(simpleForm);
-  if(simpleMode==="grocery") data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:f.get("text"),done:false});
+  if(simpleMode==="grocery"){ const text=String(f.get("text")||"").trim(); data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()}); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${text}” toegevoegd aan de boodschappenlijst.`}); }
   simpleForm.reset(); simpleDialog.close(); saveData();
 };
 
@@ -1189,11 +1253,11 @@ window.deleteWish=id=>{
   saveData();
 };
 
-window.toggleGrocery=id=>{const g=data.groceries.find(x=>x.id===id);if(g){g.done=!g.done;saveData();}};
-window.deleteGrocery=id=>{data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
+window.toggleGrocery=id=>{const g=data.groceries.find(x=>x.id===id);if(g){g.done=!g.done;addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” ${g.done?"afgevinkt":"teruggezet"}.`});saveData();}};
+window.deleteGrocery=id=>{const g=data.groceries.find(x=>x.id===id); if(g)addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” verwijderd van de boodschappenlijst.`}); data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
 window.addRecipeToGroceries=id=>{
   const r=data.recipes.find(x=>x.id===id); if(!r||!currentHousehold)return;
-  r.ingredients.forEach(i=>data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:[i.amount,i.unit,i.name].filter(Boolean).join(" "),done:false}));
+  r.ingredients.forEach(i=>data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:[i.amount,i.unit,i.name].filter(Boolean).join(" "),done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()})); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft ingrediënten van ${r.name} toegevoegd aan de boodschappenlijst.`});
   saveData(); navigate("boodschappen");
 };
 window.openRecipe=id=>{

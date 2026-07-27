@@ -207,6 +207,13 @@
         <div id="weekmenuList" class="weekmenu-grid"></div>
       </section>
 
+
+      <section class="page" data-page="meldingen">
+        <div class="page-head"><div><p class="eyebrow">Wat is er veranderd?</p><h2>Meldingen <span id="notificationBadge" class="notification-badge hidden">0</span></h2></div></div>
+        <div class="card weekmenu-privacy">Meldingen zijn alleen zichtbaar voor leden van het betreffende huishouden.</div>
+        <div id="notificationList" class="list-grid"></div>
+      </section>
+
       <section class="page" data-page="agenda">
         <div class="page-head">
           <div><p class="eyebrow">Privé en samen</p><h2>Agenda</h2></div>
@@ -294,6 +301,7 @@
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="agenda">📅 Agenda</button>
     <button data-go="weekmenu">🍽️ Weekmenu</button>
+    <button data-go="meldingen">🔔 Meldingen</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -449,6 +457,18 @@
     </form>
   </dialog>
 
+
+  <dialog id="attendeesDialog" class="modal">
+    <form id="attendeesForm" method="dialog">
+      <div class="sheet-head"><h3>Wie eet mee?</h3><button type="button" data-close>✕</button></div>
+      <input id="attendeesMealId" type="hidden">
+      <p class="muted">Iedereen in het huishouden mag dit aanpassen. Ook familie uit een ander huishouden kan worden geselecteerd.</p>
+      <fieldset class="member-fieldset"><legend>Familieleden</legend><div id="attendeeFamilyChecks" class="member-checks"></div></fieldset>
+      <label>Andere gasten <textarea id="attendeeGuests" rows="4" placeholder="Eén naam per regel, bijvoorbeeld Oma"></textarea></label>
+      <button class="primary-btn wide" type="submit">Mee-eters opslaan</button>
+    </form>
+  </dialog>
+
   <dialog id="agendaDialog" class="modal">
     <form id="agendaForm" method="dialog">
       <div class="sheet-head"><h3>Afspraak toevoegen</h3><button type="button" data-close>✕</button></div>
@@ -504,7 +524,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.1"></script>
-  <script src="app.js?v=1.3.1"></script>
+  <script src="firebase-config.js?v=1.3.2"></script>
+  <script src="app.js?v=1.3.2"></script>
 </body>
 </html>
