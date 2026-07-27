@@ -1,4 +1,4 @@
-# Hogeterpjes v1.2.3
+# Hogeterpjes v1.2.4
 
 Complete, gecontroleerde versie met:
 - Hogeterpjes-logo en PWA-iconen;
@@ -18,7 +18,7 @@ Firebase Console → Firestore Database → Regels → Publiceren.
 Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.
 
 
-## Nieuw in v1.2.3
+## Nieuw in v1.2.4
 - De werkende Firebase-login van v1.2.1 is ongewijzigd gebleven.
 - Rinze kan familieleden bewerken via de familiepagina.
 - Naam, geboortedatum en e-mailadres kunnen worden aangepast.
@@ -26,11 +26,21 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.3
+## Nieuw in v1.2.4
 - Ieder familielid ziet standaard alleen het eigen verlanglijstje.
 - Bij het toevoegen van een wens wordt automatisch de ingelogde persoon gekozen.
 - Gewone gebruikers kunnen niet namens iemand anders wensen toevoegen.
 - Een gebruiker kan eigen wensen verwijderen.
 - Rinze kan als beheerder alle verlanglijstjes bekijken, toevoegen en verwijderen.
 - De werkende Firebase-login van v1.2.1/v1.2.2 is niet gewijzigd.
+- Geen nieuwe Firestore Rules nodig.
+
+
+## Nieuw in v1.2.4
+- Iedereen, ook Rinze, ziet alleen het eigen verlanglijstje.
+- Beheerrechten geven geen toegang tot de privéwensen van anderen.
+- Bij recepten kun je direct een foto maken met de camera.
+- Je kunt ook een foto uit de galerij kiezen.
+- Receptfoto's worden automatisch verkleind.
+- De werkende Firebase-login is niet aangepast.
 - Geen nieuwe Firestore Rules nodig.

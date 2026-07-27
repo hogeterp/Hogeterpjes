@@ -170,7 +170,7 @@ function currentPersonName(){
 }
 
 function canManageWish(wish){
-  return isAdmin() || wish.person===currentPersonName();
+  return wish.person===currentPersonName();
 }
 
 function navigate(page){
@@ -203,6 +203,55 @@ function renderHouseholds(){
   if(!data.households.some(h=>h.id===currentHousehold)) currentHousehold=data.households[0]?.id||"";
   groceryHousehold.value=currentHousehold;
 }
+
+function resetRecipePhoto(){
+  recipePhotoData.value="";
+  recipeCameraInput.value="";
+  recipeGalleryInput.value="";
+  recipePhotoPreview.removeAttribute("src");
+  recipePhotoPreviewWrap.classList.add("hidden");
+}
+
+function setRecipePhoto(dataUrl){
+  recipePhotoData.value=dataUrl;
+  recipePhotoPreview.src=dataUrl;
+  recipePhotoPreviewWrap.classList.remove("hidden");
+}
+
+function processRecipePhoto(file){
+  if(!file) return;
+  if(!file.type.startsWith("image/")){
+    alert("Kies een geldige afbeelding.");
+    return;
+  }
+  if(file.size>10*1024*1024){
+    alert("Kies een foto kleiner dan 10 MB.");
+    return;
+  }
+
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=1200;
+      const scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      const ctx=canvas.getContext("2d");
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      setRecipePhoto(canvas.toDataURL("image/jpeg",0.82));
+    };
+    img.onerror=()=>alert("Deze foto kon niet worden geopend.");
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+recipeCameraInput.onchange=()=>processRecipePhoto(recipeCameraInput.files?.[0]);
+recipeGalleryInput.onchange=()=>processRecipePhoto(recipeGalleryInput.files?.[0]);
+removeRecipePhotoBtn.onclick=resetRecipePhoto;
+
 function renderRecipes(){
   const q=recipeSearch.value?.toLowerCase()||"";
   const rows=data.recipes.filter(r=>(r.name+" "+r.ingredients.map(i=>i.name).join(" ")).toLowerCase().includes(q));
@@ -220,28 +269,24 @@ function renderGroceries(){
   </div>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
 }
 function renderWishes(){
-  const admin=isAdmin();
   const ownName=currentPersonName();
-  const person=admin ? (wishPersonFilter.value||"") : ownName;
   const occasion=wishOccasionFilter.value||"";
-  const rows=data.wishes.filter(w=>(!person||w.person===person)&&(!occasion||w.occasion===occasion));
+  const rows=data.wishes.filter(w=>w.person===ownName && (!occasion||w.occasion===occasion));
 
-  wishPageTitle.textContent=admin ? "Verlanglijstjes" : "Mijn wensen";
-  wishPrivacyNote.textContent=admin
-    ? "Als beheerder kun je alle verlanglijstjes bekijken en aanpassen."
-    : `Ingelogd als ${ownName || "familielid"}. Alleen jouw eigen wensen worden hier getoond.`;
-  wishPersonFilter.classList.toggle("hidden",!admin);
+  wishPageTitle.textContent="Mijn wensen";
+  wishPrivacyNote.textContent=`Ingelogd als ${ownName || "familielid"}. Alleen jouw eigen wensen worden hier getoond.`;
+  wishPersonFilter.classList.add("hidden");
 
   wishList.innerHTML=rows.length?rows.map(w=>`<article class="item-card">
     <div class="wish-card-head">
       <div>
         <h3>${w.title}</h3>
-        <div class="meta">${admin?`${w.person} · `:""}${w.occasion}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div>
+        <div class="meta">${w.occasion}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div>
       </div>
-      ${canManageWish(w)?`<button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>`:""}
+      <button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>
     </div>
     ${w.note?`<p>${w.note}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
-  </article>`).join(""):`<div class="card muted">${admin?"Nog geen wensen.":"Je hebt nog geen wensen toegevoegd."}</div>`;
+  </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
 }
 function renderHome(){
   statFamily.textContent=data.family.length; statHouseholds.textContent=data.households.length; statRecipes.textContent=data.recipes.length; statWishes.textContent=data.wishes.length;
@@ -252,19 +297,12 @@ function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
   recipeAuthor.innerHTML=opts;
 
-  const ownName=currentPersonName();
-  if(isAdmin()){
-    wishPerson.disabled=false;
-    wishPerson.innerHTML=opts;
-    wishPersonFilter.innerHTML=`<option value="">Iedereen</option>${opts}`;
-  }else{
-    const safeName=ownName || "Familielid";
-    wishPerson.innerHTML=`<option>${safeName}</option>`;
-    wishPerson.value=safeName;
-    wishPerson.disabled=true;
-    wishPersonFilter.innerHTML=`<option value="${safeName}">${safeName}</option>`;
-    wishPersonFilter.value=safeName;
-  }
+  const safeName=currentPersonName() || "Familielid";
+  wishPerson.innerHTML=`<option>${safeName}</option>`;
+  wishPerson.value=safeName;
+  wishPerson.disabled=true;
+  wishPersonFilter.innerHTML=`<option value="${safeName}">${safeName}</option>`;
+  wishPersonFilter.value=safeName;
 }
 function renderProfile(){
   const name=currentUser?.displayName || currentUser?.name || "Niet ingelogd";
@@ -297,24 +335,27 @@ function parseIngredients(text){
   });
 }
 
-addRecipeBtn.onclick=()=>recipeDialog.showModal();
+addRecipeBtn.onclick=()=>{ resetRecipePhoto(); recipeDialog.showModal(); };
 function openWishDialog(){
   fillSelects();
   if(!isAdmin()) wishPerson.value=currentPersonName();
   wishDialog.showModal();
 }
 addWishBtn.onclick=openWishDialog;
-document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>recipeDialog.showModal(),150);
+document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); recipeDialog.showModal(); },150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 
 recipeForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(recipeForm);
-  data.recipes.unshift({id:crypto.randomUUID(),name:f.get("name"),servings:Number(f.get("servings")),photo:f.get("photo"),ingredients:parseIngredients(f.get("ingredients")),steps:f.get("steps").split("\n").filter(Boolean),author:f.get("author")});
-  recipeForm.reset(); recipeDialog.close(); saveData();
+  data.recipes.unshift({id:crypto.randomUUID(),name:f.get("name"),servings:Number(f.get("servings")),photo:recipePhotoData.value,ingredients:parseIngredients(f.get("ingredients")),steps:f.get("steps").split("\n").filter(Boolean),author:f.get("author")});
+  recipeForm.reset();
+  resetRecipePhoto();
+  recipeDialog.close();
+  saveData();
 };
 wishForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(wishForm);
-  const person=isAdmin() ? f.get("person") : currentPersonName();
+  const person=currentPersonName();
   if(!person){
     alert("Je account is nog niet aan een familielid gekoppeld.");
     return;
@@ -702,7 +743,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.3");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.4");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
