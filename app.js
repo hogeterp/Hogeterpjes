@@ -17,7 +17,8 @@ const DEFAULT_DATA = {
   recipes: [],
   groceries: [],
   wishes: [],
-  events: []
+  events: [],
+  weekMenus: []
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -26,6 +27,8 @@ const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 let data=loadData();
 let currentHousehold=data.households[0]?.id || "";
+let currentWeekmenuHousehold="";
+let currentWeekStart=getMonday(new Date());
 let simpleMode="";
 let currentUser=null;
 let auth=null;
@@ -125,7 +128,8 @@ function subscribeToCloudData(){
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
-          events:Array.isArray(remote.events)?remote.events:[]
+          events:Array.isArray(remote.events)?remote.events:[],
+          weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -176,6 +180,165 @@ function canManageWish(wish){
   return wish.person===currentPersonName();
 }
 
+
+
+const WEEK_DAYS=["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
+
+function getMonday(value){
+  const date=new Date(value);
+  date.setHours(12,0,0,0);
+  const day=date.getDay();
+  const diff=day===0 ? -6 : 1-day;
+  date.setDate(date.getDate()+diff);
+  return date;
+}
+
+function isoDate(date){
+  const d=new Date(date);
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(date,days){
+  const d=new Date(date);
+  d.setDate(d.getDate()+days);
+  return d;
+}
+
+function getIsoWeek(date){
+  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
+  const dayNum=d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate()+4-dayNum);
+  const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
+  return Math.ceil((((d-yearStart)/86400000)+1)/7);
+}
+
+function accessibleHouseholds(){
+  const ids=userHouseholdIds();
+  return data.households.filter(h=>ids.includes(h.id));
+}
+
+function weekMenuKey(){
+  return isoDate(currentWeekStart);
+}
+
+function getWeekMeals(householdId=currentWeekmenuHousehold,weekStart=weekMenuKey()){
+  return (data.weekMenus || []).filter(m=>m.householdId===householdId && m.weekStart===weekStart);
+}
+
+function getMealForDay(dayIndex){
+  return getWeekMeals().find(m=>Number(m.dayIndex)===Number(dayIndex));
+}
+
+function recipeMealName(meal){
+  if(meal.recipeId){
+    return data.recipes.find(r=>r.id===meal.recipeId)?.name || meal.name || "Onbekend recept";
+  }
+  return meal.name || "Gerecht";
+}
+
+function formatWeekRange(){
+  const end=addDays(currentWeekStart,6);
+  const formatter=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"});
+  return `${formatter.format(currentWeekStart)} t/m ${formatter.format(end)}`;
+}
+
+function fillWeekmenuHouseholds(){
+  if(!window.weekmenuHousehold) return;
+  const allowed=accessibleHouseholds();
+
+  if(!allowed.some(h=>h.id===currentWeekmenuHousehold)){
+    currentWeekmenuHousehold=allowed[0]?.id || "";
+  }
+
+  weekmenuHousehold.innerHTML=allowed.length
+    ? allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("")
+    : `<option value="">Geen huishouden gekoppeld</option>`;
+  weekmenuHousehold.value=currentWeekmenuHousehold;
+
+  addWeekMealBtn.disabled=!currentWeekmenuHousehold;
+  copyWeekmenuBtn.disabled=!currentWeekmenuHousehold;
+  weekmenuGroceriesBtn.disabled=!currentWeekmenuHousehold;
+}
+
+function renderWeekmenu(){
+  if(!window.weekmenuList) return;
+  fillWeekmenuHouseholds();
+
+  const weekNumber=getIsoWeek(currentWeekStart);
+  weekmenuWeekLabel.textContent=`Week ${weekNumber}`;
+  weekmenuDateRange.textContent=formatWeekRange();
+
+  if(!currentWeekmenuHousehold){
+    weekmenuList.innerHTML=`<div class="card muted">Je account is nog niet gekoppeld aan een huishouden.</div>`;
+    return;
+  }
+
+  weekmenuList.innerHTML=WEEK_DAYS.map((day,index)=>{
+    const meal=getMealForDay(index);
+    const actualDate=addDays(currentWeekStart,index);
+    const dateLabel=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"}).format(actualDate);
+
+    return `<article class="card weekmenu-day ${meal?"has-meal":""}">
+      <div class="weekmenu-day-head">
+        <div><span>${dateLabel}</span><h3>${day}</h3></div>
+        ${meal?`<button class="mini-btn danger-mini" type="button" onclick="deleteWeekMeal('${meal.id}')">Verwijder</button>`:""}
+      </div>
+      ${meal?`
+        <button class="weekmenu-meal" type="button" onclick="editWeekMeal('${meal.id}')">
+          <strong>${meal.recipeId?"📖":"🍽️"} ${recipeMealName(meal)}</strong>
+          ${meal.note?`<span>${meal.note}</span>`:""}
+          <small>Tik om te wijzigen</small>
+        </button>
+      `:`
+        <button class="weekmenu-empty" type="button" onclick="openWeekMealForDay(${index})">+ Gerecht toevoegen</button>
+      `}
+    </article>`;
+  }).join("");
+}
+
+function showWeekMealFields(){
+  const manual=weekMealType.value==="manual";
+  weekMealManualLabel.classList.toggle("hidden",!manual);
+  weekMealRecipeLabel.classList.toggle("hidden",manual);
+  weekMealManual.required=manual;
+  weekMealRecipe.required=!manual;
+}
+
+function fillWeekMealRecipes(){
+  weekMealRecipe.innerHTML=data.recipes.length
+    ? data.recipes.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")
+    : `<option value="">Nog geen recepten beschikbaar</option>`;
+}
+
+function openWeekMealDialog(dayIndex=0,meal=null){
+  if(!currentWeekmenuHousehold) return;
+  weekMealForm.reset();
+  fillWeekMealRecipes();
+  weekMealDay.value=String(dayIndex);
+  weekMealEditId.value=meal?.id || "";
+
+  if(meal){
+    weekMealType.value=meal.recipeId ? "recipe" : "manual";
+    weekMealRecipe.value=meal.recipeId || "";
+    weekMealManual.value=meal.name || "";
+    weekMealForm.elements.note.value=meal.note || "";
+  }else{
+    weekMealType.value=data.recipes.length ? "recipe" : "manual";
+  }
+
+  showWeekMealFields();
+  weekMealDialog.showModal();
+}
+
+function scaledIngredientText(ingredient,recipeServings,householdSize){
+  const i=normalizeIngredient(ingredient);
+  const factor=householdSize/Math.max(1,Number(recipeServings)||1);
+  const amount=formatScaledAmount(i.amount,factor);
+  return [amount,i.unit,i.name].filter(Boolean).join(" ");
+}
 
 function loadPrivateEvents(){
   try{
@@ -296,6 +459,7 @@ function renderHouseholds(){
   groceryHousehold.innerHTML=data.households.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
   if(!data.households.some(h=>h.id===currentHousehold)) currentHousehold=data.households[0]?.id||"";
   groceryHousehold.value=currentHousehold;
+  fillWeekmenuHouseholds();
 }
 
 function resetRecipePhoto(){
@@ -470,7 +634,7 @@ function renderProfile(){
   const houses=data.households.filter(h=>h.members.includes(name));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); fillSelects(); renderProfile(); renderAccountManagement(); }
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -536,6 +700,168 @@ function parseIngredients(text){
     .filter(Boolean);
 }
 
+
+
+addWeekMealBtn.onclick=()=>openWeekMealDialog(0);
+weekMealType.onchange=showWeekMealFields;
+weekmenuHousehold.onchange=()=>{
+  currentWeekmenuHousehold=weekmenuHousehold.value;
+  renderWeekmenu();
+};
+
+previousWeekBtn.onclick=()=>{
+  currentWeekStart=addDays(currentWeekStart,-7);
+  renderWeekmenu();
+};
+
+nextWeekBtn.onclick=()=>{
+  currentWeekStart=addDays(currentWeekStart,7);
+  renderWeekmenu();
+};
+
+weekMealForm.onsubmit=e=>{
+  e.preventDefault();
+  if(!currentWeekmenuHousehold) return;
+
+  const f=new FormData(weekMealForm);
+  const dayIndex=Number(f.get("day"));
+  const mealType=f.get("mealType");
+  const recipeId=mealType==="recipe" ? String(f.get("recipeId")||"") : "";
+  const manualName=mealType==="manual" ? String(f.get("manualName")||"").trim() : "";
+
+  if(mealType==="recipe" && !recipeId){
+    alert("Voeg eerst een recept toe of kies 'Zelf gerecht typen'.");
+    return;
+  }
+  if(mealType==="manual" && !manualName){
+    alert("Vul een gerecht in.");
+    return;
+  }
+
+  data.weekMenus=data.weekMenus || [];
+  const editId=String(f.get("editId")||"");
+  const existing=data.weekMenus.find(m=>m.id===editId);
+  const sameDay=data.weekMenus.find(m=>
+    m.householdId===currentWeekmenuHousehold &&
+    m.weekStart===weekMenuKey() &&
+    Number(m.dayIndex)===dayIndex &&
+    m.id!==editId
+  );
+
+  if(sameDay){
+    data.weekMenus=data.weekMenus.filter(m=>m.id!==sameDay.id);
+  }
+
+  const record={
+    id:existing?.id || crypto.randomUUID(),
+    householdId:currentWeekmenuHousehold,
+    weekStart:weekMenuKey(),
+    dayIndex,
+    recipeId,
+    name:manualName,
+    note:String(f.get("note")||"").trim(),
+    updatedBy:currentPersonName(),
+    updatedAt:new Date().toISOString()
+  };
+
+  if(existing){
+    Object.assign(existing,record);
+  }else{
+    data.weekMenus.push(record);
+  }
+
+  weekMealDialog.close();
+  saveData();
+};
+
+window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
+
+window.editWeekMeal=id=>{
+  const meal=(data.weekMenus || []).find(m=>m.id===id);
+  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
+  openWeekMealDialog(meal.dayIndex,meal);
+};
+
+window.deleteWeekMeal=id=>{
+  const meal=(data.weekMenus || []).find(m=>m.id===id);
+  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
+  if(!confirm(`"${recipeMealName(meal)}" uit het weekmenu verwijderen?`)) return;
+  data.weekMenus=data.weekMenus.filter(m=>m.id!==id);
+  saveData();
+};
+
+copyWeekmenuBtn.onclick=()=>{
+  const source=getWeekMeals();
+  if(!source.length){
+    alert("Deze week bevat nog geen gerechten.");
+    return;
+  }
+
+  const nextStart=isoDate(addDays(currentWeekStart,7));
+  const existingNext=(data.weekMenus || []).filter(m=>
+    m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart
+  );
+
+  if(existingNext.length && !confirm("De volgende week bevat al gerechten. Deze vervangen?")){
+    return;
+  }
+
+  data.weekMenus=(data.weekMenus || []).filter(m=>
+    !(m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart)
+  );
+
+  source.forEach(meal=>{
+    data.weekMenus.push({
+      ...meal,
+      id:crypto.randomUUID(),
+      weekStart:nextStart,
+      updatedBy:currentPersonName(),
+      updatedAt:new Date().toISOString()
+    });
+  });
+
+  saveData();
+  alert("Het weekmenu is naar de volgende week gekopieerd.");
+};
+
+weekmenuGroceriesBtn.onclick=()=>{
+  const household=data.households.find(h=>h.id===currentWeekmenuHousehold);
+  const meals=getWeekMeals();
+  const recipeMeals=meals.filter(m=>m.recipeId);
+
+  if(!meals.length){
+    alert("Deze week bevat nog geen gerechten.");
+    return;
+  }
+  if(!recipeMeals.length){
+    alert("Er zijn alleen handmatig ingevulde gerechten. Daarvan zijn geen ingrediënten bekend.");
+    return;
+  }
+
+  let added=0;
+  const householdSize=Math.max(1,household?.members?.length || 1);
+
+  recipeMeals.forEach(meal=>{
+    const recipe=data.recipes.find(r=>r.id===meal.recipeId);
+    if(!recipe) return;
+
+    recipe.ingredients.forEach(ingredient=>{
+      data.groceries.push({
+        id:crypto.randomUUID(),
+        householdId:currentWeekmenuHousehold,
+        text:scaledIngredientText(ingredient,recipe.servings,householdSize),
+        done:false,
+        source:`Weekmenu ${weekMenuKey()}`
+      });
+      added++;
+    });
+  });
+
+  currentHousehold=currentWeekmenuHousehold;
+  saveData();
+  navigate("boodschappen");
+  alert(`${added} ingrediënten zijn toegevoegd aan de boodschappenlijst van ${household?.name || "het huishouden"}.`);
+};
 
 addAgendaBtn.onclick=()=>{
   agendaForm.reset();
@@ -892,6 +1218,7 @@ function showLoggedIn(user){
   renderProfile();
   renderWishes();
   renderAgenda();
+  renderWeekmenu();
 
   if(firstOpen){
     loadAdminSettings().finally(()=>subscribeToCloudData());
@@ -1012,7 +1339,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.7");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.8");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

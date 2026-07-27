@@ -1,4 +1,4 @@
-# Hogeterpjes v1.2.7
+# Hogeterpjes v1.2.8
 
 Complete, gecontroleerde versie met:
 - Hogeterpjes-logo en PWA-iconen;
@@ -18,7 +18,7 @@ Firebase Console → Firestore Database → Regels → Publiceren.
 Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - De werkende Firebase-login van v1.2.1 is ongewijzigd gebleven.
 - Rinze kan familieleden bewerken via de familiepagina.
 - Naam, geboortedatum en e-mailadres kunnen worden aangepast.
@@ -26,7 +26,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - Ieder familielid ziet standaard alleen het eigen verlanglijstje.
 - Bij het toevoegen van een wens wordt automatisch de ingelogde persoon gekozen.
 - Gewone gebruikers kunnen niet namens iemand anders wensen toevoegen.
@@ -36,7 +36,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - Iedereen, ook Rinze, ziet alleen het eigen verlanglijstje.
 - Beheerrechten geven geen toegang tot de privéwensen van anderen.
 - Bij recepten kun je direct een foto maken met de camera.
@@ -46,7 +46,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - Ingrediëntenhoeveelheden veranderen nu mee als je het aantal personen verhoogt of verlaagt.
 - Zowel `250 gram bloem` als `250 | gram | bloem` wordt herkend.
 - Decimalen en eenvoudige breuken zoals `0,5` en `1/2` worden ondersteund.
@@ -55,7 +55,7 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - Bij een wens kun je direct een foto maken.
 - Je kunt een bestaande foto of screenshot uit de galerij kiezen.
 - De afbeelding wordt automatisch verkleind.
@@ -64,11 +64,24 @@ Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `f
 - Geen nieuwe Firestore Rules nodig.
 
 
-## Nieuw in v1.2.7
+## Nieuw in v1.2.8
 - Nieuwe agenda met privé-, familie- en huishoudafspraken.
 - Privé-afspraken staan alleen op het eigen apparaat.
 - Familieafspraken zijn zichtbaar voor alle ingelogde familieleden.
 - Huishoudafspraken zijn alleen zichtbaar voor leden van het gekozen huishouden.
 - Filteren op soort afspraak en huishouden.
 - Locatie, begin- en eindtijd en opmerkingen toevoegen.
+- Geen nieuwe Firestore Rules nodig.
+
+
+## Nieuw in v1.2.8
+- Weekmenu per huishouden.
+- Alleen leden van een huishouden zien en wijzigen het betreffende weekmenu.
+- Plannen van maandag tot en met zondag.
+- Bestaand recept kiezen of zelf een gerecht typen.
+- Vorige en volgende week bekijken.
+- Een compleet weekmenu naar de volgende week kopiëren.
+- Ingrediënten van recepten met één knop aan de boodschappenlijst toevoegen.
+- Hoeveelheden worden aangepast aan het aantal leden van het huishouden.
+- De bestaande Firebase-login is niet aangepast.
 - Geen nieuwe Firestore Rules nodig.

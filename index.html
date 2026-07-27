@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.2.7">
-  <link rel="stylesheet" href="style.css?v=1.2.7">
+  <link rel="manifest" href="manifest.json?v=1.2.8">
+  <link rel="stylesheet" href="style.css?v=1.2.8">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.8</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.7</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.8</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -92,7 +92,7 @@
             <button data-go="recepten" data-action="add-recipe">🍽️ Recept</button>
             <button data-go="boodschappen">🛒 Boodschap</button>
             <button data-go="verlanglijstjes" data-action="add-wish">🎁 Wens</button>
-            <button data-go="huishoudens">🏡 Huishouden</button>
+            <button data-go="weekmenu">📅 Weekmenu</button>
           </div>
         </section>
       </section>
@@ -152,6 +152,39 @@
       </section>
 
 
+
+
+      <section class="page" data-page="weekmenu">
+        <div class="page-head">
+          <div><p class="eyebrow">Per huishouden</p><h2>Weekmenu</h2></div>
+          <button id="addWeekMealBtn" class="primary-btn">+ Gerecht</button>
+        </div>
+
+        <div class="card weekmenu-toolbar">
+          <label>Huishouden
+            <select id="weekmenuHousehold"></select>
+          </label>
+          <div class="week-switcher">
+            <button id="previousWeekBtn" class="secondary-btn" type="button">← Vorige</button>
+            <div>
+              <strong id="weekmenuWeekLabel">Deze week</strong>
+              <small id="weekmenuDateRange"></small>
+            </div>
+            <button id="nextWeekBtn" class="secondary-btn" type="button">Volgende →</button>
+          </div>
+        </div>
+
+        <div class="weekmenu-actions">
+          <button id="copyWeekmenuBtn" class="secondary-btn" type="button">📄 Kopieer naar volgende week</button>
+          <button id="weekmenuGroceriesBtn" class="primary-btn" type="button">🛒 Maak boodschappenlijst</button>
+        </div>
+
+        <div class="card weekmenu-privacy">
+          🏡 Alleen leden van het gekozen huishouden kunnen dit weekmenu zien en wijzigen.
+        </div>
+
+        <div id="weekmenuList" class="weekmenu-grid"></div>
+      </section>
 
       <section class="page" data-page="agenda">
         <div class="page-head">
@@ -239,6 +272,7 @@
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="agenda">📅 Agenda</button>
+    <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -323,6 +357,47 @@
 
 
 
+
+  <dialog id="weekMealDialog" class="modal">
+    <form id="weekMealForm" method="dialog">
+      <div class="sheet-head"><h3>Gerecht plannen</h3><button type="button" data-close>✕</button></div>
+
+      <label>Dag
+        <select id="weekMealDay" name="day" required>
+          <option value="0">Maandag</option>
+          <option value="1">Dinsdag</option>
+          <option value="2">Woensdag</option>
+          <option value="3">Donderdag</option>
+          <option value="4">Vrijdag</option>
+          <option value="5">Zaterdag</option>
+          <option value="6">Zondag</option>
+        </select>
+      </label>
+
+      <label>Hoe wil je het gerecht invullen?
+        <select id="weekMealType" name="mealType">
+          <option value="recipe">Kies bestaand recept</option>
+          <option value="manual">Zelf gerecht typen</option>
+        </select>
+      </label>
+
+      <label id="weekMealRecipeLabel">Recept
+        <select id="weekMealRecipe" name="recipeId"></select>
+      </label>
+
+      <label id="weekMealManualLabel" class="hidden">Gerecht
+        <input id="weekMealManual" name="manualName" placeholder="Bijvoorbeeld: Broodjes hamburger">
+      </label>
+
+      <label>Opmerking
+        <textarea name="note" rows="3" placeholder="Optioneel"></textarea>
+      </label>
+
+      <input id="weekMealEditId" name="editId" type="hidden">
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
+
   <dialog id="agendaDialog" class="modal">
     <form id="agendaForm" method="dialog">
       <div class="sheet-head"><h3>Afspraak toevoegen</h3><button type="button" data-close>✕</button></div>
@@ -378,7 +453,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.2.7"></script>
-  <script src="app.js?v=1.2.7"></script>
+  <script src="firebase-config.js?v=1.2.8"></script>
+  <script src="app.js?v=1.2.8"></script>
 </body>
 </html>
