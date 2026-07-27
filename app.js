@@ -9,7 +9,7 @@ const DEFAULT_DATA = {
     {name:"Rivaldo", birth:"1999-04-21", email:""}
   ],
   households: [
-    {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa"]},
+    {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa","Jasmijn","Maaike"]},
     {id:crypto.randomUUID(), name:"Tessa & Rivaldo", members:["Tessa","Rivaldo"]},
     {id:crypto.randomUUID(), name:"Maaike", members:["Maaike"]},
     {id:crypto.randomUUID(), name:"Jasmijn", members:["Jasmijn"]}
@@ -455,9 +455,25 @@ function renderFamily(){
   </article>`).join("");
 }
 function renderHouseholds(){
-  householdList.innerHTML=data.households.map(h=>`<article class="item-card"><h3>🏡 ${h.name}</h3><div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div></article>`).join("") || `<div class="card muted">Nog geen huishoudens.</div>`;
-  groceryHousehold.innerHTML=data.households.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
-  if(!data.households.some(h=>h.id===currentHousehold)) currentHousehold=data.households[0]?.id||"";
+  const admin=isAdmin();
+  const visibleHouseholds=admin ? data.households : accessibleHouseholds();
+
+  householdList.innerHTML=visibleHouseholds.length ? visibleHouseholds.map(h=>`<article class="item-card">
+    <div class="family-card-head">
+      <div>
+        <h3>🏡 ${h.name}</h3>
+        <div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div>
+      </div>
+      ${admin?`<button class="mini-btn" type="button" onclick="openHouseholdEditor('${h.id}')">Bewerken</button>`:""}
+    </div>
+  </article>`).join("") : `<div class="card muted">Je bent nog niet aan een huishouden gekoppeld.</div>`;
+
+  addHouseholdBtn.classList.toggle("hidden",!admin);
+  groceryHousehold.innerHTML=accessibleHouseholds().map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
+
+  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)){
+    currentHousehold=accessibleHouseholds()[0]?.id||"";
+  }
   groceryHousehold.value=currentHousehold;
   fillWeekmenuHouseholds();
 }
@@ -597,9 +613,62 @@ function renderWishes(){
   </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
 }
 function renderHome(){
-  statFamily.textContent=data.family.length; statHouseholds.textContent=data.households.length; statRecipes.textContent=data.recipes.length; statWishes.textContent=data.wishes.length;
+  statFamily.textContent=data.family.length;
+  statHouseholds.textContent=data.households.length;
+  statRecipes.textContent=data.recipes.length;
+  statWishes.textContent=data.wishes.filter(w=>w.person===currentPersonName()).length;
+
+  const now=new Date();
+  const todayIso=isoDate(now);
+  const person=currentPersonName() || "familielid";
+  dashboardWelcome.textContent=`Hallo ${person}`;
+  dashboardDate.textContent=new Intl.DateTimeFormat("nl-NL",{
+    weekday:"long",day:"numeric",month:"long",year:"numeric"
+  }).format(now);
+
   const b=getNextBirthday();
-  document.getElementById("nextBirthday").innerHTML=b?`<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`:"";
+  document.getElementById("nextBirthday").innerHTML=b
+    ? `<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`
+    : `<div class="muted">Geen verjaardag gevonden.</div>`;
+
+  const houses=accessibleHouseholds();
+  const monday=isoDate(getMonday(now));
+  const dayIndex=(now.getDay()+6)%7;
+  const meals=(data.weekMenus || []).filter(m=>
+    houses.some(h=>h.id===m.householdId) &&
+    m.weekStart===monday &&
+    Number(m.dayIndex)===dayIndex
+  );
+
+  dashboardMeals.innerHTML=meals.length ? meals.map(meal=>{
+    const house=data.households.find(h=>h.id===meal.householdId);
+    return `<div class="dashboard-row"><div><strong>${recipeMealName(meal)}</strong><span>${house?.name || ""}</span></div></div>`;
+  }).join("") : `<p class="muted">Voor vandaag staat nog niets gepland.</p>`;
+
+  const visibleAgenda=getVisibleAgendaEvents()
+    .filter(e=>e.date>=todayIso)
+    .sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")))
+    .slice(0,4);
+
+  dashboardAgenda.innerHTML=visibleAgenda.length ? visibleAgenda.map(e=>`
+    <div class="dashboard-row">
+      <div><strong>${e.title}</strong><span>${formatAgendaDate(e)} · ${agendaScopeLabel(e)}</span></div>
+    </div>
+  `).join("") : `<p class="muted">Geen komende afspraken.</p>`;
+
+  const groceryRows=(data.groceries || []).filter(g=>
+    houses.some(h=>h.id===g.householdId) && !g.done
+  );
+  const groceryByHouse=houses.map(h=>({
+    house:h,
+    count:groceryRows.filter(g=>g.householdId===h.id).length
+  })).filter(x=>x.count>0);
+
+  dashboardGroceries.innerHTML=groceryByHouse.length ? groceryByHouse.map(x=>`
+    <div class="dashboard-row">
+      <div><strong>${x.count} ${x.count===1?"product":"producten"}</strong><span>${x.house.name}</span></div>
+    </div>
+  `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -631,7 +700,7 @@ function renderProfile(){
 
   profileBtn.textContent=initials(name);
   topGreeting.textContent=currentUser ? `Hallo ${name}` : "Familie-app";
-  const houses=data.households.filter(h=>h.members.includes(name));
+  const houses=data.households.filter(h=>h.members.includes(currentPersonName()));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
@@ -973,13 +1042,10 @@ function openSimple(title, fields, mode){
   simpleFields.innerHTML=fields; simpleDialog.showModal();
 }
 addGroceryBtn.onclick=()=>openSimple("Product toevoegen",`<label>Product<input name="text" required></label>`,"grocery");
-addHouseholdBtn.onclick=()=>openSimple("Huishouden toevoegen",`
-  <label>Naam<input name="name" required></label>
-  <label>Leden <small>Meerdere kiezen is mogelijk</small><select name="members" multiple size="7">${data.family.map(p=>`<option>${p.name}</option>`).join("")}</select></label>`,"household");
+addHouseholdBtn.onclick=()=>openHouseholdEditor("");
 simpleForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(simpleForm);
   if(simpleMode==="grocery") data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:f.get("text"),done:false});
-  if(simpleMode==="household") data.households.push({id:crypto.randomUUID(),name:f.get("name"),members:f.getAll("members")});
   simpleForm.reset(); simpleDialog.close(); saveData();
 };
 
@@ -1056,6 +1122,84 @@ function renderAccountManagement(){
   accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
 }
 
+
+
+window.openHouseholdEditor=id=>{
+  if(!isAdmin()) return;
+
+  const household=id ? data.households.find(h=>h.id===id) : null;
+  householdEditId.value=household?.id || "";
+  householdEditTitle.textContent=household ? "Huishouden bewerken" : "Huishouden toevoegen";
+  householdEditName.value=household?.name || "";
+  householdEditMessage.textContent="";
+
+  householdMemberChecks.innerHTML=data.family.map(person=>`
+    <label class="member-check">
+      <input type="checkbox" value="${person.name}" ${household?.members?.includes(person.name)?"checked":""}>
+      <span>${person.name}</span>
+    </label>
+  `).join("");
+
+  deleteHouseholdBtn.classList.toggle("hidden",!household);
+  householdEditDialog.showModal();
+};
+
+householdEditForm.onsubmit=e=>{
+  e.preventDefault();
+  if(!isAdmin()) return;
+
+  const id=householdEditId.value;
+  const name=householdEditName.value.trim();
+  const members=[...householdMemberChecks.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
+
+  if(!name){
+    householdEditMessage.textContent="Vul een naam in.";
+    return;
+  }
+  if(!members.length){
+    householdEditMessage.textContent="Kies minimaal één lid.";
+    return;
+  }
+  if(data.households.some(h=>h.id!==id && h.name.toLowerCase()===name.toLowerCase())){
+    householdEditMessage.textContent="Er bestaat al een huishouden met deze naam.";
+    return;
+  }
+
+  if(id){
+    const household=data.households.find(h=>h.id===id);
+    if(!household) return;
+    household.name=name;
+    household.members=members;
+  }else{
+    data.households.push({
+      id:crypto.randomUUID(),
+      name,
+      members
+    });
+  }
+
+  householdEditDialog.close();
+  saveData();
+};
+
+deleteHouseholdBtn.onclick=()=>{
+  if(!isAdmin()) return;
+  const id=householdEditId.value;
+  const household=data.households.find(h=>h.id===id);
+  if(!household) return;
+
+  if(!confirm(`Huishouden "${household.name}" verwijderen? Weekmenu's, afspraken en boodschappen van dit huishouden worden ook verwijderd.`)){
+    return;
+  }
+
+  data.households=data.households.filter(h=>h.id!==id);
+  data.weekMenus=(data.weekMenus || []).filter(m=>m.householdId!==id);
+  data.events=(data.events || []).filter(e=>e.householdId!==id);
+  data.groceries=(data.groceries || []).filter(g=>g.householdId!==id);
+
+  householdEditDialog.close();
+  saveData();
+};
 
 window.openFamilyEditor=name=>{
   if(!isAdmin()) return;
@@ -1216,6 +1360,7 @@ function showLoggedIn(user){
   loginMessage.textContent="";
   fillSelects();
   renderProfile();
+  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)) currentHousehold=accessibleHouseholds()[0]?.id || "";
   renderWishes();
   renderAgenda();
   renderWeekmenu();
@@ -1339,7 +1484,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.8");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.9");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

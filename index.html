@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.2.8">
-  <link rel="stylesheet" href="style.css?v=1.2.8">
+  <link rel="manifest" href="manifest.json?v=1.2.9">
+  <link rel="stylesheet" href="style.css?v=1.2.9">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.8</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.9</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.8</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.9</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -47,16 +47,49 @@
 
     <main id="app">
       <section class="page active" data-page="home">
-        <div class="hero card">
+        <div class="hero card dashboard-hero">
           <div>
-            <p class="eyebrow">Alles op één plek</p>
-            <h2>Welkom bij Hogeterpjes</h2>
-            <p>Recepten, boodschappen, verlanglijstjes en huishoudens voor de hele familie.</p>
+            <p class="eyebrow" id="dashboardDate">Vandaag</p>
+            <h2 id="dashboardWelcome">Welkom bij Hogeterpjes</h2>
+            <p>Alles wat vandaag en deze week belangrijk is, op één plek.</p>
           </div>
           <div class="hero-badge">🏠❤️</div>
         </div>
 
-        <div class="stats-grid">
+        <div class="dashboard-grid">
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Vandaag</p><h3>🍽️ Op het menu</h3></div>
+              <button class="text-btn" data-go="weekmenu">Open</button>
+            </div>
+            <div id="dashboardMeals"></div>
+          </section>
+
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Agenda</p><h3>📅 Vandaag en binnenkort</h3></div>
+              <button class="text-btn" data-go="agenda">Open</button>
+            </div>
+            <div id="dashboardAgenda"></div>
+          </section>
+
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Boodschappen</p><h3>🛒 Nog te halen</h3></div>
+              <button class="text-btn" data-go="boodschappen">Open</button>
+            </div>
+            <div id="dashboardGroceries"></div>
+          </section>
+
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Familie</p><h3>🎂 Eerstvolgende verjaardag</h3></div>
+            </div>
+            <div id="nextBirthday" class="birthday-box"></div>
+          </section>
+        </div>
+
+        <div class="stats-grid dashboard-stats">
           <button class="stat card" data-go="familie">
             <strong id="statFamily">7</strong><span>familieleden</span>
           </button>
@@ -73,20 +106,7 @@
 
         <section class="card">
           <div class="section-head">
-            <div>
-              <p class="eyebrow">Binnenkort</p>
-              <h3>Eerstvolgende verjaardag</h3>
-            </div>
-          </div>
-          <div id="nextBirthday" class="birthday-box"></div>
-        </section>
-
-        <section class="card">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Snel toevoegen</p>
-              <h3>Wat wil je doen?</h3>
-            </div>
+            <div><p class="eyebrow">Snel toevoegen</p><h3>Wat wil je doen?</h3></div>
           </div>
           <div class="quick-grid">
             <button data-go="recepten" data-action="add-recipe">🍽️ Recept</button>
@@ -109,6 +129,7 @@
           <div><p class="eyebrow">Samen wonen</p><h2>Huishoudens</h2></div>
           <button id="addHouseholdBtn" class="primary-btn">+ Nieuw</button>
         </div>
+        <div class="card household-help">Een familielid kan in meerdere huishoudens tegelijk zitten.</div>
         <div id="householdList" class="list-grid"></div>
       </section>
 
@@ -358,6 +379,28 @@
 
 
 
+
+  <dialog id="householdEditDialog" class="modal">
+    <form id="householdEditForm" method="dialog">
+      <div class="sheet-head"><h3 id="householdEditTitle">Huishouden bewerken</h3><button type="button" data-close>✕</button></div>
+      <input id="householdEditId" type="hidden">
+
+      <label>Naam
+        <input id="householdEditName" required>
+      </label>
+
+      <fieldset class="member-fieldset">
+        <legend>Leden</legend>
+        <p class="muted">Een persoon mag bij meerdere huishoudens horen.</p>
+        <div id="householdMemberChecks" class="member-checks"></div>
+      </fieldset>
+
+      <p id="householdEditMessage" class="login-message"></p>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="deleteHouseholdBtn" class="secondary-btn wide danger-button" type="button">Huishouden verwijderen</button>
+    </form>
+  </dialog>
+
   <dialog id="weekMealDialog" class="modal">
     <form id="weekMealForm" method="dialog">
       <div class="sheet-head"><h3>Gerecht plannen</h3><button type="button" data-close>✕</button></div>
@@ -453,7 +496,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.2.8"></script>
-  <script src="app.js?v=1.2.8"></script>
+  <script src="firebase-config.js?v=1.2.9"></script>
+  <script src="app.js?v=1.2.9"></script>
 </body>
 </html>

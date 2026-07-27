@@ -116,3 +116,27 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
   .week-switcher{grid-template-columns:1fr 1fr}
   .week-switcher div{grid-column:1 / -1;grid-row:1}
 }
+
+
+.dashboard-hero{margin-bottom:14px}
+.dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.dashboard-card{min-height:170px}
+.dashboard-card .section-head{align-items:flex-start}
+.dashboard-row{padding:10px 0;border-bottom:1px solid var(--line)}
+.dashboard-row:last-child{border-bottom:0}
+.dashboard-row div{display:flex;flex-direction:column;gap:4px}
+.dashboard-row span{font-size:.85rem;color:var(--muted)}
+.dashboard-stats{margin-bottom:14px}
+.household-help{margin-bottom:14px}
+.member-fieldset{border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 16px}
+.member-fieldset legend{font-weight:800;padding:0 6px}
+.member-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.member-check{display:flex!important;align-items:center;gap:8px;background:var(--soft);padding:10px;border-radius:12px;margin:0!important}
+.member-check input{width:auto;margin:0}
+.danger-button{margin-top:10px}
+@media(max-width:700px){
+  .dashboard-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .member-checks{grid-template-columns:1fr}
+}
