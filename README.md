@@ -16,3 +16,11 @@ Gebouwd op de stabiele v1.3.1.
 Pak het ZIP-bestand uit en upload de losse bestanden uit de map naar GitHub. Vervang de bestaande bestanden.
 
 Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nieuwe Firestore-regels nodig zolang de bestaande gedeelde appData-documentregels actief zijn.
+
+
+## Versie 1.3.3
+- Gezamenlijke productdatabase
+- Product zoeken, favorieten en categorieën
+- Vaste winkel en andere winkels per product
+- Producten direct naar een huishoudelijke boodschappenlijst
+- Boodschappen gegroepeerd per winkel

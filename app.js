@@ -19,7 +19,8 @@ const DEFAULT_DATA = {
   wishes: [],
   events: [],
   weekMenus: [],
-  notifications: []
+  notifications: [],
+  products: []
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -27,6 +28,7 @@ const PROFILE_KEY="hogeterpjes-demo-profile";
 const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 let data=loadData();
+data.products=Array.isArray(data.products)?data.products:[];
 let currentHousehold=data.households[0]?.id || "";
 let currentWeekmenuHousehold="";
 let currentWeekStart=getMonday(new Date());
@@ -131,7 +133,8 @@ function subscribeToCloudData(){
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
           events:Array.isArray(remote.events)?remote.events:[],
           weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[],
-          notifications:Array.isArray(remote.notifications)?remote.notifications:[]
+          notifications:Array.isArray(remote.notifications)?remote.notifications:[],
+          products:Array.isArray(remote.products)?remote.products:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -573,12 +576,52 @@ function renderRecipes(){
     <div class="recipe-actions"><button class="secondary-btn" onclick="openRecipe('${r.id}')">Bekijken</button><button class="secondary-btn" onclick="addRecipeToGroceries('${r.id}')">Naar lijst</button></div>
   </article>`).join(""):`<div class="card muted">Nog geen recepten. Voeg je eerste recept toe.</div>`;
 }
+function productLabel(p){
+  return [p.brand,p.name,p.amount,p.unit].filter(Boolean).join(" ");
+}
+function productStores(p){
+  return [p.store,...String(p.otherStores||"").split(",").map(x=>x.trim())].filter(Boolean);
+}
 function renderGroceries(){
   const rows=data.groceries.filter(g=>g.householdId===currentHousehold);
-  groceryList.innerHTML=rows.length?rows.map(g=>`<div class="check-row ${g.done?"done":""}">
-    <input type="checkbox" ${g.done?"checked":""} onchange="toggleGrocery('${g.id}')">
-    <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source?`<small class="grocery-meta">${g.source?escapeHtml(g.source):""}${g.source&&g.addedBy?" · ":""}${g.addedBy?`door ${escapeHtml(g.addedBy)}`:""}</small>`:""}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
-  </div>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
+  const grouped={};
+  rows.forEach(g=>{
+    const store=(g.store||"Geen winkel opgegeven").trim();
+    (grouped[store] ||= []).push(g);
+  });
+  const stores=Object.keys(grouped).sort((a,b)=>a.localeCompare(b,"nl"));
+  groceryList.innerHTML=rows.length?stores.map(store=>`<section class="grocery-store-group">
+    <h3 class="grocery-store-title">🏪 ${escapeHtml(store)}</h3>
+    ${grouped[store].map(g=>`<div class="check-row ${g.done?"done":""}">
+      <input type="checkbox" ${g.done?"checked":""} onchange="toggleGrocery('${g.id}')">
+      <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source?`<small class="grocery-meta">${g.source?escapeHtml(g.source):""}${g.source&&g.addedBy?" · ":""}${g.addedBy?`door ${escapeHtml(g.addedBy)}`:""}</small>`:""}</span><button onclick="deleteGrocery('${g.id}')">🗑️</button>
+    </div>`).join("")}
+  </section>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
+}
+function renderProducts(){
+  if(!window.productList) return;
+  data.products=Array.isArray(data.products)?data.products:[];
+  const q=(productSearch.value||"").toLowerCase();
+  const store=productStoreFilter.value||"";
+  const category=productCategoryFilter.value||"";
+  const stores=[...new Set(data.products.flatMap(productStores))].sort((a,b)=>a.localeCompare(b,"nl"));
+  const categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"nl"));
+  const oldStore=productStoreFilter.value, oldCat=productCategoryFilter.value;
+  productStoreFilter.innerHTML='<option value="">Alle winkels</option>'+stores.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
+  productCategoryFilter.innerHTML='<option value="">Alle categorieën</option>'+categories.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
+  productStoreFilter.value=stores.includes(oldStore)?oldStore:"";
+  productCategoryFilter.value=categories.includes(oldCat)?oldCat:"";
+  const rows=data.products.filter(p=>{
+    const hay=[p.name,p.brand,p.category,p.store,p.otherStores,p.note].join(" ").toLowerCase();
+    return (!q||hay.includes(q)) && (!store||productStores(p).includes(store)) && (!category||p.category===category);
+  }).sort((a,b)=>(Number(b.favorite)-Number(a.favorite)) || (Number(b.timesUsed||0)-Number(a.timesUsed||0)) || String(a.name).localeCompare(String(b.name),"nl"));
+  productList.innerHTML=rows.length?rows.map(p=>`<article class="item-card product-card">
+    <div class="product-card-head"><div><h3>${p.favorite?"⭐ ":""}${escapeHtml(p.name)}</h3><div class="meta">${[p.brand,p.amount&&p.unit?`${p.amount} ${p.unit}`:p.amount||p.unit,p.category].filter(Boolean).map(escapeHtml).join(" · ")}</div></div><button class="mini-btn" onclick="editProduct('${p.id}')">Bewerk</button></div>
+    ${p.store?`<p class="product-store">🏪 Meestal bij <strong>${escapeHtml(p.store)}</strong>${p.otherStores?`<br><small>Ook: ${escapeHtml(p.otherStores)}</small>`:""}</p>`:""}
+    ${p.price?`<p>€ ${Number(p.price).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2})}</p>`:""}
+    ${p.note?`<p class="muted">${escapeHtml(p.note)}</p>`:""}
+    <button class="primary-btn wide" onclick="addProductToGroceries('${p.id}')">+ Naar boodschappenlijst</button>
+  </article>`).join(""):`<div class="card muted">Nog geen producten gevonden. Voeg een product toe.</div>`;
 }
 
 function resetWishPhoto(){
@@ -742,7 +785,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1230,6 +1273,73 @@ wishForm.onsubmit=e=>{
   saveData();
 };
 
+
+function openProductDialog(id=""){
+  const p=(data.products||[]).find(x=>x.id===id);
+  productEditId.value=p?.id||"";
+  productDialogTitle.textContent=p?"Product bewerken":"Product toevoegen";
+  productName.value=p?.name||"";
+  productBrand.value=p?.brand||"";
+  productAmount.value=p?.amount||"";
+  productUnit.value=p?.unit||"";
+  productCategory.value=p?.category||"Overig";
+  productStore.value=p?.store||"";
+  productOtherStores.value=p?.otherStores||"";
+  productPrice.value=p?.price||"";
+  productNote.value=p?.note||"";
+  productFavorite.checked=!!p?.favorite;
+  deleteProductBtn.classList.toggle("hidden",!p);
+  productDialog.showModal();
+}
+addProductBtn.onclick=()=>openProductDialog("");
+window.editProduct=id=>openProductDialog(id);
+productForm.onsubmit=e=>{
+  e.preventDefault();
+  const id=productEditId.value;
+  const record={
+    id:id||crypto.randomUUID(),
+    name:productName.value.trim(),
+    brand:productBrand.value.trim(),
+    amount:productAmount.value.trim(),
+    unit:productUnit.value,
+    category:productCategory.value,
+    store:productStore.value.trim(),
+    otherStores:productOtherStores.value.trim(),
+    price:productPrice.value,
+    note:productNote.value.trim(),
+    favorite:productFavorite.checked,
+    timesUsed:(data.products||[]).find(p=>p.id===id)?.timesUsed||0,
+    updatedBy:currentPersonName(),
+    updatedAt:new Date().toISOString()
+  };
+  if(!record.name) return;
+  data.products=data.products||[];
+  const pos=data.products.findIndex(p=>p.id===id);
+  if(pos>=0) data.products[pos]=record; else data.products.unshift(record);
+  productDialog.close();
+  addNotification({text:`${currentPersonName()} heeft product “${record.name}” ${pos>=0?"aangepast":"toegevoegd"}.`});
+  saveData();
+};
+deleteProductBtn.onclick=()=>{
+  const id=productEditId.value;
+  const p=(data.products||[]).find(x=>x.id===id);
+  if(!p||!confirm(`Product "${p.name}" verwijderen?`)) return;
+  data.products=data.products.filter(x=>x.id!==id);
+  productDialog.close();
+  saveData();
+};
+window.addProductToGroceries=id=>{
+  const p=(data.products||[]).find(x=>x.id===id);
+  if(!p||!currentHousehold) return;
+  p.timesUsed=Number(p.timesUsed||0)+1;
+  data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:productLabel(p),store:p.store||"",productId:p.id,done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
+  addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${productLabel(p)}” toegevoegd aan de boodschappenlijst${p.store?` voor ${p.store}`:""}.`});
+  saveData();
+};
+productSearch.oninput=renderProducts;
+productStoreFilter.onchange=renderProducts;
+productCategoryFilter.onchange=renderProducts;
+
 recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
 groceryHousehold.onchange=()=>{currentHousehold=groceryHousehold.value;renderGroceries();};
 
@@ -1237,11 +1347,23 @@ function openSimple(title, fields, mode){
   simpleTitle.textContent=title; simpleMode=mode;
   simpleFields.innerHTML=fields; simpleDialog.showModal();
 }
-addGroceryBtn.onclick=()=>openSimple("Product toevoegen",`<label>Product<input name="text" required></label>`,"grocery");
+addGroceryBtn.onclick=()=>{
+  const options=(data.products||[]).sort((a,b)=>(Number(b.favorite)-Number(a.favorite))||(Number(b.timesUsed||0)-Number(a.timesUsed||0))).map(p=>`<option value="${escapeHtml(productLabel(p))}">${escapeHtml(productLabel(p))}${p.store?` — ${escapeHtml(p.store)}`:""}</option>`).join("");
+  openSimple("Product toevoegen",`<label>Kies uit productdatabase<select name="productId"><option value="">Zelf invoeren</option>${options}</select></label><label>Of typ product<input name="text" placeholder="Bijv. melk"></label><label>Winkel<input name="store" list="storeOptions" placeholder="Bijv. Jumbo"></label>`,"grocery");
+};
 addHouseholdBtn.onclick=()=>openHouseholdEditor("");
 simpleForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(simpleForm);
-  if(simpleMode==="grocery"){ const text=String(f.get("text")||"").trim(); data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()}); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${text}” toegevoegd aan de boodschappenlijst.`}); }
+  if(simpleMode==="grocery"){
+    const selected=String(f.get("productId")||"");
+    const product=(data.products||[]).find(p=>productLabel(p)===selected);
+    const text=(product?productLabel(product):String(f.get("text")||"").trim());
+    if(!text){ alert("Kies of typ eerst een product."); return; }
+    const store=String(f.get("store")||product?.store||"").trim();
+    if(product) product.timesUsed=Number(product.timesUsed||0)+1;
+    data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,store,productId:product?.id||"",done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
+    addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${text}” toegevoegd aan de boodschappenlijst${store?` voor ${store}`:""}.`});
+  }
   simpleForm.reset(); simpleDialog.close(); saveData();
 };
 
@@ -1257,7 +1379,11 @@ window.toggleGrocery=id=>{const g=data.groceries.find(x=>x.id===id);if(g){g.done
 window.deleteGrocery=id=>{const g=data.groceries.find(x=>x.id===id); if(g)addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” verwijderd van de boodschappenlijst.`}); data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
 window.addRecipeToGroceries=id=>{
   const r=data.recipes.find(x=>x.id===id); if(!r||!currentHousehold)return;
-  r.ingredients.forEach(i=>data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:[i.amount,i.unit,i.name].filter(Boolean).join(" "),done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()})); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft ingrediënten van ${r.name} toegevoegd aan de boodschappenlijst.`});
+  r.ingredients.forEach(i=>{
+    const text=[i.amount,i.unit,i.name].filter(Boolean).join(" ");
+    const match=(data.products||[]).find(p=>String(p.name).toLowerCase()===String(i.name).toLowerCase());
+    data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,store:match?.store||"",productId:match?.id||"",done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
+  }); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft ingrediënten van ${r.name} toegevoegd aan de boodschappenlijst.`});
   saveData(); navigate("boodschappen");
 };
 window.openRecipe=id=>{
@@ -1688,7 +1814,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.2");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.3");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

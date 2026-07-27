@@ -171,3 +171,14 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .notification-item{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .notification-item.is-read{opacity:.65}
 .notification-badge{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:var(--accent);color:#fff;font-size:.75rem;vertical-align:middle}
+
+.product-help{margin-bottom:14px;padding:14px 16px}
+.product-filters{margin-bottom:14px}
+.product-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.product-card-head h3{margin:0 0 6px}
+.product-store{background:var(--soft);padding:10px 12px;border-radius:12px}
+.product-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grocery-store-group{border-bottom:1px solid var(--line);padding:4px 0 12px}
+.grocery-store-group:last-child{border-bottom:0}
+.grocery-store-title{margin:12px 12px 5px;font-size:1rem}
+@media(max-width:480px){.product-two-columns{grid-template-columns:1fr}}

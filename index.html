@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.2">
-  <link rel="stylesheet" href="style.css?v=1.3.2">
+  <link rel="manifest" href="manifest.json?v=1.3.3">
+  <link rel="stylesheet" href="style.css?v=1.3.3">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.2</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.3</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.2</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.3</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -149,6 +149,21 @@
         </div>
         <select id="groceryHousehold" class="search"></select>
         <div id="groceryList" class="card checklist"></div>
+      </section>
+
+
+      <section class="page" data-page="producten">
+        <div class="page-head">
+          <div><p class="eyebrow">Familiedatabase</p><h2>Producten</h2></div>
+          <button id="addProductBtn" class="primary-btn">+ Product</button>
+        </div>
+        <div class="card product-help">Deze productdatabase is gezamenlijk voor de hele familie. Boodschappenlijsten blijven per huishouden gescheiden.</div>
+        <input id="productSearch" class="search" placeholder="Zoek product, merk, winkel of categorie">
+        <div class="filters product-filters">
+          <select id="productStoreFilter"><option value="">Alle winkels</option></select>
+          <select id="productCategoryFilter"><option value="">Alle categorieën</option></select>
+        </div>
+        <div id="productList" class="list-grid"></div>
       </section>
 
       <section class="page" data-page="verlanglijstjes">
@@ -302,6 +317,7 @@
     <button data-go="agenda">📅 Agenda</button>
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
+    <button data-go="producten">📦 Productdatabase</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -376,6 +392,29 @@
         <input id="wishPhotoData" name="wishPhoto" type="hidden">
       </div>
       <button class="primary-btn wide" type="submit">Opslaan</button>
+    </form>
+  </dialog>
+
+
+  <dialog id="productDialog" class="modal">
+    <form id="productForm" method="dialog">
+      <div class="sheet-head"><h3 id="productDialogTitle">Product toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="productEditId" type="hidden">
+      <label>Productnaam<input id="productName" name="name" required placeholder="Bijv. Halfvolle melk"></label>
+      <label>Merk<input id="productBrand" name="brand" placeholder="Bijv. Jumbo"></label>
+      <div class="product-two-columns">
+        <label>Inhoud<input id="productAmount" name="amount" placeholder="Bijv. 1"></label>
+        <label>Eenheid<select id="productUnit" name="unit"><option value="">Geen</option><option>stuk</option><option>stuks</option><option>g</option><option>kg</option><option>ml</option><option>cl</option><option>l</option><option>pak</option><option>zak</option><option>doos</option><option>fles</option><option>pot</option></select></label>
+      </div>
+      <label>Categorie<select id="productCategory" name="category"><option>Overig</option><option>Aardappelen, groente en fruit</option><option>Brood en bakkerij</option><option>Zuivel en eieren</option><option>Vlees, vis en vegetarisch</option><option>Dranken</option><option>Beleg</option><option>Diepvries</option><option>Voorraadkast</option><option>Snacks en snoep</option><option>Huishouden</option><option>Verzorging</option><option>Drogisterij</option></select></label>
+      <label>In welke winkel halen?<input id="productStore" name="store" list="storeOptions" placeholder="Bijv. Jumbo"></label>
+      <datalist id="storeOptions"><option>Jumbo</option><option>Albert Heijn</option><option>Lidl</option><option>Aldi</option><option>Plus</option><option>Dirk</option><option>Vomar</option><option>Hoogvliet</option><option>Action</option><option>Kruidvat</option><option>Etos</option><option>HEMA</option><option>Anders</option></datalist>
+      <label>Ook verkrijgbaar bij<input id="productOtherStores" name="otherStores" placeholder="Bijv. Lidl, Albert Heijn"></label>
+      <label>Prijs (€)<input id="productPrice" name="price" type="number" min="0" step="0.01"></label>
+      <label>Notitie<textarea id="productNote" name="note" rows="3" placeholder="Bijv. biologisch of glutenvrij"></textarea></label>
+      <label class="member-check"><input id="productFavorite" name="favorite" type="checkbox"> ⭐ Favoriet product</label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="deleteProductBtn" class="secondary-btn wide danger-button hidden" type="button">Product verwijderen</button>
     </form>
   </dialog>
 
@@ -524,7 +563,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.2"></script>
-  <script src="app.js?v=1.3.2"></script>
+  <script src="firebase-config.js?v=1.3.3"></script>
+  <script src="app.js?v=1.3.3"></script>
 </body>
 </html>
