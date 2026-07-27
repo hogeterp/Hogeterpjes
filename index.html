@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.4</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -24,7 +24,7 @@
         <label>Wachtwoord
           <input id="loginPassword" type="password" autocomplete="current-password" required>
         </label>
-        <button id="loginBtn" class="primary-btn wide" type="submit">Inloggen</button>
+        <button class="primary-btn wide" type="submit">Inloggen</button>
       </form>
 
       <div class="login-links"><button id="showSignupBtn" type="button" class="text-btn">Eerste keer? Account aanmaken</button><button id="forgotPasswordBtn" type="button" class="text-btn">Wachtwoord vergeten</button></div><p class="login-help">Je kunt alleen een account maken als Rinze jouw e-mailadres eerst heeft uitgenodigd.</p>
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.4</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -79,11 +79,6 @@
             </div>
           </div>
           <div id="nextBirthday" class="birthday-box"></div>
-        </section>
-
-        <section class="card">
-          <div class="section-head"><div><p class="eyebrow">Agenda</p><h3>Eerstvolgende afspraak</h3></div></div>
-          <div id="nextEvent"></div>
         </section>
 
         <section class="card">
@@ -154,16 +149,6 @@
       </section>
 
 
-      <section class="page" data-page="agenda">
-        <div class="page-head"><div><p class="eyebrow">Samen plannen</p><h2>Gezinsagenda</h2></div><button id="addEventBtn" class="primary-btn">+ Afspraak</button></div>
-        <div id="eventList" class="list-grid"></div>
-      </section>
-
-      <section class="page" data-page="nieuws">
-        <div class="page-head"><div><p class="eyebrow">Van de familie</p><h2>Familienieuws</h2></div><button id="addPostBtn" class="primary-btn">+ Bericht</button></div>
-        <div id="postList" class="list-grid"></div>
-      </section>
-
       <section class="page" data-page="profiel">
         <div class="page-head">
           <div><p class="eyebrow">Jouw account</p><h2>Profiel</h2></div>
@@ -173,7 +158,7 @@
           <h3 id="profileName">Niet ingelogd</h3>
           <p id="profileEmail" class="muted"></p>
           <div id="profileHouseholds" class="chips"></div>
-          <button id="editProfileBtn" class="secondary-btn wide">Profiel bewerken</button><button id="logoutBtn" class="secondary-btn wide">Uitloggen</button>
+          <button id="logoutBtn" class="secondary-btn wide">Uitloggen</button>
         </div>
       </section>
 
@@ -219,8 +204,6 @@
     <button data-go="profiel">👤 Mijn profiel</button>
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
-    <button data-go="agenda">📅 Gezinsagenda</button>
-    <button data-go="nieuws">📰 Familienieuws</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -278,15 +261,10 @@
       <button class="primary-btn wide" type="submit">Account aanmaken</button><p id="signupMessage" class="login-message"></p>
     </form>
   </dialog>
-
-  <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="sheet-head"><h3>Afspraak toevoegen</h3><button type="button" data-close>✕</button></div><label>Titel<input name="title" required></label><label>Datum en tijd<input name="date" type="datetime-local" required></label><label>Locatie<input name="location"></label><label>Opmerking<textarea name="note" rows="3"></textarea></label><button class="primary-btn wide" type="submit">Opslaan</button></form></dialog>
-  <dialog id="postDialog" class="modal"><form id="postForm" method="dialog"><div class="sheet-head"><h3>Familiebericht plaatsen</h3><button type="button" data-close>✕</button></div><label>Titel<input name="title" required></label><label>Bericht<textarea name="text" rows="5" required></textarea></label><label>Foto-URL (optioneel)<input name="photo" type="url"></label><button class="primary-btn wide" type="submit">Plaatsen</button></form></dialog>
-  <dialog id="familyDialog" class="modal"><form id="familyForm" method="dialog"><div class="sheet-head"><h3>Familielid bewerken</h3><button type="button" data-close>✕</button></div><label>Naam<input name="name" required></label><label>Geboortedatum<input name="birth" type="date" required></label><label>E-mailadres<input name="email" type="email"></label><label>Profielfoto-URL<input name="photo" type="url"></label><button class="primary-btn wide" type="submit">Opslaan</button></form></dialog>
-
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.4"></script>
-  <script src="app.js?v=1.3.4"></script>
+  <script src="firebase-config.js?v=1.1.4"></script>
+  <script src="app.js?v=1.1.4"></script>
 </body>
 </html>

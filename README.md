@@ -1,13 +1,18 @@
-# Hogeterpjes v1.3.4
+# Hogeterpjes v1.2.1
 
-Complete familie-app met Firebase-sync, uitnodigingen, recepten, boodschappenlijsten, verlanglijstjes, gezinsagenda, familieberichten, profielen, donkere modus en PWA-installatie.
+Complete, gecontroleerde versie met:
+- Hogeterpjes-logo en PWA-iconen;
+- Firebase-inloggen;
+- beheerpagina alleen voor Rinze;
+- familieleden uitnodigen met hun e-mailadres;
+- familieleden kiezen zelf hun wachtwoord;
+- wachtwoord-vergetenfunctie;
+- toegang blokkeren of uitnodigingen verwijderen;
+- aangescherpte Firestore-regels.
 
-## Uploaden
-Upload alleen de losse bestanden uit deze map naar de hoofdmap van de GitHub-repository.
+## Eerst Firestore-regels publiceren
+Lees `FIREBASE-STAPPEN.txt` en publiceer de inhoud van `firestore.rules` in:
+Firebase Console → Firestore Database → Regels → Publiceren.
 
-## Firestore
-Je hoeft de Firestore Rules niet opnieuw te publiceren. De regels die je bij v1.2.1 al hebt gepubliceerd zijn ook geschikt voor deze versie.
-
-
-## Wijziging v1.3.4
-De inlogknop is opnieuw en expliciet gekoppeld. Tijdens het inloggen verschijnt een laadmelding en Firebase-fouten worden zichtbaar getoond. Er zijn geen nieuwe Firestore-regels nodig.
+## Daarna GitHub bijwerken
+Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.

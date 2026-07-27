@@ -16,9 +16,7 @@ const DEFAULT_DATA = {
   ],
   recipes: [],
   groceries: [],
-  wishes: [],
-  events: [],
-  posts: []
+  wishes: []
 };
 
 const KEY="hogeterpjes-data-v1";
@@ -40,40 +38,6 @@ let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADM
 const KNOWN_USERS = {
   "rohogeterp@gmail.com": "Rinze"
 };
-
-const loginScreen=document.getElementById("loginScreen");
-const loginMessage=document.getElementById("loginMessage");
-const firebaseStatus=document.getElementById("firebaseStatus");
-
-function loadScriptOnce(src){
-  return new Promise((resolve,reject)=>{
-    const existing=[...document.scripts].find(s=>s.src===src);
-    if(existing){
-      if(existing.dataset.loaded==="true") return resolve();
-      existing.addEventListener("load",()=>resolve(),{once:true});
-      existing.addEventListener("error",()=>reject(new Error(`Laden mislukt: ${src}`)),{once:true});
-      setTimeout(()=>{
-        if(src.includes("firebase") && window.firebase) resolve();
-      },100);
-      return;
-    }
-    const script=document.createElement("script");
-    script.src=src;
-    script.async=false;
-    script.onload=()=>{script.dataset.loaded="true";resolve();};
-    script.onerror=()=>reject(new Error(`Laden mislukt: ${src}`));
-    document.head.appendChild(script);
-  });
-}
-
-async function ensureFirebaseLibraries(){
-  if(window.firebase?.auth && window.firebase?.firestore) return true;
-  const base="https://www.gstatic.com/firebasejs/10.12.5/";
-  await loadScriptOnce(base+"firebase-app-compat.js");
-  await loadScriptOnce(base+"firebase-auth-compat.js");
-  await loadScriptOnce(base+"firebase-firestore-compat.js");
-  return !!(window.firebase?.auth && window.firebase?.firestore);
-}
 
 function withTimeout(promise, ms, message="Actie duurde te lang"){
   return Promise.race([
@@ -157,9 +121,7 @@ function subscribeToCloudData(){
           households:Array.isArray(remote.households)?remote.households:cloneDefaults().households,
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
-          wishes:Array.isArray(remote.wishes)?remote.wishes:[],
-          events:Array.isArray(remote.events)?remote.events:[],
-          posts:Array.isArray(remote.posts)?remote.posts:[]
+          wishes:Array.isArray(remote.wishes)?remote.wishes:[]
         };
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
@@ -212,11 +174,7 @@ function bindNav(){
 function closeDialogs(){ document.querySelectorAll("dialog[open]").forEach(d=>d.close()); }
 
 function renderFamily(){
-  familyList.innerHTML=data.family.map(p=>`<article class="item-card family-card">
-    <div class="family-avatar">${p.photo?`<img src="${p.photo}" alt="${p.name}">`:initials(p.name)}</div>
-    <div><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar</div>${p.email?`<div class="meta">${p.email}</div>`:""}</div>
-    ${isAdmin()?`<button class="mini-btn" onclick="editFamilyMember('${p.name.replaceAll("'","\\'")}')">Bewerk</button>`:""}
-  </article>`).join("");
+  familyList.innerHTML=data.family.map(p=>`<article class="item-card"><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar</div></article>`).join("");
 }
 function renderHouseholds(){
   householdList.innerHTML=data.households.map(h=>`<article class="item-card"><h3>🏡 ${h.name}</h3><div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div></article>`).join("") || `<div class="card muted">Nog geen huishoudens.</div>`;
@@ -252,8 +210,6 @@ function renderHome(){
   statFamily.textContent=data.family.length; statHouseholds.textContent=data.households.length; statRecipes.textContent=data.recipes.length; statWishes.textContent=data.wishes.length;
   const b=getNextBirthday();
   document.getElementById("nextBirthday").innerHTML=b?`<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`:"";
-  const upcoming=[...data.events].filter(e=>new Date(e.date)>=new Date(new Date().toDateString())).sort((a,b)=>new Date(a.date)-new Date(b.date))[0];
-  const el=document.getElementById("nextEvent"); if(el) el.innerHTML=upcoming?`<strong>${upcoming.title}</strong><div class="muted">${new Intl.DateTimeFormat("nl-NL",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(upcoming.date))}${upcoming.location?` · ${upcoming.location}`:""}</div>`:`<span class="muted">Nog geen afspraken.</span>`;
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -270,23 +226,7 @@ function renderProfile(){
   const houses=data.households.filter(h=>h.members.includes(name));
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
-function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); renderEvents(); renderPosts(); fillSelects(); renderProfile(); renderAccountManagement(); }
-
-function renderEvents(){
-  if(!window.eventList) return;
-  const rows=[...data.events].sort((a,b)=>new Date(a.date)-new Date(b.date));
-  eventList.innerHTML=rows.length?rows.map(e=>`<article class="item-card"><h3>📅 ${e.title}</h3><div class="meta">${new Intl.DateTimeFormat("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(e.date))}</div>${e.location?`<p>📍 ${e.location}</p>`:""}${e.note?`<p>${e.note}</p>`:""}<button class="mini-btn" onclick="deleteEvent('${e.id}')">Verwijder</button></article>`).join(""):`<div class="card muted">Nog geen afspraken.</div>`;
-}
-function renderPosts(){
-  if(!window.postList) return;
-  postList.innerHTML=data.posts.length?data.posts.map(p=>`<article class="item-card"><h3>${p.title}</h3><div class="meta">${p.author} · ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).format(new Date(p.createdAt))}</div>${p.photo?`<img class="recipe-photo" src="${p.photo}" alt="">`:""}<p>${p.text}</p><button class="mini-btn" onclick="deletePost('${p.id}')">Verwijder</button></article>`).join(""):`<div class="card muted">Nog geen familieberichten.</div>`;
-}
-window.deleteEvent=id=>{if(confirm("Afspraak verwijderen?")){data.events=data.events.filter(e=>e.id!==id);saveData();}};
-window.deletePost=id=>{if(confirm("Bericht verwijderen?")){data.posts=data.posts.filter(p=>p.id!==id);saveData();}};
-window.editFamilyMember=name=>{
-  const p=data.family.find(x=>x.name===name); if(!p)return;
-  familyForm.dataset.original=name; familyForm.name.value=p.name; familyForm.birth.value=p.birth; familyForm.email.value=p.email||""; familyForm.photo.value=p.photo||""; familyDialog.showModal();
-};
+function renderAll(){ renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderWishes(); fillSelects(); renderProfile(); renderAccountManagement(); }
 
 function parseIngredients(text){
   return text.split("\n").map(x=>x.trim()).filter(Boolean).map(line=>{
@@ -297,8 +237,6 @@ function parseIngredients(text){
 
 addRecipeBtn.onclick=()=>recipeDialog.showModal();
 addWishBtn.onclick=()=>wishDialog.showModal();
-addEventBtn.onclick=()=>eventDialog.showModal();
-addPostBtn.onclick=()=>postDialog.showModal();
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>recipeDialog.showModal(),150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(()=>wishDialog.showModal(),150);
 
@@ -312,9 +250,6 @@ wishForm.onsubmit=e=>{
   data.wishes.unshift({id:crypto.randomUUID(),person:f.get("person"),occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note")});
   wishForm.reset(); wishDialog.close(); saveData();
 };
-eventForm.onsubmit=e=>{e.preventDefault();const f=new FormData(eventForm);data.events.push({id:crypto.randomUUID(),title:f.get("title"),date:f.get("date"),location:f.get("location"),note:f.get("note")});eventForm.reset();eventDialog.close();saveData();};
-postForm.onsubmit=e=>{e.preventDefault();const f=new FormData(postForm);data.posts.unshift({id:crypto.randomUUID(),title:f.get("title"),text:f.get("text"),photo:f.get("photo"),author:currentUser?.displayName||"Familielid",createdAt:new Date().toISOString()});postForm.reset();postDialog.close();saveData();};
-familyForm.onsubmit=e=>{e.preventDefault();const f=new FormData(familyForm),original=familyForm.dataset.original;const p=data.family.find(x=>x.name===original);if(p){const old=p.name;p.name=f.get("name");p.birth=f.get("birth");p.email=f.get("email");p.photo=f.get("photo");data.households.forEach(h=>h.members=h.members.map(m=>m===old?p.name:m));}familyDialog.close();saveData();};
 
 recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
 groceryHousehold.onchange=()=>{currentHousehold=groceryHousehold.value;renderGroceries();};
@@ -450,7 +385,6 @@ signupForm.onsubmit=async e=>{
 
 themeBtn.onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("hogeterpjes-theme",document.body.classList.contains("dark")?"dark":"light");themeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
 if(localStorage.getItem("hogeterpjes-theme")==="dark"){document.body.classList.add("dark");themeBtn.textContent="☀️";}
-editProfileBtn.onclick=()=>{const p=data.family.find(x=>x.name===(currentUser?.displayName||""));if(p)editFamilyMember(p.name);};
 resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recepten en wensen worden verwijderd.")){data=cloneDefaults();saveData();}};
 
 profileBtn.onclick=()=>navigate("profiel");
@@ -476,44 +410,30 @@ function showLoggedIn(user){
   }
 }
 
-const loginFormElement=document.getElementById("loginForm");
-const loginButtonElement=document.getElementById("loginBtn");
-const loginEmailElement=document.getElementById("loginEmail");
-const loginPasswordElement=document.getElementById("loginPassword");
-const loginMessageElement=document.getElementById("loginMessage");
-
-async function handleLogin(e){
-  if(e) e.preventDefault();
-
-  const email=loginEmailElement.value.trim();
-  const password=loginPasswordElement.value;
-  loginMessageElement.textContent="Bezig met inloggen…";
-  loginButtonElement.disabled=true;
-  loginButtonElement.textContent="Bezig…";
-
-  if(!email || !password){
-    loginMessageElement.textContent="Vul je e-mailadres en wachtwoord in.";
-    loginButtonElement.disabled=false;
-    loginButtonElement.textContent="Inloggen";
-    return;
-  }
+loginForm.onsubmit=async e=>{
+  e.preventDefault();
+  loginMessage.textContent="Bezig met inloggen…";
 
   if(!auth){
-    loginMessageElement.textContent="Firebase kon niet worden gestart.";
-    loginButtonElement.disabled=false;
-    loginButtonElement.textContent="Inloggen";
+    loginMessage.textContent="Firebase kon niet worden gestart.";
     return;
   }
 
   try{
     const result=await withTimeout(
-      auth.signInWithEmailAndPassword(email,password),
+      auth.signInWithEmailAndPassword(
+        loginEmail.value.trim(),
+        loginPassword.value
+      ),
       12000,
       "Firebase reageert niet op tijd"
     );
+
+    // Open de app direct. Het profiel wordt daarna op de achtergrond geladen.
     showLoggedIn(provisionalProfile(result.user));
   }catch(err){
-    console.error("Firebase login error:",err?.code,err?.message,err);
+    console.error("Firebase login error:", err.code, err.message);
+
     const messages={
       "auth/invalid-credential":"E-mailadres of wachtwoord is niet juist.",
       "auth/wrong-password":"Het wachtwoord is niet juist.",
@@ -522,19 +442,16 @@ async function handleLogin(e){
       "auth/user-disabled":"Dit account is uitgeschakeld.",
       "auth/too-many-requests":"Te vaak geprobeerd. Wacht even en probeer later opnieuw.",
       "auth/network-request-failed":"Geen goede internetverbinding. Probeer opnieuw.",
-      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase."
+      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase.",
     };
-    loginMessageElement.textContent=messages[err?.code] ||
-      (err?.message==="Firebase reageert niet op tijd"
-        ? "Firebase reageert niet. Controleer internet en probeer opnieuw."
-        : `Inloggen lukt niet (${err?.code || "onbekende fout"}).`);
-  }finally{
-    loginButtonElement.disabled=false;
-    loginButtonElement.textContent="Inloggen";
-  }
-}
 
-loginFormElement.addEventListener("submit",handleLogin);
+    loginMessage.textContent=
+      messages[err.code] ||
+      (err.message==="Firebase reageert niet op tijd"
+        ? "Firebase reageert niet. Controleer internet en probeer opnieuw."
+        : `Inloggen lukt niet (${err.code || "onbekende fout"}).`);
+  }
+};
 
 async function loadUserProfile(user){
   const fallback=provisionalProfile(user);
@@ -563,24 +480,13 @@ async function loadUserProfile(user){
   }
 }
 
-async function initFirebase(){
+function initFirebase(){
   const settings=window.HOGETERPJES_FIREBASE;
-  if(!settings?.useFirebase){
-    loginMessage.textContent="Firebase-instellingen zijn niet geladen. Vernieuw de pagina.";
-    return false;
-  }
-
+  if(!settings?.useFirebase) return false;
   try{
-    firebaseStatus.textContent="Firebase laden…";
-    const loaded=await ensureFirebaseLibraries();
-    if(!loaded) throw new Error("Firebase-bibliotheken ontbreken");
-
-    if(!firebase.apps.length){
-      firebase.initializeApp(settings.config);
-    }
+    firebase.initializeApp(settings.config);
     auth=firebase.auth();
     db=firebase.firestore();
-
     auth.onAuthStateChanged(user=>{
       if(!user){
         currentUser=null;
@@ -588,8 +494,10 @@ async function initFirebase(){
         return;
       }
 
+      // Meteen openen met een voorlopig profiel.
       showLoggedIn(provisionalProfile(user));
 
+      // Daarna uitnodigingen en het echte profiel op de achtergrond laden.
       loadAdminSettings().then(()=>loadUserProfile(user))
         .then(profile=>{
           currentUser=profile;
@@ -597,29 +505,26 @@ async function initFirebase(){
         })
         .catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
-
     firebaseStatus.textContent="Firebase gekoppeld";
     setSyncStatus("Wachten op inloggen");
-    loginMessage.textContent="";
     return true;
   }catch(e){
-    console.error("Firebase startfout:",e);
-    auth=null;
-    db=null;
-    firebaseStatus.textContent="Firebase-fout";
+    firebaseStatus.textContent="Firebase-configuratie bevat een fout";
     firebaseStatus.classList.add("error");
-    loginMessage.textContent=`Firebase starten lukt niet: ${e?.message || "onbekende fout"}`;
     return false;
   }
 }
 
 bindNav();
 renderAll();
-initFirebase();
+const firebaseActive=initFirebase();
+if(!firebaseActive){
+  loginMessage.textContent="Firebase kon niet worden gestart.";
+}
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.4");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.1");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
