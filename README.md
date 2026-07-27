@@ -1,4 +1,4 @@
-# Hogeterpjes v1.2.1
+# Hogeterpjes v1.2.2
 
 Complete, gecontroleerde versie met:
 - Hogeterpjes-logo en PWA-iconen;
@@ -16,3 +16,11 @@ Firebase Console → Firestore Database → Regels → Publiceren.
 
 ## Daarna GitHub bijwerken
 Upload de losse webbestanden naar de bestaande GitHub-repository. Het bestand `firestore.rules` mag mee naar GitHub als reservekopie, maar wordt daardoor niet automatisch actief in Firebase.
+
+
+## Nieuw in v1.2.2
+- De werkende Firebase-login van v1.2.1 is ongewijzigd gebleven.
+- Rinze kan familieleden bewerken via de familiepagina.
+- Naam, geboortedatum en e-mailadres kunnen worden aangepast.
+- Een persoonlijke profielfoto kan op het eigen apparaat worden ingesteld.
+- Geen nieuwe Firestore Rules nodig.

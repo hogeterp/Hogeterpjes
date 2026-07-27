@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.1.4">
-  <link rel="stylesheet" href="style.css?v=1.1.4">
+  <link rel="manifest" href="manifest.json?v=1.2.2">
+  <link rel="stylesheet" href="style.css?v=1.2.2">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.2.2</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.1</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.2.2</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -158,6 +158,12 @@
           <h3 id="profileName">Niet ingelogd</h3>
           <p id="profileEmail" class="muted"></p>
           <div id="profileHouseholds" class="chips"></div>
+          <label class="photo-upload secondary-btn wide">
+            📷 Profielfoto kiezen
+            <input id="profilePhotoInput" type="file" accept="image/*">
+          </label>
+          <button id="removeProfilePhotoBtn" class="text-btn wide" type="button">Profielfoto verwijderen</button>
+          <p class="muted profile-photo-help">De foto blijft alleen op dit apparaat staan.</p>
           <button id="logoutBtn" class="secondary-btn wide">Uitloggen</button>
         </div>
       </section>
@@ -252,6 +258,18 @@
   </dialog>
 
 
+  <dialog id="familyEditDialog" class="modal">
+    <form id="familyEditForm" method="dialog">
+      <div class="sheet-head"><h3>Familielid bewerken</h3><button type="button" data-close>✕</button></div>
+      <input id="familyEditOriginalName" type="hidden">
+      <label>Naam<input id="familyEditName" required></label>
+      <label>Geboortedatum<input id="familyEditBirth" type="date" required></label>
+      <label>E-mailadres<input id="familyEditEmail" type="email"></label>
+      <button class="primary-btn wide" type="submit">Wijzigingen opslaan</button>
+      <p id="familyEditMessage" class="login-message"></p>
+    </form>
+  </dialog>
+
   <dialog id="signupDialog" class="modal">
     <form id="signupForm" method="dialog"><div class="sheet-head"><h3>Eigen account maken</h3><button type="button" data-close>✕</button></div>
       <p class="muted">Gebruik precies het e-mailadres dat Rinze heeft uitgenodigd. Je kiest zelf je wachtwoord.</p>
@@ -264,7 +282,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.1.4"></script>
-  <script src="app.js?v=1.1.4"></script>
+  <script src="firebase-config.js?v=1.2.2"></script>
+  <script src="app.js?v=1.2.2"></script>
 </body>
 </html>

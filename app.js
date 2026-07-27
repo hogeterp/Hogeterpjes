@@ -21,6 +21,7 @@ const DEFAULT_DATA = {
 
 const KEY="hogeterpjes-data-v1";
 const PROFILE_KEY="hogeterpjes-demo-profile";
+const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 let data=loadData();
 let currentHousehold=data.households[0]?.id || "";
 let simpleMode="";
@@ -174,7 +175,13 @@ function bindNav(){
 function closeDialogs(){ document.querySelectorAll("dialog[open]").forEach(d=>d.close()); }
 
 function renderFamily(){
-  familyList.innerHTML=data.family.map(p=>`<article class="item-card"><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar</div></article>`).join("");
+  const admin=isAdmin();
+  familyList.innerHTML=data.family.map(p=>`<article class="item-card">
+    <div class="family-card-head">
+      <div><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar${p.email?`<br>${p.email}`:""}</div></div>
+      ${admin?`<button class="mini-btn" type="button" onclick="openFamilyEditor('${p.name.replaceAll("'","\\'")}')">Bewerken</button>`:""}
+    </div>
+  </article>`).join("");
 }
 function renderHouseholds(){
   householdList.innerHTML=data.households.map(h=>`<article class="item-card"><h3>🏡 ${h.name}</h3><div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div></article>`).join("") || `<div class="card muted">Nog geen huishoudens.</div>`;
@@ -220,7 +227,18 @@ function renderProfile(){
   const email=currentUser?.email || "";
   profileName.textContent=name;
   profileEmail.textContent=email;
-  profileAvatar.textContent=initials(name);
+
+  const savedPhoto=localStorage.getItem(PROFILE_PHOTO_KEY);
+  if(savedPhoto && currentUser){
+    profileAvatar.textContent="";
+    profileAvatar.style.backgroundImage=`url("${savedPhoto}")`;
+    profileAvatar.classList.add("has-photo");
+  }else{
+    profileAvatar.style.backgroundImage="";
+    profileAvatar.classList.remove("has-photo");
+    profileAvatar.textContent=initials(name);
+  }
+
   profileBtn.textContent=initials(name);
   topGreeting.textContent=currentUser ? `Hallo ${name}` : "Familie-app";
   const houses=data.households.filter(h=>h.members.includes(name));
@@ -331,6 +349,57 @@ function renderAccountManagement(){
   accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
 }
 
+
+window.openFamilyEditor=name=>{
+  if(!isAdmin()) return;
+  const member=data.family.find(p=>p.name===name);
+  if(!member) return;
+  familyEditOriginalName.value=member.name;
+  familyEditName.value=member.name;
+  familyEditBirth.value=member.birth;
+  familyEditEmail.value=member.email||"";
+  familyEditMessage.textContent="";
+  familyEditDialog.showModal();
+};
+
+familyEditForm.onsubmit=e=>{
+  e.preventDefault();
+  if(!isAdmin()){
+    familyEditMessage.textContent="Alleen Rinze kan familiegegevens aanpassen.";
+    return;
+  }
+  const original=familyEditOriginalName.value;
+  const member=data.family.find(p=>p.name===original);
+  if(!member) return;
+
+  const newName=familyEditName.value.trim();
+  if(!newName){
+    familyEditMessage.textContent="Vul een naam in.";
+    return;
+  }
+  if(data.family.some(p=>p!==member && p.name.toLowerCase()===newName.toLowerCase())){
+    familyEditMessage.textContent="Deze naam bestaat al.";
+    return;
+  }
+
+  data.households.forEach(h=>{
+    h.members=h.members.map(m=>m===original?newName:m);
+  });
+  if(adminSettings.accounts){
+    adminSettings.accounts.forEach(a=>{
+      if(a.name===original) a.name=newName;
+    });
+  }
+
+  member.name=newName;
+  member.birth=familyEditBirth.value;
+  member.email=familyEditEmail.value.trim().toLowerCase();
+
+  saveData();
+  if(db && isAdmin()) saveAdminSettings().catch(err=>console.warn(err));
+  familyEditDialog.close();
+};
+
 window.toggleAccountAccess=async email=>{
   const a=adminSettings.accounts.find(x=>x.email===email); if(!a)return;
   a.active=a.active===false?true:false;
@@ -381,6 +450,41 @@ signupForm.onsubmit=async e=>{
     const msgs={"auth/email-already-in-use":"Voor dit e-mailadres bestaat al een account.","auth/weak-password":"Kies een wachtwoord van minimaal 6 tekens.","auth/invalid-email":"Dit e-mailadres is niet geldig."};
     signupMessage.textContent=msgs[err.code]||'Account aanmaken lukt niet.';
   }
+};
+
+
+profilePhotoInput.onchange=()=>{
+  const file=profilePhotoInput.files?.[0];
+  if(!file) return;
+  if(file.size>3*1024*1024){
+    alert("Kies een foto kleiner dan 3 MB.");
+    profilePhotoInput.value="";
+    return;
+  }
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement("canvas");
+      const size=320;
+      canvas.width=size;
+      canvas.height=size;
+      const ctx=canvas.getContext("2d");
+      const scale=Math.max(size/img.width,size/img.height);
+      const w=img.width*scale,h=img.height*scale;
+      ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);
+      localStorage.setItem(PROFILE_PHOTO_KEY,canvas.toDataURL("image/jpeg",0.82));
+      renderProfile();
+    };
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+removeProfilePhotoBtn.onclick=()=>{
+  localStorage.removeItem(PROFILE_PHOTO_KEY);
+  profilePhotoInput.value="";
+  renderProfile();
 };
 
 themeBtn.onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("hogeterpjes-theme",document.body.classList.contains("dark")?"dark":"light");themeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
@@ -524,7 +628,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.1");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.2.2");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
