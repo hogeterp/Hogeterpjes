@@ -1,17 +1,20 @@
-HOGETERPJES v1.2.1 – FIREBASE INSTELLEN
+HOGETERPJES v1.3.7 – FIREBASE INSTELLEN
 
-1. Open Firebase Console en kies project “hogeterpjes”.
-2. Kies links: Firestore Database.
-3. Tik bovenaan op: Rules / Regels.
-4. Open in deze map het bestand: firestore.rules.
-5. Selecteer en kopieer alle tekst uit dat bestand.
-6. Verwijder in Firebase de oude regels en plak de nieuwe regels.
-7. Tik op: Publish / Publiceren.
-8. Upload daarna de webbestanden naar GitHub Pages.
+1. FIRESTORE-REGELS
+- Open Firebase Console > Firestore Database > Rules / Regels.
+- Vervang de bestaande regels door de volledige inhoud van firestore.rules.
+- Klik op Publish / Publiceren.
+
+2. STORAGE-REGELS
+- Open Firebase Console > Storage > Rules / Regels.
+- Vervang de bestaande regels door de volledige inhoud van storage.rules.
+- Klik op Publish / Publiceren.
+- Firebase kan eenmalig vragen toestemming te geven voor de koppeling tussen Storage Rules en Firestore. Bevestig dit.
+
+3. WEBSITE
+- Upload daarna alle losse webbestanden naar GitHub Pages en vervang de bestaande bestanden.
 
 BELANGRIJK
-- Upload firestore.rules NIET naar GitHub om het te activeren.
-- De inhoud moet apart in Firebase bij Firestore Database > Regels worden geplakt.
-- Rinze logt in met rohogeterp@gmail.com en ziet daarna het menu Beheer.
-- Rinze nodigt een familielid uit met het juiste e-mailadres.
-- Het familielid opent Hogeterpjes, kiest “Eerste keer? Account aanmaken” en kiest zelf een wachtwoord.
+- Uploaden van de .rules-bestanden naar GitHub activeert de regels niet; je moet ze in Firebase plakken en publiceren.
+- De kluis is alleen toegankelijk voor de e-mailadressen in het Firestore-document vaults/rinze-christa.
+- Rinze wordt automatisch toegevoegd. Christa wordt toegevoegd zodra haar e-mailadres bij Familie of Beheer staat en Rinze de app opent.

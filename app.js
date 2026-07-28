@@ -38,7 +38,9 @@ let simpleMode="";
 let currentUser=null;
 let auth=null;
 let db=null;
+let storage=null;
 let cloudUnsubscribe=null;
+let vaultFilesUnsubscribe=null;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
@@ -797,7 +799,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1857,6 +1859,7 @@ profileBtn.onclick=()=>navigate("profiel");
 logoutBtn.onclick=async()=>{
   if(auth){ await auth.signOut(); }
   if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
+  if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
   cloudReady=false;
   currentUser=null;
   loginScreen.classList.remove("hidden");
@@ -1877,7 +1880,7 @@ function showLoggedIn(user){
   renderWeekmenu();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>subscribeToCloudData());
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); });
   }
 }
 
@@ -1951,6 +1954,139 @@ async function loadUserProfile(user){
   }
 }
 
+
+// ===== Gezinskluis Rinze & Christa (v1.3.7) =====
+const VAULT_ID="rinze-christa";
+const VAULT_LIMIT_BYTES=5*1024*1024*1024;
+const VAULT_MAX_FILE_BYTES=100*1024*1024;
+const VAULT_CATEGORIES=["Documenten","Huis","Auto","Caravan","Verzekeringen","Garanties & bonnen","Vakantie","Overig"];
+let vaultFiles=[];
+let vaultConfig=null;
+
+function normalizeEmail(value){ return String(value||"").trim().toLowerCase(); }
+function isVaultPerson(){
+  const name=(currentPersonName()||"").toLowerCase();
+  return isAdmin() || name==="rinze" || name==="christa";
+}
+function vaultMemberEmails(){
+  const christaFamily=data.family.find(p=>String(p.name).toLowerCase()==="christa");
+  const christaAccount=(adminSettings.accounts||[]).find(a=>String(a.name).toLowerCase()==="christa");
+  return Array.from(new Set([ADMIN_EMAIL,normalizeEmail(christaFamily?.email),normalizeEmail(christaAccount?.email)].filter(Boolean)));
+}
+function formatBytes(bytes){
+  const n=Number(bytes)||0;
+  if(n<1024) return `${n} B`;
+  if(n<1024**2) return `${(n/1024).toLocaleString("nl-NL",{maximumFractionDigits:1})} KB`;
+  if(n<1024**3) return `${(n/1024**2).toLocaleString("nl-NL",{maximumFractionDigits:2})} MB`;
+  return `${(n/1024**3).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2})} GB`;
+}
+function vaultIcon(file){
+  const t=String(file.contentType||"");
+  if(t.startsWith("image/")) return "🖼️";
+  if(t.includes("pdf")) return "📕";
+  if(t.includes("word")||t.includes("document")) return "📘";
+  if(t.includes("sheet")||t.includes("excel")) return "📗";
+  return "📄";
+}
+async function ensureVaultConfig(){
+  if(!db||!currentUser||!isAdmin()) return;
+  const ref=db.collection("vaults").doc(VAULT_ID);
+  const snap=await ref.get();
+  const emails=vaultMemberEmails();
+  if(!snap.exists){
+    await ref.set({name:"Kluis Rinze & Christa",memberEmails:emails,createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  }else{
+    const existing=snap.data();
+    const merged=Array.from(new Set([...(existing.memberEmails||[]).map(normalizeEmail),...emails]));
+    if(JSON.stringify(merged)!==JSON.stringify((existing.memberEmails||[]).map(normalizeEmail))) await ref.update({memberEmails:merged,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+  }
+}
+async function initVaultForCurrentUser(){
+  if(!db||!currentUser){ renderVault(); return; }
+  if(!isVaultPerson()){ renderVault(); return; }
+  try{
+    await ensureVaultConfig();
+    const configRef=db.collection("vaults").doc(VAULT_ID);
+    const snap=await configRef.get();
+    vaultConfig=snap.exists?snap.data():null;
+    const email=normalizeEmail(currentUser.email);
+    if(!vaultConfig?.memberEmails?.map(normalizeEmail).includes(email)){ renderVault(); return; }
+    if(vaultFilesUnsubscribe) vaultFilesUnsubscribe();
+    vaultFilesUnsubscribe=configRef.collection("files").orderBy("createdAt","desc").onSnapshot(q=>{
+      vaultFiles=q.docs.map(d=>({id:d.id,...d.data()})); renderVault();
+    },err=>{ console.error(err); vaultAccessMessage.textContent="De kluis kon niet worden geladen. Controleer de Firestore-regels."; vaultAccessMessage.classList.remove("hidden"); });
+  }catch(err){ console.error("Kluis initialiseren mislukt",err); renderVault(); }
+}
+function hasVaultAccess(){
+  const email=normalizeEmail(currentUser?.email);
+  return !!(currentUser&&isVaultPerson()&&vaultConfig?.memberEmails?.map(normalizeEmail).includes(email));
+}
+function fillVaultCategories(){
+  if(!window.vaultCategory||!window.vaultCategoryFilter) return;
+  vaultCategory.innerHTML=VAULT_CATEGORIES.map(c=>`<option>${escapeHtml(c)}</option>`).join("");
+  const selected=vaultCategoryFilter.value;
+  vaultCategoryFilter.innerHTML='<option value="">Alle mappen</option>'+VAULT_CATEGORIES.map(c=>`<option>${escapeHtml(c)}</option>`).join("");
+  vaultCategoryFilter.value=selected;
+}
+function renderVault(){
+  if(!window.vaultMenuBtn) return;
+  const visible=isVaultPerson();
+  vaultMenuBtn.classList.toggle("hidden",!visible);
+  if(!visible){ if(document.querySelector('.page.active')?.dataset.page==="kluis") navigate("home"); return; }
+  fillVaultCategories();
+  const access=hasVaultAccess();
+  vaultContent.classList.toggle("hidden",!access);
+  vaultUploadBtn.classList.toggle("hidden",!access);
+  vaultAccessMessage.classList.toggle("hidden",access);
+  if(!access){
+    vaultAccessMessage.innerHTML=isAdmin()?"De kluis wordt voorbereid. Voeg bij Familie of Beheer het e-mailadres van Christa toe en open de app daarna opnieuw.":"Je account heeft nog geen toegang tot deze kluis. Rinze moet eerst jouw e-mailadres aan de kluis koppelen.";
+    return;
+  }
+  const total=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
+  const pct=Math.min(100,total/VAULT_LIMIT_BYTES*100);
+  vaultStorageText.textContent=`${formatBytes(total)} / 5,00 GB`;
+  vaultStoragePercent.textContent=`${pct.toLocaleString("nl-NL",{maximumFractionDigits:1})}% gebruikt`;
+  vaultStorageRemaining.textContent=`${formatBytes(Math.max(0,VAULT_LIMIT_BYTES-total))} beschikbaar`;
+  vaultStorageBar.style.width=`${pct}%`;
+  vaultStorageBar.className=pct>=95?"danger":pct>=80?"warning":"";
+  vaultStorageWarning.classList.toggle("hidden",pct<90);
+  vaultStorageWarning.textContent=pct>=100?"De ingestelde limiet van 5,00 GB is bereikt. Verwijder eerst bestanden.":"Let op: de kluis is bijna vol.";
+  const q=(vaultSearch.value||"").toLowerCase(); const cat=vaultCategoryFilter.value||"";
+  const rows=vaultFiles.filter(f=>(!cat||f.category===cat)&&(!q||[f.title,f.description,f.originalName,f.uploadedBy,f.category].join(" ").toLowerCase().includes(q)));
+  vaultList.innerHTML=rows.length?rows.map(f=>`<article class="item-card vault-file-card">
+    <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}</div></div><button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button></div>
+    ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
+    <div class="vault-file-actions"><button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Verwijderen</button></div>
+  </article>`).join(""):'<div class="card muted">Nog geen bestanden gevonden.</div>';
+}
+function safeFileName(name){ return String(name||"bestand").replace(/[^a-zA-Z0-9._-]+/g,"_").slice(-120); }
+async function getVaultDownloadUrl(file){ if(!storage||!file?.storagePath) throw new Error("Bestandspad ontbreekt."); return storage.ref(file.storagePath).getDownloadURL(); }
+window.openVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);window.open(url,"_blank","noopener");}catch(e){alert("Bestand openen mislukt: "+e.message);} };
+window.downloadVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=f.originalName||"bestand";a.click();}catch(e){alert("Downloaden mislukt: "+e.message);} };
+window.toggleVaultFavorite=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({favorite:!f.favorite,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert("Favoriet wijzigen mislukt: "+e.message);} };
+window.deleteVaultFile=async id=>{ const f=vaultFiles.find(x=>x.id===id);if(!f||!confirm(`Weet je zeker dat je “${f.title||f.originalName}” definitief wilt verwijderen?`))return;try{await storage.ref(f.storagePath).delete();await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).delete();}catch(e){alert("Verwijderen mislukt: "+e.message);} };
+
+if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>{vaultUploadForm.reset();vaultChosenFile.textContent="Nog geen bestand gekozen.";vaultUploadMessage.textContent="";fillVaultCategories();vaultUploadDialog.showModal();};
+if(window.vaultFileInput) vaultFileInput.onchange=()=>{const f=vaultFileInput.files?.[0];vaultChosenFile.textContent=f?`${f.name} · ${formatBytes(f.size)}`:"Nog geen bestand gekozen.";if(f&&!vaultTitle.value)vaultTitle.value=f.name.replace(/\.[^.]+$/,"");};
+if(window.vaultSearch) vaultSearch.oninput=renderVault;
+if(window.vaultCategoryFilter) vaultCategoryFilter.onchange=renderVault;
+if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
+  e.preventDefault();
+  const file=vaultFileInput.files?.[0]; if(!file){vaultUploadMessage.textContent="Kies eerst een bestand.";return;}
+  const used=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
+  if(file.size>VAULT_MAX_FILE_BYTES){vaultUploadMessage.textContent="Een bestand mag maximaal 100 MB zijn.";return;}
+  if(used+file.size>VAULT_LIMIT_BYTES){vaultUploadMessage.textContent="Dit bestand past niet meer binnen de ingestelde limiet van 5,00 GB.";return;}
+  vaultUploadSubmit.disabled=true;vaultUploadMessage.textContent="Uploaden…";
+  const ref=db.collection("vaults").doc(VAULT_ID).collection("files").doc();
+  const storagePath=`vaults/${VAULT_ID}/${ref.id}/${safeFileName(file.name)}`;
+  try{
+    await storage.ref(storagePath).put(file,{contentType:file.type||"application/octet-stream",customMetadata:{vaultId:VAULT_ID,documentId:ref.id}});
+    await ref.set({title:vaultTitle.value.trim(),description:vaultDescription.value.trim(),category:vaultCategory.value,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    vaultUploadDialog.close();
+  }catch(err){console.error(err);try{await storage.ref(storagePath).delete();}catch(_){ }vaultUploadMessage.textContent="Uploaden mislukt: "+err.message;}
+  finally{vaultUploadSubmit.disabled=false;}
+};
+
 function initFirebase(){
   const settings=window.HOGETERPJES_FIREBASE;
   if(!settings?.useFirebase) return false;
@@ -1958,6 +2094,7 @@ function initFirebase(){
     firebase.initializeApp(settings.config);
     auth=firebase.auth();
     db=firebase.firestore();
+    storage=firebase.storage();
     auth.onAuthStateChanged(user=>{
       if(!user){
         currentUser=null;
@@ -2003,7 +2140,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.4");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.7");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

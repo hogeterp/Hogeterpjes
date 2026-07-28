@@ -1,0 +1,22 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function vaultMember() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email in
+          firestore.get(/databases/(default)/documents/vaults/rinze-christa).data.memberEmails;
+    }
+
+    match /vaults/rinze-christa/{allPaths=**} {
+      allow read, delete: if vaultMember();
+      allow create: if vaultMember()
+        && request.resource.size <= 100 * 1024 * 1024;
+      allow update: if false;
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

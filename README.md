@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.6
+# Hogeterpjes v1.3.7
 
 Gebouwd op de stabiele v1.3.1.
 
@@ -51,3 +51,12 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Bij “Naar lijst” kies je eerst welke ingrediënten/producten worden toegevoegd.
 - Alles selecteren en niets selecteren toegevoegd.
 - Huishouden kiezen voordat de producten worden toegevoegd.
+
+## Versie 1.3.7 – Kluis Rinze & Christa
+- Privékluis los van huishoudens.
+- Alleen voor Rinze en Christa.
+- Bestanden opgeslagen in Firebase Storage; metadata in Firestore.
+- Mappen, zoeken, favorieten, openen, downloaden en verwijderen.
+- Werkelijke bestandsgrootte per bestand en opslagmeter tot 5,00 GB.
+- Uploadblokkade in de app bij 5,00 GB en maximaal 100 MB per bestand.
+- Nieuwe Firestore- en Storage-regels vereist; zie FIREBASE-STAPPEN.txt.

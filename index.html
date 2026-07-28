@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.5">
-  <link rel="stylesheet" href="style.css?v=1.3.5">
+  <link rel="manifest" href="manifest.json?v=1.3.7">
+  <link rel="stylesheet" href="style.css?v=1.3.7">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.6</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.7</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.6</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.7</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -257,6 +257,28 @@
         <div id="agendaList" class="list-grid"></div>
       </section>
 
+      <section class="page" data-page="kluis">
+        <div class="page-head">
+          <div><p class="eyebrow">Alleen voor Rinze & Christa</p><h2>🔐 Gezinskluis</h2></div>
+          <button id="vaultUploadBtn" class="primary-btn">+ Bestand</button>
+        </div>
+        <div id="vaultAccessMessage" class="card vault-access hidden"></div>
+        <div id="vaultContent">
+          <section class="card vault-meter-card">
+            <div class="section-head"><div><p class="eyebrow">Firebase Storage</p><h3>Opslag</h3></div><strong id="vaultStorageText">0 B / 5,00 GB</strong></div>
+            <div class="vault-meter"><span id="vaultStorageBar"></span></div>
+            <div class="meta"><span id="vaultStoragePercent">0% gebruikt</span> · <span id="vaultStorageRemaining">5,00 GB beschikbaar</span></div>
+            <p id="vaultStorageWarning" class="vault-warning hidden"></p>
+            <p class="muted vault-limit-note">De app blokkeert nieuwe uploads bij 5,00 GB. Google kan gratis quota wijzigen; controleer daarom ook de Usage- en Billing-pagina in Firebase.</p>
+          </section>
+          <div class="vault-toolbar">
+            <input id="vaultSearch" class="search" placeholder="Zoek bestand, omschrijving of uploader">
+            <select id="vaultCategoryFilter"><option value="">Alle mappen</option></select>
+          </div>
+          <div id="vaultList" class="list-grid"></div>
+        </div>
+      </section>
+
       <section class="page" data-page="profiel">
         <div class="page-head">
           <div><p class="eyebrow">Jouw account</p><h2>Profiel</h2></div>
@@ -322,6 +344,7 @@
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
     <button data-go="producten">📦 Productdatabase</button>
+    <button id="vaultMenuBtn" class="hidden" data-go="kluis">🔐 Kluis Rinze & Christa</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
   </dialog>
@@ -338,6 +361,20 @@
       <div id="recipeGroceriesIngredients" class="recipe-grocery-choices"></div>
       <p id="recipeGroceriesError" class="login-message"></p>
       <button class="primary-btn wide" type="submit">Toevoegen aan lijst</button>
+    </form>
+  </dialog>
+
+  <dialog id="vaultUploadDialog" class="modal">
+    <form id="vaultUploadForm" method="dialog">
+      <div class="sheet-head"><h3>Bestand toevoegen</h3><button type="button" data-close>✕</button></div>
+      <label>Titel<input id="vaultTitle" required maxlength="120"></label>
+      <label>Map<select id="vaultCategory" required></select></label>
+      <label>Omschrijving (optioneel)<textarea id="vaultDescription" rows="3" maxlength="500"></textarea></label>
+      <label class="photo-upload secondary-btn wide">📎 Kies bestand<input id="vaultFileInput" type="file" required></label>
+      <p id="vaultChosenFile" class="muted">Nog geen bestand gekozen.</p>
+      <label class="check-row-simple"><input id="vaultFavorite" type="checkbox"> ⭐ Meteen als favoriet markeren</label>
+      <p id="vaultUploadMessage" class="login-message"></p>
+      <button id="vaultUploadSubmit" class="primary-btn wide" type="submit">Uploaden naar kluis</button>
     </form>
   </dialog>
 
@@ -605,7 +642,8 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.5"></script>
-  <script src="app.js?v=1.3.5"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
+  <script src="firebase-config.js?v=1.3.7"></script>
+  <script src="app.js?v=1.3.7"></script>
 </body>
 </html>

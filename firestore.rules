@@ -8,6 +8,10 @@ service cloud.firestore {
       return request.auth != null &&
         request.auth.token.email in get(/databases/$(database)/documents/appAdmin/settings).data.allowedEmails;
     }
+    function isVaultMember(vaultId) {
+      return request.auth != null &&
+        request.auth.token.email in get(/databases/$(database)/documents/vaults/$(vaultId)).data.memberEmails;
+    }
     match /appAdmin/settings {
       allow read: if isInvited() || isAdmin();
       allow create, update, delete: if isAdmin();
@@ -17,6 +21,13 @@ service cloud.firestore {
     }
     match /profielen/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId && (isInvited() || isAdmin());
+    }
+    match /vaults/{vaultId} {
+      allow create, update, delete: if isAdmin();
+      allow read: if isAdmin() || isVaultMember(vaultId);
+      match /files/{fileId} {
+        allow read, create, update, delete: if isVaultMember(vaultId) || isAdmin();
+      }
     }
     match /{document=**} { allow read, write: if false; }
   }
