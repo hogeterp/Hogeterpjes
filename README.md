@@ -1,13 +1,14 @@
-# Hogeterpjes v1.3.10
+# Hogeterpjes v1.3.11
 
-## Nieuw
-- Gezinskluis met overzichtelijke maptegels.
-- Tegels voor Huis, Auto, Caravan, Verzekeringen, Garanties & bonnen, Vakantie, Documenten en Overig.
-- Extra tegels voor Favorieten en Recent toegevoegd.
-- Na het openen van een tegel worden alleen de bestanden uit die map getoond.
-- Christa krijgt automatisch toegang op basis van haar ingelogde Firebase-profiel; haar e-mailadres hoeft niet apart aan de kluis te worden gekoppeld.
-- Rinze houdt automatisch beheerderstoegang.
-- Bestaande upload-, zoek-, opslagmeter-, favoriet-, open-, download- en verwijderfuncties blijven behouden.
+## Nieuw in deze versie
+- De Gezinskluis opent direct met maptegels.
+- De knop **+ Bestand** blijft zichtbaar voor Rinze en Christa.
+- Een nog niet gepubliceerde Firebase-regel blokkeert de hele kluis niet meer.
+- Bij een Firebase-weigering verschijnt een duidelijke foutmelding bij het uploaden.
+- Mappen, opslagmeter, zoeken, favorieten en recente bestanden blijven zichtbaar.
 
-## Belangrijk na uploaden
-Publiceer de nieuwe `firestore.rules` en `storage.rules` apart in Firebase. Alleen de webbestanden naar GitHub uploaden activeert deze regels niet.
+## Belangrijk
+Voor echt uploaden en laden moeten `firestore.rules` en `storage.rules` één keer apart in Firebase worden gepubliceerd. Zie `FIREBASE-STAPPEN.txt`.
+
+## Uploaden naar GitHub
+Upload alle losse webbestanden uit deze map en vervang de bestaande bestanden. Firebase-login en bestaande gegevens blijven behouden.

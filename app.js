@@ -1955,7 +1955,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.10) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.11) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -2004,33 +2004,46 @@ async function ensureVaultConfig(){
   else await ref.set(payload,{merge:true});
 }
 async function initVaultForCurrentUser(){
-  if(!db||!currentUser||!isVaultPerson()){ vaultConfig=null; vaultFiles=[]; renderVault(); return; }
+  if(!db||!currentUser||!isVaultPerson()){
+    vaultConfig=null;
+    vaultFiles=[];
+    renderVault();
+    return;
+  }
+
+  // Toon de kluis direct. Een ontbrekende configuratie of nog niet gepubliceerde
+  // Firebase-regel mag de tegelweergave en uploadknop niet meer blokkeren.
+  vaultConfig={name:"Kluis Rinze & Christa"};
+  vaultFiles=[];
+  renderVault();
+
   try{
     await ensureVaultConfig();
     const configRef=db.collection("vaults").doc(VAULT_ID);
-    const snap=await configRef.get();
-    vaultConfig=snap.exists?snap.data():{name:"Kluis Rinze & Christa"};
     if(vaultFilesUnsubscribe) vaultFilesUnsubscribe();
     vaultFilesUnsubscribe=configRef.collection("files").orderBy("createdAt","desc").onSnapshot(q=>{
-      vaultFiles=q.docs.map(d=>({id:d.id,...d.data()})); renderVault();
+      vaultFiles=q.docs.map(d=>({id:d.id,...d.data()}));
+      if(window.vaultAccessMessage) vaultAccessMessage.classList.add("hidden");
+      renderVault();
     },err=>{
-      console.error(err);
-      vaultConfig=null; renderVault();
+      console.error("Kluisbestanden laden mislukt",err);
+      vaultFiles=[];
+      renderVault();
       if(window.vaultAccessMessage){
-        vaultAccessMessage.innerHTML="De kluis kon niet worden geladen. Publiceer de meegeleverde <strong>Firestore-regels</strong> en <strong>Storage-regels</strong> in Firebase.";
+        vaultAccessMessage.innerHTML="⚠️ De mappen zijn klaar, maar Firebase weigert het laden van bestanden. Publiceer de meegeleverde Firestore- en Storage-regels. Je kunt de uploadknop alvast gebruiken; bij een weigering krijg je daar een duidelijke melding.";
         vaultAccessMessage.classList.remove("hidden");
       }
     });
   }catch(err){
     console.error("Kluis initialiseren mislukt",err);
-    vaultConfig=null; renderVault();
+    renderVault();
     if(window.vaultAccessMessage){
-      vaultAccessMessage.innerHTML="De kluisverbinding is nog niet compleet. Publiceer de regels uit <strong>FIREBASE-STAPPEN.txt</strong> en open de app daarna opnieuw.";
+      vaultAccessMessage.innerHTML="⚠️ De kluis is geopend, maar de Firebase-verbinding is nog niet volledig. Publiceer de regels uit FIREBASE-STAPPEN.txt. De tegelweergave blijft wel beschikbaar.";
       vaultAccessMessage.classList.remove("hidden");
     }
   }
 }
-function hasVaultAccess(){ return !!(currentUser&&isVaultPerson()&&vaultConfig); }
+function hasVaultAccess(){ return !!(currentUser&&isVaultPerson()); }
 function fillVaultCategories(){
   if(!window.vaultCategory) return;
   const selected=vaultCategory.value;
@@ -2071,9 +2084,9 @@ function renderVault(){
   const access=hasVaultAccess();
   vaultContent.classList.toggle("hidden",!access);
   vaultUploadBtn.classList.toggle("hidden",!access);
-  vaultAccessMessage.classList.toggle("hidden",access);
   if(!access){
-    vaultAccessMessage.innerHTML="De kluis wordt verbonden met Firebase. Publiceer zo nodig de nieuwe Firestore- en Storage-regels van versie 1.3.10 en open de app opnieuw.";
+    vaultAccessMessage.innerHTML="Je hebt geen toegang tot deze kluis.";
+    vaultAccessMessage.classList.remove("hidden");
     return;
   }
   const total=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
@@ -2132,7 +2145,14 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
     await storage.ref(storagePath).put(file,{contentType:file.type||"application/octet-stream",customMetadata:{vaultId:VAULT_ID,documentId:ref.id}});
     await ref.set({title:vaultTitle.value.trim(),description:vaultDescription.value.trim(),category:vaultCategory.value,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     vaultUploadDialog.close(); currentVaultCategory=vaultCategory.value; currentVaultSpecial="";
-  }catch(err){console.error(err);try{await storage.ref(storagePath).delete();}catch(_){ }vaultUploadMessage.textContent="Uploaden mislukt: "+err.message;}
+  }catch(err){
+    console.error(err);
+    try{await storage.ref(storagePath).delete();}catch(_){ }
+    const code=String(err?.code||"");
+    vaultUploadMessage.textContent=code.includes("unauthorized")||code.includes("permission-denied")
+      ? "Upload geweigerd door Firebase. Publiceer eerst firestore.rules en storage.rules volgens FIREBASE-STAPPEN.txt."
+      : "Uploaden mislukt: "+(err?.message||"onbekende fout");
+  }
   finally{vaultUploadSubmit.disabled=false;}
 };
 
@@ -2189,7 +2209,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.10");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.11");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
