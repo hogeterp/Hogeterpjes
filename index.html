@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.11">
-  <link rel="stylesheet" href="style.css?v=1.3.11">
+  <link rel="manifest" href="manifest.json?v=1.3.12">
+  <link rel="stylesheet" href="style.css?v=1.3.12">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.11</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.12</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.11</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.12</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -273,6 +273,12 @@
           </section>
           <div class="vault-toolbar">
             <input id="vaultSearch" class="search" placeholder="Zoek in de hele kluis">
+            <select id="vaultSort" class="search vault-sort" aria-label="Sorteer bestanden">
+              <option value="newest">Nieuwste eerst</option>
+              <option value="oldest">Oudste eerst</option>
+              <option value="name">Naam A–Z</option>
+              <option value="size">Grootste eerst</option>
+            </select>
             <button id="vaultHomeBtn" class="secondary-btn hidden" type="button">← Mappen</button>
           </div>
           <div id="vaultViewTitle" class="vault-view-title hidden"></div>
@@ -372,7 +378,10 @@
       <label>Titel<input id="vaultTitle" required maxlength="120"></label>
       <label>Map<select id="vaultCategory" required></select></label>
       <label>Omschrijving (optioneel)<textarea id="vaultDescription" rows="3" maxlength="500"></textarea></label>
-      <label class="photo-upload secondary-btn wide">📎 Kies bestand<input id="vaultFileInput" type="file" required></label>
+      <div class="vault-file-choices">
+        <label class="photo-upload secondary-btn wide">📎 Kies bestand<input id="vaultFileInput" type="file"></label>
+        <label class="photo-upload secondary-btn wide">📷 Maak foto<input id="vaultCameraInput" type="file" accept="image/*" capture="environment"></label>
+      </div>
       <p id="vaultChosenFile" class="muted">Nog geen bestand gekozen.</p>
       <label class="check-row-simple"><input id="vaultFavorite" type="checkbox"> ⭐ Meteen als favoriet markeren</label>
       <p id="vaultUploadMessage" class="login-message"></p>
@@ -645,7 +654,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.11"></script>
-  <script src="app.js?v=1.3.11"></script>
+  <script src="firebase-config.js?v=1.3.12"></script>
+  <script src="app.js?v=1.3.12"></script>
 </body>
 </html>

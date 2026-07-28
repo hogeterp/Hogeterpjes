@@ -1955,7 +1955,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.11) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.12) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -1973,6 +1973,7 @@ let vaultFiles=[];
 let vaultConfig=null;
 let currentVaultCategory="";
 let currentVaultSpecial="";
+let selectedVaultUploadFile=null;
 
 function normalizeEmail(value){ return String(value||"").trim().toLowerCase(); }
 function isVaultPerson(){
@@ -2057,6 +2058,12 @@ function vaultRows(){
   if(currentVaultSpecial==="favorites") rows=rows.filter(f=>f.favorite);
   if(currentVaultSpecial==="recent") rows=rows.slice().sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))).slice(0,20);
   if(q) rows=rows.filter(f=>[f.title,f.description,f.originalName,f.uploadedBy,f.category].join(" ").toLowerCase().includes(q));
+  const sort=window.vaultSort?.value||"newest";
+  const stamp=f=>Number(f.createdAt?.seconds||0);
+  if(sort==="oldest") rows.sort((a,b)=>stamp(a)-stamp(b));
+  else if(sort==="name") rows.sort((a,b)=>String(a.title||a.originalName||"").localeCompare(String(b.title||b.originalName||""),"nl"));
+  else if(sort==="size") rows.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0));
+  else rows.sort((a,b)=>stamp(b)-stamp(a));
   return rows;
 }
 function renderVaultFolders(){
@@ -2074,6 +2081,11 @@ function renderVaultFolders(){
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('favorites')"><span class="vault-folder-icon">⭐</span><strong>Favorieten</strong><small>${favoriteCount} ${favoriteCount===1?"bestand":"bestanden"}</small><em>Snel terugvinden</em></button>
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('recent')"><span class="vault-folder-icon">🕒</span><strong>Recent</strong><small>Laatste 20 bestanden</small><em>Nieuw toegevoegd</em></button>
     ${folderCards}`;
+}
+function formatVaultDate(value){
+  const date=value?.toDate?value.toDate():value?new Date(value):null;
+  if(!date||Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(date);
 }
 function renderVault(){
   if(!window.vaultMenuBtn) return;
@@ -2113,7 +2125,7 @@ function renderVault(){
   vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${vaultRows().length} gevonden</span>`;
   const rows=vaultRows();
   vaultList.innerHTML=rows.length?rows.map(f=>`<article class="item-card vault-file-card">
-    <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}</div></div><button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button></div>
+    <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(f.createdAt)?` · ${formatVaultDate(f.createdAt)}`:""}</div></div><button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button></div>
     ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
     <div class="vault-file-actions"><button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Verwijderen</button></div>
   </article>`).join(""):'<div class="card muted">Nog geen bestanden gevonden.</div>';
@@ -2128,13 +2140,33 @@ window.downloadVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);c
 window.toggleVaultFavorite=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({favorite:!f.favorite,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert("Favoriet wijzigen mislukt: "+e.message);} };
 window.deleteVaultFile=async id=>{ const f=vaultFiles.find(x=>x.id===id);if(!f||!confirm(`Weet je zeker dat je “${f.title||f.originalName}” definitief wilt verwijderen?`))return;try{await storage.ref(f.storagePath).delete();await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).delete();}catch(e){alert("Verwijderen mislukt: "+e.message);} };
 
-if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>{vaultUploadForm.reset();vaultChosenFile.textContent="Nog geen bestand gekozen.";vaultUploadMessage.textContent="";fillVaultCategories();if(currentVaultCategory)vaultCategory.value=currentVaultCategory;vaultUploadDialog.showModal();};
-if(window.vaultFileInput) vaultFileInput.onchange=()=>{const f=vaultFileInput.files?.[0];vaultChosenFile.textContent=f?`${f.name} · ${formatBytes(f.size)}`:"Nog geen bestand gekozen.";if(f&&!vaultTitle.value)vaultTitle.value=f.name.replace(/\.[^.]+$/,"");};
+function setSelectedVaultFile(file){
+  selectedVaultUploadFile=file||null;
+  vaultChosenFile.textContent=file?`${file.name} · ${formatBytes(file.size)}`:"Nog geen bestand gekozen.";
+  if(file&&!vaultTitle.value) vaultTitle.value=file.name.replace(/\.[^.]+$/," ").trim();
+}
+if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>{
+  vaultUploadForm.reset(); selectedVaultUploadFile=null; setSelectedVaultFile(null);
+  vaultUploadMessage.textContent=""; fillVaultCategories();
+  if(currentVaultCategory) vaultCategory.value=currentVaultCategory;
+  vaultUploadDialog.showModal();
+};
+if(window.vaultFileInput) vaultFileInput.onchange=()=>{
+  const f=vaultFileInput.files?.[0];
+  if(f&&window.vaultCameraInput) vaultCameraInput.value="";
+  setSelectedVaultFile(f);
+};
+if(window.vaultCameraInput) vaultCameraInput.onchange=()=>{
+  const f=vaultCameraInput.files?.[0];
+  if(f&&window.vaultFileInput) vaultFileInput.value="";
+  setSelectedVaultFile(f);
+};
 if(window.vaultSearch) vaultSearch.oninput=()=>{if(vaultSearch.value.trim()){currentVaultCategory="";currentVaultSpecial="";}renderVault();};
+if(window.vaultSort) vaultSort.onchange=renderVault;
 if(window.vaultHomeBtn) vaultHomeBtn.onclick=resetVaultView;
 if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   e.preventDefault();
-  const file=vaultFileInput.files?.[0]; if(!file){vaultUploadMessage.textContent="Kies eerst een bestand.";return;}
+  const file=selectedVaultUploadFile||vaultFileInput.files?.[0]||window.vaultCameraInput?.files?.[0]; if(!file){vaultUploadMessage.textContent="Kies eerst een bestand of maak een foto.";return;}
   const used=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
   if(file.size>VAULT_MAX_FILE_BYTES){vaultUploadMessage.textContent="Een bestand mag maximaal 100 MB zijn.";return;}
   if(used+file.size>VAULT_LIMIT_BYTES){vaultUploadMessage.textContent="Dit bestand past niet meer binnen de ingestelde limiet van 5,00 GB.";return;}
@@ -2209,7 +2241,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.11");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.12");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
