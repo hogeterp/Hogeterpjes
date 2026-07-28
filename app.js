@@ -1955,7 +1955,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.9) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.10) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -2073,7 +2073,7 @@ function renderVault(){
   vaultUploadBtn.classList.toggle("hidden",!access);
   vaultAccessMessage.classList.toggle("hidden",access);
   if(!access){
-    vaultAccessMessage.innerHTML="De kluis wordt verbonden met Firebase. Publiceer zo nodig de nieuwe Firestore- en Storage-regels van versie 1.3.9 en open de app opnieuw.";
+    vaultAccessMessage.innerHTML="De kluis wordt verbonden met Firebase. Publiceer zo nodig de nieuwe Firestore- en Storage-regels van versie 1.3.10 en open de app opnieuw.";
     return;
   }
   const total=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
@@ -2189,7 +2189,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.9");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.10");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

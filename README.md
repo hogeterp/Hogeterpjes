@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.9
+# Hogeterpjes v1.3.10
 
 ## Nieuw
 - Gezinskluis met overzichtelijke maptegels.
