@@ -1,70 +1,13 @@
-# Hogeterpjes v1.3.8
-
-Gebouwd op de stabiele v1.3.1.
+# Hogeterpjes v1.3.9
 
 ## Nieuw
-- Per dag aangeven wie mee-eet.
-- Standaard staan alle leden van het huishouden geselecteerd.
-- Iedereen in het huishouden mag de mee-eters aanpassen.
-- Familieleden uit andere huishoudens en losse gasten kunnen worden toegevoegd.
-- Ingrediënten uit het weekmenu worden geschaald naar het werkelijke aantal eters per dag.
-- Gedeelde boodschappenlijst is zichtbaar en aanpasbaar voor alle leden van het huishouden.
-- Bij boodschappen staat wie ze heeft toegevoegd en waar ze vandaan komen.
-- Meldingen binnen de app voor wijzigingen aan weekmenu, mee-eters en boodschappen.
+- Gezinskluis met overzichtelijke maptegels.
+- Tegels voor Huis, Auto, Caravan, Verzekeringen, Garanties & bonnen, Vakantie, Documenten en Overig.
+- Extra tegels voor Favorieten en Recent toegevoegd.
+- Na het openen van een tegel worden alleen de bestanden uit die map getoond.
+- Christa krijgt automatisch toegang op basis van haar ingelogde Firebase-profiel; haar e-mailadres hoeft niet apart aan de kluis te worden gekoppeld.
+- Rinze houdt automatisch beheerderstoegang.
+- Bestaande upload-, zoek-, opslagmeter-, favoriet-, open-, download- en verwijderfuncties blijven behouden.
 
-## Uploaden
-Pak het ZIP-bestand uit en upload de losse bestanden uit de map naar GitHub. Vervang de bestaande bestanden.
-
-Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nieuwe Firestore-regels nodig zolang de bestaande gedeelde appData-documentregels actief zijn.
-
-
-## Versie 1.3.3
-- Gezamenlijke productdatabase
-- Product zoeken, favorieten en categorieën
-- Vaste winkel en andere winkels per product
-- Producten direct naar een huishoudelijke boodschappenlijst
-- Boodschappen gegroepeerd per winkel
-
-
-## Versie 1.3.4
-- Dubbele producten herkennen
-- Eigen winkels beheren
-- Boodschappen achteraf bewerken
-- Favorieten, recent gebruikt en vaak gekocht
-- Voorraad en minimumvoorraad per product
-- Optionele productfoto
-- Zoekvoorstellen tijdens typen
-- Correcte map-, app- en cacheversie 1.3.4
-
-
-## Versie 1.3.5
-- Bestaande recepten achteraf bewerken.
-- Naam, porties, foto, ingrediënten, bereidingsstappen en auteur aanpassen.
-- Recept verwijderen met een extra bevestiging.
-- Datum en naam van de laatste wijziging tonen.
-- Bestaande Firebase-login en gegevens blijven behouden.
-
-
-## Versie 1.3.6
-- Homepagina in de volgorde: agenda, menu, boodschappen en verjaardag.
-- Compactere kaarten en minder witruimte op mobiel.
-- Bij “Naar lijst” kies je eerst welke ingrediënten/producten worden toegevoegd.
-- Alles selecteren en niets selecteren toegevoegd.
-- Huishouden kiezen voordat de producten worden toegevoegd.
-
-## Versie 1.3.8 – Kluis Rinze & Christa
-- Privékluis los van huishoudens.
-- Alleen voor Rinze en Christa.
-- Bestanden opgeslagen in Firebase Storage; metadata in Firestore.
-- Mappen, zoeken, favorieten, openen, downloaden en verwijderen.
-- Werkelijke bestandsgrootte per bestand en opslagmeter tot 5,00 GB.
-- Uploadblokkade in de app bij 5,00 GB en maximaal 100 MB per bestand.
-- Nieuwe Firestore- en Storage-regels vereist; zie FIREBASE-STAPPEN.txt.
-
-
-## Versie 1.3.8 – automatische toegang tot de kluis
-- Rinze krijgt als beheerder direct toegang tot de kluis.
-- Christa wordt automatisch gekoppeld via haar bestaande uitnodiging onder **Beheer**.
-- Het e-mailadres hoeft niet meer apart bij **Familie** te worden ingevuld.
-- Duidelijkere melding wanneer Firebase-regels nog niet zijn gepubliceerd.
-- Storage-regels geven Rinze als beheerder altijd toegang en houden alle andere opslag afgesloten.
+## Belangrijk na uploaden
+Publiceer de nieuwe `firestore.rules` en `storage.rules` apart in Firebase. Alleen de webbestanden naar GitHub uploaden activeert deze regels niet.

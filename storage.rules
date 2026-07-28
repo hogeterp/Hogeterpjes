@@ -5,16 +5,17 @@ service firebase.storage {
       return request.auth != null
         && request.auth.token.email == 'rohogeterp@gmail.com';
     }
-    function vaultMember() {
+    function isChrista() {
       return request.auth != null
-        && request.auth.token.email != null
-        && request.auth.token.email in
-          firestore.get(/databases/(default)/documents/vaults/rinze-christa).data.memberEmails;
+        && firestore.get(/databases/(default)/documents/profielen/$(request.auth.uid)).data.displayName == 'Christa';
+    }
+    function vaultMember() {
+      return isAdmin() || isChrista();
     }
 
     match /vaults/rinze-christa/{allPaths=**} {
-      allow read, delete: if isAdmin() || vaultMember();
-      allow create: if (isAdmin() || vaultMember())
+      allow read, delete: if vaultMember();
+      allow create: if vaultMember()
         && request.resource.size <= 100 * 1024 * 1024;
       allow update: if false;
     }

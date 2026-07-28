@@ -1,30 +1,22 @@
-HOGETERPJES v1.3.8 – FIREBASE-REGELS PUBLICEREN
+HOGETERPJES v1.3.9 – FIREBASE-REGELS PUBLICEREN
 
-De kluis werkt pas nadat BEIDE regelbestanden in Firebase zijn gepubliceerd.
-
-A. FIRESTORE-REGELS
+FIRESTORE
 1. Open Firebase Console en kies project “hogeterpjes”.
-2. Kies links: Firestore Database.
-3. Tik bovenaan op: Rules / Regels.
-4. Open in deze map het bestand: firestore.rules.
-5. Kopieer alle tekst.
-6. Vervang in Firebase de bestaande Firestore-regels door deze tekst.
-7. Tik op Publish / Publiceren.
+2. Ga naar Firestore Database > Rules / Regels.
+3. Open lokaal het bestand firestore.rules uit deze versie.
+4. Kopieer alles, vervang de bestaande regels en tik op Publish / Publiceren.
 
-B. STORAGE-REGELS
-1. Kies links: Storage.
-2. Tik bovenaan op: Rules / Regels.
-3. Open in deze map het bestand: storage.rules.
-4. Kopieer alle tekst.
-5. Vervang in Firebase de bestaande Storage-regels door deze tekst.
-6. Tik op Publish / Publiceren.
+STORAGE
+1. Ga in hetzelfde Firebase-project naar Storage > Rules / Regels.
+2. Open lokaal het bestand storage.rules uit deze versie.
+3. Kopieer alles, vervang de bestaande regels en tik op Publish / Publiceren.
 
-C. CHRISTA KOPPELEN
-- Rinze heeft automatisch toegang met rohogeterp@gmail.com.
-- Christa hoeft GEEN e-mailadres bij Familie te krijgen.
-- Nodig Christa één keer uit via Meer > Beheer, met het e-mailadres waarmee zij inlogt.
-- Open de app daarna opnieuw.
+DAARNA
+1. Upload de losse webbestanden naar GitHub Pages en vervang de bestaande bestanden.
+2. Sluit Hogeterpjes volledig af en open de app opnieuw.
+3. Rinze heeft automatisch toegang.
+4. Christa heeft automatisch toegang wanneer haar Firebase-profiel de naam “Christa” heeft.
 
 BELANGRIJK
-- De bestanden firestore.rules en storage.rules alleen naar GitHub uploaden activeert ze NIET.
-- Ze moeten apart in Firebase bij de betreffende tab Regels worden geplakt en gepubliceerd.
+- Upload firestore.rules en storage.rules niet naar GitHub om ze te activeren.
+- De inhoud moet apart in Firebase worden gepubliceerd.
