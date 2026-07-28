@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.7
+# Hogeterpjes v1.3.8
 
 Gebouwd op de stabiele v1.3.1.
 
@@ -52,7 +52,7 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Alles selecteren en niets selecteren toegevoegd.
 - Huishouden kiezen voordat de producten worden toegevoegd.
 
-## Versie 1.3.7 – Kluis Rinze & Christa
+## Versie 1.3.8 – Kluis Rinze & Christa
 - Privékluis los van huishoudens.
 - Alleen voor Rinze en Christa.
 - Bestanden opgeslagen in Firebase Storage; metadata in Firestore.
@@ -60,3 +60,11 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Werkelijke bestandsgrootte per bestand en opslagmeter tot 5,00 GB.
 - Uploadblokkade in de app bij 5,00 GB en maximaal 100 MB per bestand.
 - Nieuwe Firestore- en Storage-regels vereist; zie FIREBASE-STAPPEN.txt.
+
+
+## Versie 1.3.8 – automatische toegang tot de kluis
+- Rinze krijgt als beheerder direct toegang tot de kluis.
+- Christa wordt automatisch gekoppeld via haar bestaande uitnodiging onder **Beheer**.
+- Het e-mailadres hoeft niet meer apart bij **Familie** te worden ingevuld.
+- Duidelijkere melding wanneer Firebase-regels nog niet zijn gepubliceerd.
+- Storage-regels geven Rinze als beheerder altijd toegang en houden alle andere opslag afgesloten.

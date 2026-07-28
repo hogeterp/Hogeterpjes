@@ -1,6 +1,10 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.email == 'rohogeterp@gmail.com';
+    }
     function vaultMember() {
       return request.auth != null
         && request.auth.token.email != null
@@ -9,8 +13,8 @@ service firebase.storage {
     }
 
     match /vaults/rinze-christa/{allPaths=**} {
-      allow read, delete: if vaultMember();
-      allow create: if vaultMember()
+      allow read, delete: if isAdmin() || vaultMember();
+      allow create: if (isAdmin() || vaultMember())
         && request.resource.size <= 100 * 1024 * 1024;
       allow update: if false;
     }

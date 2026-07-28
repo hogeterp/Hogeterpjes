@@ -1955,7 +1955,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.7) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.8) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -1969,9 +1969,17 @@ function isVaultPerson(){
   return isAdmin() || name==="rinze" || name==="christa";
 }
 function vaultMemberEmails(){
-  const christaFamily=data.family.find(p=>String(p.name).toLowerCase()==="christa");
-  const christaAccount=(adminSettings.accounts||[]).find(a=>String(a.name).toLowerCase()==="christa");
-  return Array.from(new Set([ADMIN_EMAIL,normalizeEmail(christaFamily?.email),normalizeEmail(christaAccount?.email)].filter(Boolean)));
+  // Gebruik automatisch de bestaande uitnodiging uit Beheer.
+  // Christa's e-mailadres hoeft daardoor niet ook bij Familie te staan.
+  const accounts=Array.isArray(adminSettings.accounts)?adminSettings.accounts:[];
+  const christaAccount=accounts.find(a=>{
+    const name=String(a.name||"").trim().toLowerCase();
+    return a.active!==false && (name==="christa" || name.startsWith("christa "));
+  });
+  return Array.from(new Set([
+    normalizeEmail(ADMIN_EMAIL),
+    normalizeEmail(christaAccount?.email)
+  ].filter(Boolean)));
 }
 function formatBytes(bytes){
   const n=Number(bytes)||0;
@@ -2010,16 +2018,30 @@ async function initVaultForCurrentUser(){
     const snap=await configRef.get();
     vaultConfig=snap.exists?snap.data():null;
     const email=normalizeEmail(currentUser.email);
-    if(!vaultConfig?.memberEmails?.map(normalizeEmail).includes(email)){ renderVault(); return; }
+    const memberEmails=(vaultConfig?.memberEmails||[]).map(normalizeEmail);
+    if(!isAdmin()&&!memberEmails.includes(email)){ renderVault(); return; }
     if(vaultFilesUnsubscribe) vaultFilesUnsubscribe();
     vaultFilesUnsubscribe=configRef.collection("files").orderBy("createdAt","desc").onSnapshot(q=>{
       vaultFiles=q.docs.map(d=>({id:d.id,...d.data()})); renderVault();
-    },err=>{ console.error(err); vaultAccessMessage.textContent="De kluis kon niet worden geladen. Controleer de Firestore-regels."; vaultAccessMessage.classList.remove("hidden"); });
-  }catch(err){ console.error("Kluis initialiseren mislukt",err); renderVault(); }
+    },err=>{
+      console.error(err);
+      vaultAccessMessage.innerHTML="De kluis kon niet worden geladen. Publiceer eerst de meegeleverde <strong>Firestore-regels</strong> en <strong>Storage-regels</strong> in Firebase.";
+      vaultAccessMessage.classList.remove("hidden");
+    });
+  }catch(err){
+    console.error("Kluis initialiseren mislukt",err);
+    vaultConfig=null;
+    renderVault();
+    if(window.vaultAccessMessage){
+      vaultAccessMessage.innerHTML="De kluisverbinding is nog niet compleet. Publiceer de regels uit <strong>FIREBASE-STAPPEN.txt</strong> en open de app daarna opnieuw.";
+      vaultAccessMessage.classList.remove("hidden");
+    }
+  }
 }
 function hasVaultAccess(){
   const email=normalizeEmail(currentUser?.email);
-  return !!(currentUser&&isVaultPerson()&&vaultConfig?.memberEmails?.map(normalizeEmail).includes(email));
+  const memberEmails=(vaultConfig?.memberEmails||[]).map(normalizeEmail);
+  return !!(currentUser&&isVaultPerson()&&(isAdmin()||memberEmails.includes(email)));
 }
 function fillVaultCategories(){
   if(!window.vaultCategory||!window.vaultCategoryFilter) return;
@@ -2039,7 +2061,9 @@ function renderVault(){
   vaultUploadBtn.classList.toggle("hidden",!access);
   vaultAccessMessage.classList.toggle("hidden",access);
   if(!access){
-    vaultAccessMessage.innerHTML=isAdmin()?"De kluis wordt voorbereid. Voeg bij Familie of Beheer het e-mailadres van Christa toe en open de app daarna opnieuw.":"Je account heeft nog geen toegang tot deze kluis. Rinze moet eerst jouw e-mailadres aan de kluis koppelen.";
+    vaultAccessMessage.innerHTML=isAdmin()
+      ? "De kluis wordt verbonden met Firebase. Controleer of de meegeleverde Firestore- en Storage-regels zijn gepubliceerd en open de app daarna opnieuw."
+      : "Je account heeft nog geen toegang. Rinze moet Christa eerst onder <strong>Beheer</strong> uitnodigen met het e-mailadres waarmee zij inlogt.";
     return;
   }
   const total=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
@@ -2140,7 +2164,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.7");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.8");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
