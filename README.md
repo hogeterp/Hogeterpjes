@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.5
+# Hogeterpjes v1.3.6
 
 Gebouwd op de stabiele v1.3.1.
 
@@ -43,3 +43,11 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Recept verwijderen met een extra bevestiging.
 - Datum en naam van de laatste wijziging tonen.
 - Bestaande Firebase-login en gegevens blijven behouden.
+
+
+## Versie 1.3.6
+- Homepagina in de volgorde: agenda, menu, boodschappen en verjaardag.
+- Compactere kaarten en minder witruimte op mobiel.
+- Bij “Naar lijst” kies je eerst welke ingrediënten/producten worden toegevoegd.
+- Alles selecteren en niets selecteren toegevoegd.
+- Huishouden kiezen voordat de producten worden toegevoegd.

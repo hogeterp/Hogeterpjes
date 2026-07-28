@@ -1533,14 +1533,45 @@ window.editGrocery=id=>{
   openSimple("Boodschap bewerken",`<input type="hidden" name="id" value="${g.id}"><label>Product<input name="text" required value="${escapeHtml(g.text)}"></label><label>Winkel<input name="store" list="groceryStoreOptions" value="${escapeHtml(g.store||"")}"></label><datalist id="groceryStoreOptions">${stores}</datalist><label>Notitie<input name="note" value="${escapeHtml(g.note||"")}" placeholder="Bijv. 2 pakken"></label>`,"editGrocery");
 };
 
+let pendingRecipeGroceriesId="";
 window.addRecipeToGroceries=id=>{
-  const r=data.recipes.find(x=>x.id===id); if(!r||!currentHousehold)return;
-  r.ingredients.forEach(i=>{
+  const r=data.recipes.find(x=>x.id===id);
+  if(!r) return;
+  const households=accessibleHouseholds();
+  if(!households.length){ alert("Je account is nog niet aan een huishouden gekoppeld."); return; }
+  pendingRecipeGroceriesId=id;
+  recipeGroceriesTitle.textContent=`Producten kiezen voor ${r.name}`;
+  recipeGroceriesHousehold.innerHTML=households.map(h=>`<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("");
+  recipeGroceriesHousehold.value=households.some(h=>h.id===currentHousehold)?currentHousehold:households[0].id;
+  recipeGroceriesIngredients.innerHTML=r.ingredients.map((raw,index)=>{
+    const i=normalizeIngredient(raw);
+    const text=[i.amount,i.unit,i.name].filter(Boolean).join(" ");
+    return `<label class="recipe-grocery-choice"><input type="checkbox" name="ingredient" value="${index}" checked><span>${escapeHtml(text)}</span></label>`;
+  }).join("");
+  recipeGroceriesError.textContent="";
+  recipeGroceriesDialog.showModal();
+};
+selectAllRecipeIngredients.onclick=()=>recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]').forEach(x=>x.checked=true);
+selectNoRecipeIngredients.onclick=()=>recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]').forEach(x=>x.checked=false);
+recipeGroceriesForm.onsubmit=e=>{
+  e.preventDefault();
+  const r=data.recipes.find(x=>x.id===pendingRecipeGroceriesId);
+  const householdId=recipeGroceriesHousehold.value;
+  const selected=[...recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]:checked')].map(x=>Number(x.value));
+  if(!r || !householdId) return;
+  if(!selected.length){ recipeGroceriesError.textContent="Kies minimaal één product."; return; }
+  selected.forEach(index=>{
+    const i=normalizeIngredient(r.ingredients[index]);
     const text=[i.amount,i.unit,i.name].filter(Boolean).join(" ");
     const match=(data.products||[]).find(p=>String(p.name).toLowerCase()===String(i.name).toLowerCase());
-    data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,store:match?.store||"",productId:match?.id||"",done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
-  }); addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft ingrediënten van ${r.name} toegevoegd aan de boodschappenlijst.`});
-  saveData(); navigate("boodschappen");
+    data.groceries.push({id:crypto.randomUUID(),householdId,text,store:match?.store||"",productId:match?.id||"",done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
+  });
+  currentHousehold=householdId;
+  addNotification({householdId,text:`${currentPersonName()} heeft ${selected.length} product${selected.length===1?"":"en"} van ${r.name} toegevoegd aan de boodschappenlijst.`});
+  recipeGroceriesDialog.close();
+  pendingRecipeGroceriesId="";
+  saveData();
+  navigate("boodschappen");
 };
 window.openRecipe=id=>{
   const r=data.recipes.find(x=>x.id===id); if(!r)return;

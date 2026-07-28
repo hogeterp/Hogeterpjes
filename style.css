@@ -120,9 +120,9 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 
 .dashboard-hero{margin-bottom:14px}
 .dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
-.dashboard-card{min-height:170px}
+.dashboard-card{min-height:0;padding:14px}
 .dashboard-card .section-head{align-items:flex-start}
-.dashboard-row{padding:10px 0;border-bottom:1px solid var(--line)}
+.dashboard-row{padding:7px 0;border-bottom:1px solid var(--line)}
 .dashboard-row:last-child{border-bottom:0}
 .dashboard-row div{display:flex;flex-direction:column;gap:4px}
 .dashboard-row span{font-size:.85rem;color:var(--muted)}
@@ -203,3 +203,19 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .grocery-store-title small{font-weight:400;color:var(--muted)}
 
 .recipe-view-actions{margin:12px 0}.recipe-actions{flex-wrap:wrap}.recipe-actions button{min-width:100px}
+
+/* v1.3.6: compact dashboard and ingredient selection */
+.dashboard-card h3{margin:2px 0 0;font-size:1rem}
+.dashboard-card .section-head{margin-bottom:4px}
+.dashboard-card .eyebrow{font-size:.72rem}
+.dashboard-card .muted{margin:.35rem 0;font-size:.88rem}
+.selection-actions{display:flex;gap:12px;justify-content:flex-end;margin:-4px 0 10px}
+.recipe-grocery-choices{display:grid;gap:8px;margin-bottom:16px;max-height:45vh;overflow:auto}
+.recipe-grocery-choice{display:flex!important;align-items:center;gap:10px;margin:0!important;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.recipe-grocery-choice input{width:auto;margin:0;flex:0 0 auto}
+.recipe-grocery-choice span{font-weight:700}
+@media(max-width:700px){
+  .dashboard-grid{gap:8px;margin-bottom:10px}
+  .dashboard-card{padding:11px 12px}
+  .dashboard-row{padding:5px 0}
+}

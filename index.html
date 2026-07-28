@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.5</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.6</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.5</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.6</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -59,18 +59,18 @@
         <div class="dashboard-grid">
           <section class="card dashboard-card">
             <div class="section-head">
-              <div><p class="eyebrow">Vandaag</p><h3>🍽️ Op het menu</h3></div>
-              <button class="text-btn" data-go="weekmenu">Open</button>
-            </div>
-            <div id="dashboardMeals"></div>
-          </section>
-
-          <section class="card dashboard-card">
-            <div class="section-head">
               <div><p class="eyebrow">Agenda</p><h3>📅 Vandaag en binnenkort</h3></div>
               <button class="text-btn" data-go="agenda">Open</button>
             </div>
             <div id="dashboardAgenda"></div>
+          </section>
+
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Vandaag</p><h3>🍽️ Op het menu</h3></div>
+              <button class="text-btn" data-go="weekmenu">Open</button>
+            </div>
+            <div id="dashboardMeals"></div>
           </section>
 
           <section class="card dashboard-card">
@@ -324,6 +324,21 @@
     <button data-go="producten">📦 Productdatabase</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
+  </dialog>
+
+  <dialog id="recipeGroceriesDialog" class="modal">
+    <form id="recipeGroceriesForm" method="dialog">
+      <div class="sheet-head"><h3 id="recipeGroceriesTitle">Ingrediënten kiezen</h3><button type="button" data-close>✕</button></div>
+      <p class="muted">Kies welke producten je aan de boodschappenlijst wilt toevoegen.</p>
+      <label>Huishouden<select id="recipeGroceriesHousehold" required></select></label>
+      <div class="selection-actions">
+        <button id="selectAllRecipeIngredients" class="text-btn" type="button">Alles selecteren</button>
+        <button id="selectNoRecipeIngredients" class="text-btn" type="button">Niets selecteren</button>
+      </div>
+      <div id="recipeGroceriesIngredients" class="recipe-grocery-choices"></div>
+      <p id="recipeGroceriesError" class="login-message"></p>
+      <button class="primary-btn wide" type="submit">Toevoegen aan lijst</button>
+    </form>
   </dialog>
 
   <dialog id="recipeDialog" class="modal">
