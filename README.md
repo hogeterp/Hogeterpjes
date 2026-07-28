@@ -1,4 +1,4 @@
-# Hogeterpjes v1.3.2
+# Hogeterpjes v1.3.5
 
 Gebouwd op de stabiele v1.3.1.
 
@@ -35,3 +35,11 @@ Firebase-login en bestaande gegevensstructuur blijven behouden. Er zijn geen nie
 - Optionele productfoto
 - Zoekvoorstellen tijdens typen
 - Correcte map-, app- en cacheversie 1.3.4
+
+
+## Versie 1.3.5
+- Bestaande recepten achteraf bewerken.
+- Naam, porties, foto, ingrediënten, bereidingsstappen en auteur aanpassen.
+- Recept verwijderen met een extra bevestiging.
+- Datum en naam van de laatste wijziging tonen.
+- Bestaande Firebase-login en gegevens blijven behouden.

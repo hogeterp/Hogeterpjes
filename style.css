@@ -201,3 +201,5 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 .row-actions{display:flex;gap:2px}
 .grocery-store-title{display:flex;justify-content:space-between;align-items:center}
 .grocery-store-title small{font-weight:400;color:var(--muted)}
+
+.recipe-view-actions{margin:12px 0}.recipe-actions{flex-wrap:wrap}.recipe-actions button{min-width:100px}

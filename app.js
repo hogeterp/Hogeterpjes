@@ -572,11 +572,11 @@ removeRecipePhotoBtn.onclick=resetRecipePhoto;
 
 function renderRecipes(){
   const q=recipeSearch.value?.toLowerCase()||"";
-  const rows=data.recipes.filter(r=>(r.name+" "+r.ingredients.map(i=>i.name).join(" ")).toLowerCase().includes(q));
+  const rows=data.recipes.filter(r=>(r.name+" "+r.ingredients.map(i=>normalizeIngredient(i).name).join(" ")).toLowerCase().includes(q));
   recipeList.innerHTML=rows.length?rows.map(r=>`<article class="item-card">
     ${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
-    <h3>${r.name}</h3><div class="meta">Voor ${r.servings} personen · door ${r.author}</div>
-    <div class="recipe-actions"><button class="secondary-btn" onclick="openRecipe('${r.id}')">Bekijken</button><button class="secondary-btn" onclick="addRecipeToGroceries('${r.id}')">Naar lijst</button></div>
+    <h3>${escapeHtml(r.name)}</h3><div class="meta">Voor ${r.servings} personen · door ${escapeHtml(r.author||"Onbekend")}${r.updatedAt?`<br>Laatst gewijzigd ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(r.updatedAt))}${r.updatedBy?` door ${escapeHtml(r.updatedBy)}`:""}`:""}</div>
+    <div class="recipe-actions"><button class="secondary-btn" onclick="openRecipe('${r.id}')">Bekijken</button><button class="secondary-btn" onclick="editRecipe('${r.id}')">Bewerken</button><button class="secondary-btn" onclick="addRecipeToGroceries('${r.id}')">Naar lijst</button></div>
   </article>`).join(""):`<div class="card muted">Nog geen recepten. Voeg je eerste recept toe.</div>`;
 }
 function productLabel(p){
@@ -1224,7 +1224,20 @@ window.deleteAgendaEvent=(id,visibility)=>{
   saveData();
 };
 
-addRecipeBtn.onclick=()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); };
+function openNewRecipeDialog(){
+  recipeForm.reset();
+  recipeEditId.value="";
+  recipeDialogTitle.textContent="Recept toevoegen";
+  recipeSaveBtn.textContent="Recept opslaan";
+  deleteRecipeBtn.classList.add("hidden");
+  resetRecipePhoto();
+  resetIngredientEditor();
+  fillSelects();
+  recipeAuthor.value=currentPersonName() || recipeAuthor.value;
+  recipeDialog.showModal();
+}
+
+addRecipeBtn.onclick=openNewRecipeDialog;
 function openWishDialog(){
   fillSelects();
   resetWishPhoto();
@@ -1232,7 +1245,7 @@ function openWishDialog(){
   wishDialog.showModal();
 }
 addWishBtn.onclick=openWishDialog;
-document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(()=>{ resetRecipePhoto(); resetIngredientEditor(); recipeDialog.showModal(); },150);
+document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 
 addIngredientRowBtn.onclick=()=>addIngredientRow();
@@ -1244,20 +1257,65 @@ recipeForm.onsubmit=e=>{
 
   if(!validateIngredientRows(ingredients)) return;
 
-  data.recipes.unshift({
-    id:crypto.randomUUID(),
+  const editId=recipeEditId.value;
+  const existing=editId ? data.recipes.find(r=>r.id===editId) : null;
+  const now=new Date().toISOString();
+  const recipe={
+    id:existing?.id || crypto.randomUUID(),
     name:String(f.get("name")||"").trim(),
     servings:Number(f.get("servings")),
     photo:recipePhotoData.value,
     ingredients,
     steps:String(f.get("steps")||"").split("\n").map(x=>x.trim()).filter(Boolean),
-    author:f.get("author")
-  });
+    author:f.get("author"),
+    createdAt:existing?.createdAt || now,
+    createdBy:existing?.createdBy || currentPersonName(),
+    updatedAt:now,
+    updatedBy:currentPersonName()
+  };
+
+  if(existing){
+    Object.assign(existing,recipe);
+  }else{
+    data.recipes.unshift(recipe);
+  }
 
   recipeForm.reset();
+  recipeEditId.value="";
   resetRecipePhoto();
   resetIngredientEditor();
   recipeDialog.close();
+  saveData();
+};
+
+window.editRecipe=id=>{
+  const r=data.recipes.find(x=>x.id===id); if(!r)return;
+  recipeForm.reset();
+  fillSelects();
+  recipeEditId.value=r.id;
+  recipeDialogTitle.textContent="Recept bewerken";
+  recipeSaveBtn.textContent="Wijzigingen opslaan";
+  deleteRecipeBtn.classList.remove("hidden");
+  recipeForm.elements.name.value=r.name || "";
+  recipeForm.elements.servings.value=Number(r.servings)||4;
+  recipeForm.elements.steps.value=(r.steps||[]).join("\n");
+  recipeForm.elements.author.value=r.author || currentPersonName();
+  if(r.photo) setRecipePhoto(r.photo); else resetRecipePhoto();
+  resetIngredientEditor((r.ingredients||[]).map(normalizeIngredient));
+  if(recipeViewDialog.open) recipeViewDialog.close();
+  recipeDialog.showModal();
+};
+
+deleteRecipeBtn.onclick=()=>{
+  const id=recipeEditId.value;
+  const r=data.recipes.find(x=>x.id===id); if(!r)return;
+  if(!confirm(`Recept “${r.name}” definitief verwijderen?`)) return;
+  data.recipes=data.recipes.filter(x=>x.id!==id);
+  recipeDialog.close();
+  recipeForm.reset();
+  recipeEditId.value="";
+  resetRecipePhoto();
+  resetIngredientEditor();
   saveData();
 };
 wishForm.onsubmit=e=>{
@@ -1491,6 +1549,8 @@ window.openRecipe=id=>{
     viewRecipeTitle.textContent=r.name;
     viewRecipeBody.innerHTML=`${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
       <div class="portion-control"><button id="minusPortion">−</button><strong>Voor ${portions} personen</strong><button id="plusPortion">+</button></div>
+      <div class="recipe-view-actions"><button class="secondary-btn wide" type="button" onclick="editRecipe('${r.id}')">✏️ Recept bewerken</button></div>
+      ${r.updatedAt?`<p class="meta">Laatst gewijzigd ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(r.updatedAt))}${r.updatedBy?` door ${escapeHtml(r.updatedBy)}`:""}</p>`:""}
       <h3>Ingrediënten</h3><ul class="ingredient-list">${r.ingredients.map(rawIngredient=>{
         const i=normalizeIngredient(rawIngredient);
         const factor=portions/Math.max(1,Number(r.servings)||1);
