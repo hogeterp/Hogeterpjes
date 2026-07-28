@@ -1,19 +1,27 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
     function isAdmin() {
-      return request.auth != null && request.auth.token.email == 'rohogeterp@gmail.com';
+      return signedIn() && request.auth.token.email == 'rohogeterp@gmail.com';
+    }
+    function settings() {
+      return get(/databases/$(database)/documents/appAdmin/settings).data;
     }
     function isInvited() {
-      return request.auth != null &&
-        request.auth.token.email in get(/databases/$(database)/documents/appAdmin/settings).data.allowedEmails;
+      return signedIn() && request.auth.token.email in settings().allowedEmails;
+    }
+    function profileName() {
+      return get(/databases/$(database)/documents/profielen/$(request.auth.uid)).data.displayName;
     }
     function isRinzeOrChrista() {
-      return request.auth != null && (
-        isAdmin() ||
-        get(/databases/$(database)/documents/profielen/$(request.auth.uid)).data.displayName == 'Christa'
+      return signedIn() && (
+        isAdmin() || profileName() == 'Rinze' || profileName() == 'Christa'
       );
     }
+
     match /appAdmin/settings {
       allow read: if isInvited() || isAdmin();
       allow create, update, delete: if isAdmin();
@@ -22,8 +30,8 @@ service cloud.firestore {
       allow read, write: if isInvited() || isAdmin();
     }
     match /profielen/{userId} {
-      allow read: if request.auth != null && ((request.auth.uid == userId && (isInvited() || isAdmin())) || isAdmin());
-      allow write: if request.auth != null && request.auth.uid == userId && (isInvited() || isAdmin());
+      allow read: if signedIn() && ((request.auth.uid == userId && (isInvited() || isAdmin())) || isAdmin());
+      allow write: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
     }
     match /vaults/rinze-christa {
       allow read: if isRinzeOrChrista();
@@ -32,6 +40,8 @@ service cloud.firestore {
         allow read, create, update, delete: if isRinzeOrChrista();
       }
     }
-    match /{document=**} { allow read, write: if false; }
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }

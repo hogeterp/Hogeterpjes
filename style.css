@@ -220,15 +220,15 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
   .dashboard-row{padding:5px 0}
 }
 
-/* v1.3.12 – Gezinskluis */
+/* v1.3.13 – Gezinskluis */
 .vault-meter-card{margin-bottom:14px}.vault-meter{height:14px;background:rgba(63,111,90,.14);border-radius:999px;overflow:hidden;margin:10px 0}.vault-meter span{display:block;height:100%;width:0;background:#3f6f5a;transition:width .25s}.vault-meter span.warning{background:#e28a20}.vault-meter span.danger{background:#c43d3d}.vault-warning{font-weight:700;color:#b42318}.vault-limit-note{font-size:.86rem;margin-bottom:0}.vault-toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}.vault-toolbar .search{margin:0}.vault-toolbar select{min-width:135px}.vault-file-card{display:grid;gap:9px}.vault-file-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.vault-file-head h3{margin:0;overflow-wrap:anywhere}.vault-file-actions{display:flex;flex-wrap:wrap;gap:7px}.vault-file-actions button{flex:1;min-width:90px}.vault-icon{font-size:1.55rem}.vault-access{font-weight:700}.check-row-simple{display:flex!important;align-items:center;gap:9px}.check-row-simple input{width:auto}.dark .vault-meter{background:rgba(255,255,255,.13)}
 @media(max-width:560px){.vault-toolbar{grid-template-columns:1fr}.vault-file-actions button{min-width:calc(50% - 7px)}}
 
-/* v1.3.12 – maptegels in de Gezinskluis */
+/* v1.3.13 – maptegels in de Gezinskluis */
 .vault-view-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 2px 12px}.vault-view-title strong{font-size:1.12rem}.vault-view-title span{font-size:.85rem;color:var(--muted)}
 .vault-folder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.vault-folder-card{appearance:none;border:1px solid rgba(63,111,90,.16);background:var(--card);color:inherit;border-radius:22px;padding:18px 15px;text-align:left;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:154px;cursor:pointer}.vault-folder-card:active{transform:scale(.985)}.vault-folder-icon{font-size:2rem;margin-bottom:11px}.vault-folder-card strong{font-size:1.05rem;line-height:1.2;margin-bottom:5px}.vault-folder-card small{font-size:.82rem;color:var(--muted);margin-bottom:9px}.vault-folder-card em{font-size:.78rem;color:var(--muted);font-style:normal;line-height:1.3}.vault-special-card{background:linear-gradient(145deg,rgba(255,220,95,.16),var(--card))}.dark .vault-folder-card{border-color:rgba(255,255,255,.09)}
 @media(min-width:760px){.vault-folder-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:380px){.vault-folder-grid{grid-template-columns:1fr}.vault-folder-card{min-height:130px}}
 
-/* Gezinskluis v1.3.12 */
+/* Gezinskluis v1.3.13 */
 .vault-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}.vault-sort{min-width:150px;margin:0}.vault-file-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vault-file-choices .photo-upload{margin:0}.vault-file-card .meta{line-height:1.45}@media(max-width:600px){.vault-toolbar{grid-template-columns:1fr 1fr}.vault-toolbar #vaultSearch{grid-column:1/-1}.vault-toolbar #vaultHomeBtn{grid-column:1/-1}.vault-file-choices{grid-template-columns:1fr}}

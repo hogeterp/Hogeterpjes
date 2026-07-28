@@ -1605,10 +1605,22 @@ async function loadAdminSettings(){
     const snap=await ref.get();
     if(snap.exists){
       const remote=snap.data();
-      adminSettings={
-        allowedEmails:Array.isArray(remote.allowedEmails)?remote.allowedEmails.map(x=>String(x).toLowerCase()):[ADMIN_EMAIL],
-        accounts:Array.isArray(remote.accounts)?remote.accounts:[]
-      };
+      const accounts=Array.isArray(remote.accounts)?remote.accounts:[];
+      const emailsFromAccounts=accounts
+        .filter(a=>a && a.active!==false && a.email)
+        .map(a=>String(a.email).trim().toLowerCase());
+      const allowedEmails=Array.isArray(remote.allowedEmails)
+        ? remote.allowedEmails.map(x=>String(x).trim().toLowerCase())
+        : emailsFromAccounts;
+      if(!allowedEmails.includes(ADMIN_EMAIL)) allowedEmails.push(ADMIN_EMAIL);
+      adminSettings={allowedEmails:Array.from(new Set(allowedEmails)),accounts};
+      // v1.3.13: oudere settings-documenten automatisch aanvullen vanuit accounts.
+      // Daardoor blijven Firebase-regels en accountbeheer dezelfde bron gebruiken.
+      const needsMigration=!Array.isArray(remote.allowedEmails)
+        || adminSettings.allowedEmails.length!==remote.allowedEmails.length;
+      if(isAdmin() && needsMigration){
+        await ref.set(adminSettings,{merge:true});
+      }
     }else if((firebase.auth().currentUser.email||"").toLowerCase()===ADMIN_EMAIL){
       await ref.set(adminSettings);
     }
@@ -1806,8 +1818,10 @@ signupForm.onsubmit=async e=>{
   try{
     const result=await auth.createUserWithEmailAndPassword(email,p1);
     const snap=await db.doc(ADMIN_DOC).get();
-    const allowed=snap.exists && (snap.data().allowedEmails||[]).map(x=>String(x).toLowerCase()).includes(email);
-    if(!allowed){ await result.user.delete(); signupMessage.textContent='Dit e-mailadres is nog niet door Rinze uitgenodigd.'; return; }
+    const settings=snap.exists?snap.data():{};
+    const allowedByList=(settings.allowedEmails||[]).map(x=>String(x).toLowerCase()).includes(email);
+    const allowedByAccount=(settings.accounts||[]).some(a=>a && a.active!==false && String(a.email||'').toLowerCase()===email);
+    if(!allowedByList && !allowedByAccount){ await result.user.delete(); signupMessage.textContent='Dit e-mailadres is nog niet door Rinze uitgenodigd.'; return; }
     signupDialog.close();
     loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
   }catch(err){
@@ -1955,7 +1969,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.12) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.13) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -2241,7 +2255,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.12");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.13");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

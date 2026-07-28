@@ -1,16 +1,19 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function isAdmin() {
-      return request.auth != null
-        && request.auth.token.email == 'rohogeterp@gmail.com';
+    function signedIn() {
+      return request.auth != null;
     }
-    function isChrista() {
-      return request.auth != null
-        && firestore.get(/databases/(default)/documents/profielen/$(request.auth.uid)).data.displayName == 'Christa';
+    function isAdmin() {
+      return signedIn() && request.auth.token.email == 'rohogeterp@gmail.com';
+    }
+    function profileName() {
+      return firestore.get(/databases/(default)/documents/profielen/$(request.auth.uid)).data.displayName;
     }
     function vaultMember() {
-      return isAdmin() || isChrista();
+      return signedIn() && (
+        isAdmin() || profileName() == 'Rinze' || profileName() == 'Christa'
+      );
     }
 
     match /vaults/rinze-christa/{allPaths=**} {

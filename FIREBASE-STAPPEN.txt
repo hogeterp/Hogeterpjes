@@ -1,4 +1,9 @@
-HOGETERPJES v1.3.12 – FIREBASE-REGELS PUBLICEREN
+HOGETERPJES v1.3.13 – FIREBASE-REGELS PUBLICEREN
+
+BELANGRIJK IN DEZE VERSIE
+- De app vult allowedEmails automatisch aan vanuit de bestaande accounts-lijst.
+- De kluis herkent Rinze en Christa ook via hun Firebase-profielnaam.
+- Publiceer beide regelbestanden opnieuw, ook als je dit eerder al hebt gedaan.
 
 FIRESTORE
 1. Open Firebase Console en kies project “hogeterpjes”.
@@ -10,12 +15,13 @@ STORAGE
 1. Ga in hetzelfde Firebase-project naar Storage > Rules / Regels.
 2. Open lokaal het bestand storage.rules uit deze versie.
 3. Kopieer alles, vervang de bestaande regels en tik op Publish / Publiceren.
+4. Verschijnt “Attach permissions”? Tik daarop en wacht op het groene vinkje.
 
 DAARNA
 1. Upload de losse webbestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit Hogeterpjes volledig af en open de app opnieuw.
-3. Rinze heeft automatisch toegang.
-4. Christa heeft automatisch toegang wanneer haar Firebase-profiel de naam “Christa” heeft.
+3. Log eerst één keer in als Rinze; de accounts-lijst wordt dan automatisch gesynchroniseerd.
+4. Test daarna in de Gezinskluis met een klein bestand.
 
 BELANGRIJK
 - Upload firestore.rules en storage.rules niet naar GitHub om ze te activeren.
