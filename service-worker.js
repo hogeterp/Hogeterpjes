@@ -1,5 +1,5 @@
-const CACHE="hogeterpjes-v1.3.13-kluis";
-const ASSETS=["./","./index.html","./style.css?v=1.3.13","./app.js?v=1.3.13","./firebase-config.js?v=1.3.13","./manifest.json?v=1.3.13","./logo.jpg","./icon-192.png","./icon-512.png"];
+const CACHE="hogeterpjes-v1.3.14-kluis-trash";
+const ASSETS=["./","./index.html","./style.css?v=1.3.14","./app.js?v=1.3.14","./firebase-config.js?v=1.3.14","./manifest.json?v=1.3.14","./logo.jpg","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
 self.addEventListener("message",e=>{if(e.data?.type==="SKIP_WAITING")self.skipWaiting()});

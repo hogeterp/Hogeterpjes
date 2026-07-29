@@ -232,3 +232,6 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 
 /* Gezinskluis v1.3.13 */
 .vault-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}.vault-sort{min-width:150px;margin:0}.vault-file-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vault-file-choices .photo-upload{margin:0}.vault-file-card .meta{line-height:1.45}@media(max-width:600px){.vault-toolbar{grid-template-columns:1fr 1fr}.vault-toolbar #vaultSearch{grid-column:1/-1}.vault-toolbar #vaultHomeBtn{grid-column:1/-1}.vault-file-choices{grid-template-columns:1fr}}
+
+/* Gezinskluis v1.3.14 */
+.vault-thumb-wrap{position:relative;width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:rgba(63,111,90,.09);display:grid;place-items:center}.vault-thumb-placeholder{font-size:2rem;opacity:.55}.vault-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .2s}.vault-thumb-wrap.loaded .vault-thumb{opacity:1}.vault-trash-card{background:linear-gradient(145deg,rgba(196,61,61,.08),var(--card));border-color:rgba(196,61,61,.18)}.vault-file-card.is-trash{opacity:.9}.vault-file-card.is-trash .vault-icon{filter:grayscale(.3)}

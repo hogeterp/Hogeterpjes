@@ -1614,7 +1614,7 @@ async function loadAdminSettings(){
         : emailsFromAccounts;
       if(!allowedEmails.includes(ADMIN_EMAIL)) allowedEmails.push(ADMIN_EMAIL);
       adminSettings={allowedEmails:Array.from(new Set(allowedEmails)),accounts};
-      // v1.3.13: oudere settings-documenten automatisch aanvullen vanuit accounts.
+      // v1.3.14: oudere settings-documenten automatisch aanvullen vanuit accounts.
       // Daardoor blijven Firebase-regels en accountbeheer dezelfde bron gebruiken.
       const needsMigration=!Array.isArray(remote.allowedEmails)
         || adminSettings.allowedEmails.length!==remote.allowedEmails.length;
@@ -1969,7 +1969,7 @@ async function loadUserProfile(user){
 }
 
 
-// ===== Gezinskluis Rinze & Christa (v1.3.13) =====
+// ===== Gezinskluis Rinze & Christa (v1.3.14) =====
 const VAULT_ID="rinze-christa";
 const VAULT_LIMIT_BYTES=5*1024*1024*1024;
 const VAULT_MAX_FILE_BYTES=100*1024*1024;
@@ -2068,12 +2068,14 @@ function fillVaultCategories(){
 function vaultRows(){
   const q=(vaultSearch.value||"").trim().toLowerCase();
   let rows=vaultFiles.slice();
+  if(currentVaultSpecial==="trash") rows=rows.filter(f=>f.deletedAt);
+  else rows=rows.filter(f=>!f.deletedAt);
   if(currentVaultCategory) rows=rows.filter(f=>f.category===currentVaultCategory);
   if(currentVaultSpecial==="favorites") rows=rows.filter(f=>f.favorite);
-  if(currentVaultSpecial==="recent") rows=rows.slice().sort((a,b)=>String(b.createdAt?.seconds||0).localeCompare(String(a.createdAt?.seconds||0))).slice(0,20);
+  if(currentVaultSpecial==="recent") rows=rows.slice().sort((a,b)=>Number(b.createdAt?.seconds||0)-Number(a.createdAt?.seconds||0)).slice(0,20);
   if(q) rows=rows.filter(f=>[f.title,f.description,f.originalName,f.uploadedBy,f.category].join(" ").toLowerCase().includes(q));
   const sort=window.vaultSort?.value||"newest";
-  const stamp=f=>Number(f.createdAt?.seconds||0);
+  const stamp=f=>Number((f.deletedAt||f.createdAt)?.seconds||0);
   if(sort==="oldest") rows.sort((a,b)=>stamp(a)-stamp(b));
   else if(sort==="name") rows.sort((a,b)=>String(a.title||a.originalName||"").localeCompare(String(b.title||b.originalName||""),"nl"));
   else if(sort==="size") rows.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0));
@@ -2082,7 +2084,7 @@ function vaultRows(){
 }
 function renderVaultFolders(){
   const folderCards=VAULT_CATEGORIES.map(c=>{
-    const files=vaultFiles.filter(f=>(f.category||"Overig")===c.name);
+    const files=vaultFiles.filter(f=>!f.deletedAt&&(f.category||"Overig")===c.name);
     const bytes=files.reduce((sum,f)=>sum+(Number(f.size)||0),0);
     return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${c.name.replaceAll("'","\\'")}')">
       <span class="vault-folder-icon">${c.icon}</span><strong>${escapeHtml(c.name)}</strong>
@@ -2090,11 +2092,14 @@ function renderVaultFolders(){
       <em>${escapeHtml(c.hint)}</em>
     </button>`;
   }).join("");
-  const favoriteCount=vaultFiles.filter(f=>f.favorite).length;
+  const activeFiles=vaultFiles.filter(f=>!f.deletedAt);
+  const favoriteCount=activeFiles.filter(f=>f.favorite).length;
+  const trashCount=vaultFiles.filter(f=>f.deletedAt).length;
   vaultFolderGrid.innerHTML=`
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('favorites')"><span class="vault-folder-icon">⭐</span><strong>Favorieten</strong><small>${favoriteCount} ${favoriteCount===1?"bestand":"bestanden"}</small><em>Snel terugvinden</em></button>
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('recent')"><span class="vault-folder-icon">🕒</span><strong>Recent</strong><small>Laatste 20 bestanden</small><em>Nieuw toegevoegd</em></button>
-    ${folderCards}`;
+    ${folderCards}
+    <button class="vault-folder-card vault-trash-card" type="button" onclick="openVaultSpecial('trash')"><span class="vault-folder-icon">🗑️</span><strong>Prullenbak</strong><small>${trashCount} ${trashCount===1?"bestand":"bestanden"}</small><em>Herstellen of definitief verwijderen</em></button>`;
 }
 function formatVaultDate(value){
   const date=value?.toDate?value.toDate():value?new Date(value):null;
@@ -2135,14 +2140,24 @@ function renderVault(){
     vaultList.innerHTML="";
     return;
   }
-  const title=currentVaultCategory?`${categoryInfo(currentVaultCategory).icon} ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":"🔎 Zoekresultaten";
+  const title=currentVaultCategory?`${categoryInfo(currentVaultCategory).icon} ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":"🔎 Zoekresultaten";
   vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${vaultRows().length} gevonden</span>`;
   const rows=vaultRows();
-  vaultList.innerHTML=rows.length?rows.map(f=>`<article class="item-card vault-file-card">
-    <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(f.createdAt)?` · ${formatVaultDate(f.createdAt)}`:""}</div></div><button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button></div>
-    ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
-    <div class="vault-file-actions"><button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Verwijderen</button></div>
-  </article>`).join(""):'<div class="card muted">Nog geen bestanden gevonden.</div>';
+  vaultList.innerHTML=rows.length?rows.map(f=>{
+    const isTrash=!!f.deletedAt;
+    const imagePreview=String(f.contentType||"").startsWith("image/")&&!isTrash
+      ? `<div class="vault-thumb-wrap"><div class="vault-thumb-placeholder">🖼️</div><img class="vault-thumb" data-vault-thumb="${f.id}" alt=""></div>`:"";
+    const actions=isTrash
+      ? `<button class="secondary-btn" onclick="restoreVaultFile('${f.id}')">Herstellen</button><button class="secondary-btn danger-mini" onclick="purgeVaultFile('${f.id}')">Definitief verwijderen</button>`
+      : `<button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Naar prullenbak</button>`;
+    return `<article class="item-card vault-file-card ${isTrash?"is-trash":""}">
+      ${imagePreview}
+      <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite&&!isTrash?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)?` · ${isTrash?"verwijderd ":""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)}`:""}</div></div>${isTrash?"":`<button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button>`}</div>
+      ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
+      <div class="vault-file-actions">${actions}</div>
+    </article>`;
+  }).join(""):'<div class="card muted">Nog geen bestanden gevonden.</div>';
+  hydrateVaultThumbnails(rows);
 }
 window.openVaultCategory=name=>{currentVaultCategory=name;currentVaultSpecial="";vaultSearch.value="";renderVault();};
 window.openVaultSpecial=type=>{currentVaultCategory="";currentVaultSpecial=type;vaultSearch.value="";renderVault();};
@@ -2152,7 +2167,32 @@ async function getVaultDownloadUrl(file){ if(!storage||!file?.storagePath) throw
 window.openVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);window.open(url,"_blank","noopener");}catch(e){alert("Bestand openen mislukt: "+e.message);} };
 window.downloadVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=f.originalName||"bestand";a.click();}catch(e){alert("Downloaden mislukt: "+e.message);} };
 window.toggleVaultFavorite=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({favorite:!f.favorite,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert("Favoriet wijzigen mislukt: "+e.message);} };
-window.deleteVaultFile=async id=>{ const f=vaultFiles.find(x=>x.id===id);if(!f||!confirm(`Weet je zeker dat je “${f.title||f.originalName}” definitief wilt verwijderen?`))return;try{await storage.ref(f.storagePath).delete();await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).delete();}catch(e){alert("Verwijderen mislukt: "+e.message);} };
+window.deleteVaultFile=async id=>{
+  const f=vaultFiles.find(x=>x.id===id);
+  if(!f||!confirm(`“${f.title||f.originalName}” naar de prullenbak verplaatsen?`)) return;
+  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({deletedAt:firebase.firestore.FieldValue.serverTimestamp(),deletedBy:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
+  catch(e){alert("Verplaatsen naar prullenbak mislukt: "+e.message);}
+};
+window.restoreVaultFile=async id=>{
+  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({deletedAt:firebase.firestore.FieldValue.delete(),deletedBy:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
+  catch(e){alert("Herstellen mislukt: "+e.message);}
+};
+window.purgeVaultFile=async id=>{
+  const f=vaultFiles.find(x=>x.id===id);
+  if(!f||!confirm(`“${f.title||f.originalName}” definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
+  try{await storage.ref(f.storagePath).delete();await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).delete();}
+  catch(e){alert("Definitief verwijderen mislukt: "+e.message);}
+};
+async function hydrateVaultThumbnails(rows){
+  const images=rows.filter(f=>!f.deletedAt&&String(f.contentType||"").startsWith("image/"));
+  await Promise.all(images.map(async f=>{
+    const img=document.querySelector(`[data-vault-thumb="${CSS.escape(f.id)}"]`);
+    if(!img||img.src) return;
+    try{img.src=await getVaultDownloadUrl(f);img.onload=()=>img.closest(".vault-thumb-wrap")?.classList.add("loaded");}
+    catch(_){ }
+  }));
+}
+
 
 function setSelectedVaultFile(file){
   selectedVaultUploadFile=file||null;
@@ -2189,7 +2229,7 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   const storagePath=`vaults/${VAULT_ID}/${ref.id}/${safeFileName(file.name)}`;
   try{
     await storage.ref(storagePath).put(file,{contentType:file.type||"application/octet-stream",customMetadata:{vaultId:VAULT_ID,documentId:ref.id}});
-    await ref.set({title:vaultTitle.value.trim(),description:vaultDescription.value.trim(),category:vaultCategory.value,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    await ref.set({title:vaultTitle.value.trim(),description:vaultDescription.value.trim(),category:vaultCategory.value,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,deletedAt:null,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
     vaultUploadDialog.close(); currentVaultCategory=vaultCategory.value; currentVaultSpecial="";
   }catch(err){
     console.error(err);
@@ -2255,7 +2295,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.13");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.14");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

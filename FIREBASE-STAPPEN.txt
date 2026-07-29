@@ -1,6 +1,8 @@
-HOGETERPJES v1.3.13 – FIREBASE-REGELS PUBLICEREN
+HOGETERPJES v1.3.14 – FIREBASE-REGELS PUBLICEREN
 
 BELANGRIJK IN DEZE VERSIE
+- Voor v1.3.14 zijn geen nieuwe Firebase-regels nodig als de v1.3.13-regels al gepubliceerd zijn.
+- De prullenbak gebruikt dezelfde bestaande Firestore- en Storage-rechten.
 - De app vult allowedEmails automatisch aan vanuit de bestaande accounts-lijst.
 - De kluis herkent Rinze en Christa ook via hun Firebase-profielnaam.
 - Publiceer beide regelbestanden opnieuw, ook als je dit eerder al hebt gedaan.
