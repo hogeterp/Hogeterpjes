@@ -17,6 +17,7 @@ const DEFAULT_DATA = {
   recipes: [],
   groceries: [],
   wishes: [],
+  giftEvents: [],
   events: [],
   weekMenus: [],
   notifications: [],
@@ -33,7 +34,7 @@ data.products=Array.isArray(data.products)?data.products:[];
 data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
 let currentHousehold=data.households[0]?.id || "";
 let currentWeekmenuHousehold="";
-let currentWeekStart=getMonday(new Date());
+let currentWeekStart=getFriday(new Date());
 let simpleMode="";
 let currentUser=null;
 let auth=null;
@@ -140,6 +141,7 @@ function subscribeToCloudData(){
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
+          giftEvents:Array.isArray(remote.giftEvents)?remote.giftEvents:[],
           events:Array.isArray(remote.events)?remote.events:[],
           weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[],
           notifications:Array.isArray(remote.notifications)?remote.notifications:[],
@@ -229,7 +231,7 @@ window.markNotificationRead=id=>{
 
 
 
-const WEEK_DAYS=["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
+const WEEK_DAYS=["Vrijdag","Zaterdag","Zondag","Maandag","Dinsdag","Woensdag","Donderdag"];
 
 function getMonday(value){
   const date=new Date(value);
@@ -237,6 +239,15 @@ function getMonday(value){
   const day=date.getDay();
   const diff=day===0 ? -6 : 1-day;
   date.setDate(date.getDate()+diff);
+  return date;
+}
+
+function getFriday(value){
+  const date=new Date(value);
+  date.setHours(12,0,0,0);
+  const day=date.getDay();
+  const diff=(day-5+7)%7;
+  date.setDate(date.getDate()-diff);
   return date;
 }
 
@@ -469,7 +480,7 @@ function renderAgenda(){
         <div class="meta">${formatAgendaDate(e)}</div>
       </div>
       <div class="agenda-card-actions">
-        <button class="mini-btn" type="button" onclick="openGoogleCalendar('${e.id}','${e.visibility}')">📅 Google Agenda</button>
+        <button class="mini-btn" type="button" onclick="addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen aan agenda</button>
         <button class="mini-btn danger-mini" type="button" onclick="deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
       </div>
     </div>
@@ -717,6 +728,76 @@ function renderWishes(){
     ${w.note?`<p>${w.note}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
   </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
 }
+
+function giftEventCanManage(event){
+  return isAdmin() || event.createdByUid===currentUser?.uid;
+}
+function giftEventVisible(event){
+  const person=currentPersonName();
+  return giftEventCanManage(event) || (event.recipients||[]).includes(person) || (event.buyers||[]).includes(person);
+}
+function giftWishStatus(event,wish){
+  return (event.claims||{})[wish.id] || null;
+}
+function giftStatusLabel(status){
+  if(status==="wrapped") return "🎁 Ingepakt";
+  if(status==="bought") return "✅ Gekocht";
+  return "🛒 Gereserveerd";
+}
+function renderGiftEvents(){
+  if(!window.giftEventList) return;
+  const person=currentPersonName();
+  const events=(data.giftEvents||[]).filter(giftEventVisible).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
+  giftEventList.innerHTML=events.length?events.map(event=>{
+    const canBuy=(event.buyers||[]).includes(person);
+    const wishes=(data.wishes||[]).filter(w=>(event.recipients||[]).includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
+    const wishCards=wishes.length?wishes.map(w=>{
+      const ownWish=w.person===person;
+      const claim=giftWishStatus(event,w);
+      const maySeeClaim=!ownWish;
+      let actions="";
+      if(canBuy && !ownWish){
+        if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`;
+        else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`;
+      }
+      return `<article class="gift-wish-card ${claim&&maySeeClaim?"claimed":""}">
+        <div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>
+        ${w.photo?`<img src="${w.photo}" alt="">`:""}
+        ${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
+        ${maySeeClaim&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:""}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:""}
+        ${actions?`<div class="gift-actions">${actions}</div>`:""}
+      </article>`;
+    }).join(""):`<p class="muted">Nog geen passende wensen voor de gekozen ontvangers en gelegenheid.</p>`;
+    return `<section class="item-card gift-event-card">
+      <div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||"Overig")}${event.budget?` · budget € ${Number(event.budget).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:""}</div>
+      <div class="chips">${(event.recipients||[]).map(x=>`<span class="chip">🎁 ${escapeHtml(x)}</span>`).join("")}</div>
+      <div class="gift-wishes">${wishCards}</div>
+    </section>`;
+  }).join(""):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
+}
+function fillGiftMemberChecks(container,selected=[]){
+  container.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.includes(p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
+}
+window.openGiftEventDialog=id=>{
+  const event=(data.giftEvents||[]).find(x=>x.id===id);
+  if(event && !giftEventCanManage(event)) return;
+  giftEventForm.reset(); giftEventEditId.value=event?.id||""; giftEventDialogTitle.textContent=event?"Cadeau-evenement bewerken":"Cadeau-evenement maken";
+  giftEventName.value=event?.name||""; giftEventOccasion.value=event?.occasion||"Verjaardag"; giftEventDate.value=event?.date||new Date().toISOString().slice(0,10); giftEventBudget.value=event?.budget||"";
+  fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
+  giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
+};
+window.claimGiftWish=(eventId,wishId,status)=>{
+  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
+  const person=currentPersonName(); if(!(event.buyers||[]).includes(person))return;
+  event.claims=event.claims||{}; const current=event.claims[wishId];
+  if(current && current.byUid!==currentUser?.uid){ alert("Deze wens is al door iemand anders gereserveerd."); return; }
+  event.claims[wishId]={byUid:currentUser?.uid||"",byName:person,status,updatedAt:new Date().toISOString()}; saveData();
+};
+window.releaseGiftWish=(eventId,wishId)=>{
+  const event=(data.giftEvents||[]).find(x=>x.id===eventId); const claim=event?.claims?.[wishId];
+  if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
+};
+
 function renderHome(){
   statFamily.textContent=data.family.length;
   statHouseholds.textContent=data.households.length;
@@ -737,11 +818,11 @@ function renderHome(){
     : `<div class="muted">Geen verjaardag gevonden.</div>`;
 
   const houses=accessibleHouseholds();
-  const monday=isoDate(getMonday(now));
-  const dayIndex=(now.getDay()+6)%7;
+  const friday=isoDate(getFriday(now));
+  const dayIndex=(now.getDay()-5+7)%7;
   const meals=(data.weekMenus || []).filter(m=>
     houses.some(h=>h.id===m.householdId) &&
-    m.weekStart===monday &&
+    m.weekStart===friday &&
     Number(m.dayIndex)===dayIndex
   );
 
@@ -809,7 +890,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1178,16 +1259,19 @@ weekmenuGroceriesBtn.onclick=()=>{
   alert(`${added} ingrediënten zijn toegevoegd aan de boodschappenlijst van ${household?.name || "het huishouden"}.`);
 };
 
-function googleCalendarDatePart(date,time=""){
+function icsEscape(value=""){
+  return String(value).replaceAll("\\","\\\\").replaceAll(";","\\;").replaceAll(",","\\,").replaceAll("\n","\\n");
+}
+function icsDatePart(date,time=""){
   const day=String(date||"").replaceAll("-","");
   return time ? `${day}T${String(time).replace(":","")}00` : day;
 }
-window.openGoogleCalendar=(id,visibility)=>{
+window.addToCalendar=(id,visibility)=>{
   const event=getVisibleAgendaEvents().find(x=>x.id===id && x.visibility===visibility);
   if(!event) return;
-  const start=googleCalendarDatePart(event.date,event.startTime);
+  const start=icsDatePart(event.date,event.startTime);
   let end;
-  if(event.endTime) end=googleCalendarDatePart(event.date,event.endTime);
+  if(event.endTime) end=icsDatePart(event.date,event.endTime);
   else if(event.startTime){
     const d=new Date(`${event.date}T${event.startTime}:00`); d.setHours(d.getHours()+1);
     end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
@@ -1195,8 +1279,12 @@ window.openGoogleCalendar=(id,visibility)=>{
     const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
     end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
   }
-  const params=new URLSearchParams({action:"TEMPLATE",text:event.title||"Afspraak",dates:`${start}/${end}`,details:event.note||"",location:event.location||""});
-  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`,"_blank","noopener");
+  const allDay=!event.startTime;
+  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Hogeterpjes//NL","CALSCALE:GREGORIAN","BEGIN:VEVENT",`UID:${event.id}@hogeterpjes`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}`,`${allDay?"DTSTART;VALUE=DATE":"DTSTART"}:${start}`,`${allDay?"DTEND;VALUE=DATE":"DTEND"}:${end}`,`SUMMARY:${icsEscape(event.title||"Afspraak")}`,`DESCRIPTION:${icsEscape(event.note||"")}`,`LOCATION:${icsEscape(event.location||"")}`,"END:VEVENT","END:VCALENDAR"];
+  const blob=new Blob([lines.join("\r\n")],{type:"text/calendar;charset=utf-8"});
+  const url=URL.createObjectURL(blob); const a=document.createElement("a");
+  a.href=url; a.download=`${safeFileName(event.title||"afspraak")}.ics`; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1500);
 };
 
 addAgendaBtn.onclick=()=>{
@@ -1381,6 +1469,24 @@ wishForm.onsubmit=e=>{
   saveData();
 };
 
+
+
+if(window.addGiftEventBtn) addGiftEventBtn.onclick=()=>openGiftEventDialog();
+if(window.giftEventForm) giftEventForm.onsubmit=e=>{
+  e.preventDefault();
+  const recipients=[...giftRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value);
+  const buyers=[...giftBuyerChecks.querySelectorAll('input:checked')].map(x=>x.value);
+  if(!recipients.length){giftEventMessage.textContent="Kies minimaal één ontvanger.";return;}
+  if(!buyers.length){giftEventMessage.textContent="Kies minimaal één persoon die cadeaus mag kopen.";return;}
+  data.giftEvents=data.giftEvents||[]; const id=giftEventEditId.value; const existing=data.giftEvents.find(x=>x.id===id);
+  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers,claims:existing?.claims||{},createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  if(existing) Object.assign(existing,record); else data.giftEvents.push(record);
+  giftEventDialog.close(); saveData();
+};
+if(window.deleteGiftEventBtn) deleteGiftEventBtn.onclick=()=>{
+  const event=(data.giftEvents||[]).find(x=>x.id===giftEventEditId.value); if(!event||!giftEventCanManage(event))return;
+  if(!confirm(`Cadeau-evenement “${event.name}” verwijderen?`))return; data.giftEvents=data.giftEvents.filter(x=>x.id!==event.id); giftEventDialog.close(); saveData();
+};
 
 function normalizeProductKey(p){
   return [p.name,p.brand,p.amount,p.unit].map(x=>String(x||"").trim().toLowerCase()).join("|");
@@ -2444,7 +2550,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.16");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.17");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

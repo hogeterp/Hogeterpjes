@@ -1,20 +1,17 @@
-# Hogeterpjes v1.3.16
+# Hogeterpjes v1.3.17
 
 ## Nieuw
-- Persoonlijk dagboek met een aparte knop voor de camera en de fotogalerij.
-- Meerdere foto’s per dagboeknotitie.
-- Voorvertoning van gekozen foto’s vóór het opslaan.
-- Foto’s afzonderlijk verwijderen vóór het opslaan.
-- Bestaande dagboekfoto’s blijven behouden bij het bewerken.
-- Mooie dagboektijdlijn met datumblok, fotogalerij en kaartweergave.
-- Tik op een dagboekfoto om deze groot te bekijken.
-- Sorteren met **Favorieten eerst**.
-- Bij afspraken een knop **Toevoegen aan Google Agenda**.
-- Recepten blijven alfabetisch en de knop **+ Ingrediënt toevoegen** blijft onderaan staan.
+- Dagboeknotities kunnen worden opgeslagen met alleen een datum; titel, tekst en foto’s zijn optioneel.
+- Het weekmenu loopt van vrijdag tot en met donderdag.
+- Agenda-afspraken hebben nu **Toevoegen aan agenda** en worden als universeel ICS-bestand aangeboden voor Apple Agenda, Google Agenda en Outlook.
+- Nieuwe cadeau-evenementen voor verjaardagen, Sinterklaas, Kerst en andere gelegenheden.
+- Iedere gebruiker kan een cadeau-evenement aanmaken.
+- Ontvangers en kopers zijn per evenement instelbaar.
+- Kopers kunnen wensen reserveren, als gekocht markeren, als ingepakt markeren en weer vrijgeven.
+- De ontvanger ziet niet wie zijn of haar wens reserveert of koopt.
 
 ## Uploaden naar GitHub
-Upload de losse bestanden uit deze map en vervang de bestaande bestanden.
-Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
+Upload de losse bestanden uit deze map en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
 
 ## Firebase
-Voor v1.3.16 zijn **geen nieuwe Firebase-regels nodig** wanneer de regels van v1.3.15 al zijn gepubliceerd. `firestore.rules` en `storage.rules` zijn ongewijzigd meegeleverd als back-up.
+Voor v1.3.17 zijn geen nieuwe Firebase-regels nodig wanneer v1.3.16 al werkte. De cadeau-evenementen worden opgeslagen in het bestaande gedeelde app-document.

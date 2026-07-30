@@ -1,12 +1,10 @@
-HOGETERPJES v1.3.16 – FIREBASE
+HOGETERPJES v1.3.17 – FIREBASE
 
 Voor deze versie zijn geen nieuwe Firebase-regels nodig.
 
-Als het persoonlijke dagboek in v1.3.15 al werkte:
-1. Upload alleen de losse webbestanden naar GitHub Pages.
+1. Upload alle losse webbestanden naar GitHub Pages.
 2. Vervang de bestaande bestanden.
 3. Sluit Hogeterpjes volledig af.
 4. Open de app opnieuw.
 
-Je hoeft firestore.rules en storage.rules dus NIET opnieuw te publiceren.
-De regelbestanden zijn alleen als back-up in de ZIP opgenomen.
+firestore.rules en storage.rules zijn alleen als back-up meegeleverd.
