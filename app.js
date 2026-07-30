@@ -53,6 +53,7 @@ let saveTimer=null;
 const SHARED_DATA_DOC="appData/hogeterpjes";
 const ADMIN_DOC="appAdmin/settings";
 const ADMIN_EMAIL="rohogeterp@gmail.com";
+const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
   "rohogeterp@gmail.com": "Rinze"
@@ -191,6 +192,19 @@ function currentPersonName(){
   const email=(currentUser?.email || "").toLowerCase();
   const byEmail=data.family.find(p=>(p.email || "").toLowerCase()===email);
   return byEmail?.name || name;
+}
+
+function isDiaryOwner(){
+  return (currentUser?.email || "").toLowerCase()===DIARY_OWNER_EMAIL;
+}
+
+function updateDiaryAccess(){
+  const allowed=isDiaryOwner();
+  const menu=document.getElementById("diaryMenuBtn");
+  const page=document.querySelector('[data-page="dagboek"]');
+  if(menu) menu.classList.toggle("hidden",!allowed);
+  if(page) page.classList.toggle("diary-denied",!allowed);
+  if(!allowed && page?.classList.contains("active")) navigate("home");
 }
 
 function canManageWish(wish){
@@ -496,6 +510,7 @@ function fillAgendaHouseholds(){
 }
 
 function navigate(page){
+  if(page==="dagboek" && !isDiaryOwner()){ alert("Het dagboek is alleen beschikbaar voor Rinze."); return; }
   if(page==="meer"){ document.querySelector("#moreDialog").showModal(); return; }
   document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
   document.querySelectorAll(".bottom-nav button").forEach(x=>x.classList.toggle("active",x.dataset.nav===page));
@@ -2036,6 +2051,7 @@ function showLoggedIn(user){
   renderWishes();
   renderAgenda();
   renderWeekmenu();
+  updateDiaryAccess();
 
   if(firstOpen){
     loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
@@ -2388,7 +2404,7 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
 
 
 function diaryCollection(){
-  return db && currentUser ? db.collection("diaries").doc(currentUser.uid).collection("entries") : null;
+  return db && currentUser && isDiaryOwner() ? db.collection("diaries").doc(currentUser.uid).collection("entries") : null;
 }
 function diaryDateLabel(value){
   if(!value) return "";
@@ -2426,7 +2442,8 @@ function addDiarySelectedFiles(fileList){
 }
 function renderDiary(){
   if(!window.diaryList) return;
-  if(!currentUser){ diaryList.innerHTML='<div class="card muted">Log in om je dagboek te openen.</div>'; return; }
+  if(!currentUser){ diaryList.innerHTML='<div class="card muted">Log in om het dagboek te openen.</div>'; return; }
+  if(!isDiaryOwner()){ diaryList.innerHTML='<div class="card muted">Het dagboek is alleen beschikbaar voor Rinze.</div>'; return; }
   const q=(diarySearch?.value||"").trim().toLowerCase();
   const sort=diarySort?.value||"newest";
   let rows=diaryEntries.filter(x=>!q||`${x.title||""} ${x.text||""}`.toLowerCase().includes(q));
@@ -2455,6 +2472,7 @@ function openDiaryLightbox(url,title="Dagboekfoto"){
 function initDiaryForCurrentUser(){
   if(diaryUnsubscribe){diaryUnsubscribe();diaryUnsubscribe=null;}
   diaryEntries=[]; renderDiary();
+  updateDiaryAccess();
   const col=diaryCollection(); if(!col) return;
   diaryUnsubscribe=col.onSnapshot(snap=>{
     diaryEntries=snap.docs.map(d=>({id:d.id,...d.data(),createdAt:d.data().createdAt?.toDate?.()?.toISOString?.()||d.data().createdAt||""}));
@@ -2462,6 +2480,7 @@ function initDiaryForCurrentUser(){
   },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Controleer de Firebase-regels.</div>';});
 }
 function openDiaryDialog(entry=null){
+  if(!isDiaryOwner()){ alert("Het dagboek is alleen beschikbaar voor Rinze."); return; }
   diaryForm.reset(); selectedDiaryPhotos=[]; diaryExistingPhotoPaths=diaryPhotoPaths(entry); diaryPhotoCameraInput.value=""; diaryPhotoGalleryInput.value=""; diaryMessage.textContent="";
   diaryEditId.value=entry?.id||""; diaryDialogTitle.textContent=entry?"Dagboeknotitie bewerken":"Nieuwe dagboeknotitie";
   diaryTitle.value=entry?.title||""; diaryDate.value=entry?.date||new Date().toISOString().slice(0,10); diaryText.value=entry?.text||""; diaryFavorite.checked=!!entry?.favorite;
@@ -2475,7 +2494,7 @@ if(window.diarySort) diarySort.onchange=renderDiary;
 if(window.diaryPhotoCameraInput) diaryPhotoCameraInput.onchange=()=>addDiarySelectedFiles(diaryPhotoCameraInput.files);
 if(window.diaryPhotoGalleryInput) diaryPhotoGalleryInput.onchange=()=>addDiarySelectedFiles(diaryPhotoGalleryInput.files);
 if(window.diaryForm) diaryForm.onsubmit=async e=>{
-  e.preventDefault(); if(!currentUser||!db)return;
+  e.preventDefault(); if(!currentUser||!db||!isDiaryOwner()){ diaryMessage.textContent="Alleen Rinze kan het dagboek gebruiken."; return; }
   const id=diaryEditId.value||diaryCollection().doc().id; const existing=diaryEntries.find(x=>x.id===id); let photoPaths=[...diaryExistingPhotoPaths];
   diarySaveBtn.disabled=true; diaryMessage.textContent="Opslaan…";
   try{
@@ -2488,10 +2507,16 @@ if(window.diaryForm) diaryForm.onsubmit=async e=>{
     await Promise.all(removed.map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
     await diaryCollection().doc(id).set({title:diaryTitle.value.trim(),date:diaryDate.value,text:diaryText.value.trim(),favorite:diaryFavorite.checked,photoPaths,photoPath:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:existing?.createdAt||firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
     diaryDialog.close(); cleanupDiaryPreviewUrls();
-  }catch(err){console.error(err);diaryMessage.textContent=err.message||"Opslaan mislukt.";}
+  }catch(err){console.error(err);
+    const code=String(err?.code||"");
+    diaryMessage.textContent=(code.includes("permission-denied")||String(err?.message||"").toLowerCase().includes("insufficient permissions"))
+      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.18."
+      : (err.message||"Opslaan mislukt.");
+  }
   finally{diarySaveBtn.disabled=false;}
 };
 if(window.diaryDeleteBtn) diaryDeleteBtn.onclick=async()=>{
+  if(!isDiaryOwner()) return;
   const id=diaryEditId.value, entry=diaryEntries.find(x=>x.id===id); if(!id||!confirm("Deze dagboeknotitie verwijderen?"))return;
   await Promise.all(diaryPhotoPaths(entry).map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
   await diaryCollection().doc(id).delete(); diaryDialog.close(); cleanupDiaryPreviewUrls();
@@ -2550,7 +2575,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.17");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.18");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

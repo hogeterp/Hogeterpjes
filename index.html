@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.17">
-  <link rel="stylesheet" href="style.css?v=1.3.17">
+  <link rel="manifest" href="manifest.json?v=1.3.18">
+  <link rel="stylesheet" href="style.css?v=1.3.18">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.17</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.18</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.17</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.18</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -299,10 +299,10 @@
 
       <section class="page" data-page="dagboek">
         <div class="page-head">
-          <div><p class="eyebrow">Alleen voor jou</p><h2>📖 Persoonlijk dagboek</h2></div>
+          <div><p class="eyebrow">Alleen voor Rinze</p><h2>📖 Persoonlijk dagboek</h2></div>
           <button id="addDiaryBtn" class="primary-btn">+ Notitie</button>
         </div>
-        <div class="card diary-privacy"><strong>🔒 Volledig privé</strong><p>Alleen jouw ingelogde account kan deze dagboeknotities lezen en wijzigen.</p></div>
+        <div class="card diary-privacy"><strong>🔒 Alleen voor Rinze</strong><p>Alleen het account van Rinze kan dit dagboek openen, lezen en wijzigen.</p></div>
         <div class="diary-toolbar">
           <input id="diarySearch" class="search" placeholder="Zoek in je dagboek">
           <select id="diarySort" class="search" aria-label="Sorteer dagboek">
@@ -378,7 +378,7 @@
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="agenda">📅 Agenda</button>
     <button data-go="cadeau-evenementen">🎁 Cadeau-evenementen</button>
-    <button data-go="dagboek">📖 Mijn dagboek</button>
+    <button id="diaryMenuBtn" class="hidden" data-go="dagboek">📖 Mijn dagboek</button>
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
     <button data-go="producten">📦 Productdatabase</button>
@@ -726,7 +726,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.17"></script>
-  <script src="app.js?v=1.3.17"></script>
+  <script src="firebase-config.js?v=1.3.18"></script>
+  <script src="app.js?v=1.3.18"></script>
 </body>
 </html>

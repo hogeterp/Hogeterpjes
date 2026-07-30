@@ -1,17 +1,15 @@
-# Hogeterpjes v1.3.17
+# Hogeterpjes v1.3.18
 
-## Nieuw
-- Dagboeknotities kunnen worden opgeslagen met alleen een datum; titel, tekst en foto’s zijn optioneel.
-- Het weekmenu loopt van vrijdag tot en met donderdag.
-- Agenda-afspraken hebben nu **Toevoegen aan agenda** en worden als universeel ICS-bestand aangeboden voor Apple Agenda, Google Agenda en Outlook.
-- Nieuwe cadeau-evenementen voor verjaardagen, Sinterklaas, Kerst en andere gelegenheden.
-- Iedere gebruiker kan een cadeau-evenement aanmaken.
-- Ontvangers en kopers zijn per evenement instelbaar.
-- Kopers kunnen wensen reserveren, als gekocht markeren, als ingepakt markeren en weer vrijgeven.
-- De ontvanger ziet niet wie zijn of haar wens reserveert of koopt.
+## Aangepast
+- Het persoonlijke dagboek is alleen zichtbaar en bruikbaar voor Rinze.
+- Andere gebruikers zien de dagboekknop niet en kunnen de pagina niet openen.
+- Firestore- en Storage-toegang tot het dagboek is beperkt tot het beheerdersaccount van Rinze (`rohogeterp@gmail.com`).
+- Duidelijkere foutmelding wanneer de Firebase-regels nog niet zijn gepubliceerd.
+- Dagboeknotities mogen nog steeds alleen een datum bevatten; titel, tekst en foto’s zijn optioneel.
+- Versienummers en service-worker-cache zijn bijgewerkt naar v1.3.18.
+
+## Belangrijk: Firebase-regels publiceren
+Voor deze versie zijn de regels wél gewijzigd. Publiceer zowel `firestore.rules` als `storage.rules` in Firebase. Zie `FIREBASE-STAPPEN.txt`.
 
 ## Uploaden naar GitHub
-Upload de losse bestanden uit deze map en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
-
-## Firebase
-Voor v1.3.17 zijn geen nieuwe Firebase-regels nodig wanneer v1.3.16 al werkte. De cadeau-evenementen worden opgeslagen in het bestaande gedeelde app-document.
+Upload daarna alle losse webbestanden en vervang de bestaande bestanden. Sluit Hogeterpjes volledig af en open de app opnieuw.
