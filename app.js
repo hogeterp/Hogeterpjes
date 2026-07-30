@@ -43,7 +43,9 @@ let cloudUnsubscribe=null;
 let vaultFilesUnsubscribe=null;
 let diaryUnsubscribe=null;
 let diaryEntries=[];
-let selectedDiaryPhoto=null;
+let selectedDiaryPhotos=[];
+let diaryExistingPhotoPaths=[];
+let diaryPreviewObjectUrls=[];
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
@@ -466,10 +468,13 @@ function renderAgenda(){
         <h3>${e.title}</h3>
         <div class="meta">${formatAgendaDate(e)}</div>
       </div>
-      <button class="mini-btn danger-mini" type="button" onclick="deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
+      <div class="agenda-card-actions">
+        <button class="mini-btn" type="button" onclick="openGoogleCalendar('${e.id}','${e.visibility}')">📅 Google Agenda</button>
+        <button class="mini-btn danger-mini" type="button" onclick="deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
+      </div>
     </div>
-    ${e.location?`<p>📍 ${e.location}</p>`:""}
-    ${e.note?`<p>${e.note}</p>`:""}
+    ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}
+    ${e.note?`<p>${escapeHtml(e.note).replaceAll("\n","<br>")}</p>`:""}
   </article>`).join(""):`<div class="card muted">Nog geen afspraken zichtbaar.</div>`;
 }
 
@@ -1171,6 +1176,27 @@ weekmenuGroceriesBtn.onclick=()=>{
   saveData();
   navigate("boodschappen");
   alert(`${added} ingrediënten zijn toegevoegd aan de boodschappenlijst van ${household?.name || "het huishouden"}.`);
+};
+
+function googleCalendarDatePart(date,time=""){
+  const day=String(date||"").replaceAll("-","");
+  return time ? `${day}T${String(time).replace(":","")}00` : day;
+}
+window.openGoogleCalendar=(id,visibility)=>{
+  const event=getVisibleAgendaEvents().find(x=>x.id===id && x.visibility===visibility);
+  if(!event) return;
+  const start=googleCalendarDatePart(event.date,event.startTime);
+  let end;
+  if(event.endTime) end=googleCalendarDatePart(event.date,event.endTime);
+  else if(event.startTime){
+    const d=new Date(`${event.date}T${event.startTime}:00`); d.setHours(d.getHours()+1);
+    end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
+  }else{
+    const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
+    end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+  }
+  const params=new URLSearchParams({action:"TEMPLATE",text:event.title||"Afspraak",dates:`${start}/${end}`,details:event.note||"",location:event.location||""});
+  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`,"_blank","noopener");
 };
 
 addAgendaBtn.onclick=()=>{
@@ -2262,6 +2288,36 @@ function diaryDateLabel(value){
   if(!value) return "";
   return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(value+"T12:00:00"));
 }
+function diaryPhotoPaths(entry){
+  if(Array.isArray(entry?.photoPaths)) return entry.photoPaths.filter(Boolean);
+  return entry?.photoPath ? [entry.photoPath] : [];
+}
+function cleanupDiaryPreviewUrls(){
+  diaryPreviewObjectUrls.forEach(url=>URL.revokeObjectURL(url));
+  diaryPreviewObjectUrls=[];
+}
+function renderDiaryPhotoEditor(){
+  if(!window.diaryPhotoPreview) return;
+  cleanupDiaryPreviewUrls();
+  const existing=diaryExistingPhotoPaths.map((path,index)=>({kind:"existing",path,index}));
+  const added=selectedDiaryPhotos.map((file,index)=>({kind:"new",file,index}));
+  const items=[...existing,...added];
+  diaryPhotoPreview.innerHTML=items.length?items.map(item=>{
+    if(item.kind==="existing") return `<div class="diary-edit-photo"><div class="diary-edit-photo-image" data-existing-diary-photo="${escapeHtml(item.path)}">🖼️</div><button type="button" onclick="removeExistingDiaryPhoto(${item.index})" aria-label="Foto verwijderen">✕</button></div>`;
+    const url=URL.createObjectURL(item.file); diaryPreviewObjectUrls.push(url);
+    return `<div class="diary-edit-photo"><img src="${url}" alt="Voorbeeld"><button type="button" onclick="removeNewDiaryPhoto(${item.index})" aria-label="Foto verwijderen">✕</button><small>${escapeHtml(item.file.name)} · ${formatBytes(item.file.size)}</small></div>`;
+  }).join(""):`<p class="muted">Nog geen foto's toegevoegd.</p>`;
+  document.querySelectorAll("[data-existing-diary-photo]").forEach(async el=>{try{const url=await storage.ref(el.dataset.existingDiaryPhoto).getDownloadURL();el.innerHTML=`<img src="${url}" alt="Bestaande foto">`;}catch(_){el.textContent="Foto niet beschikbaar";}});
+  diaryPhotoInfo.textContent=`${items.length} ${items.length===1?"foto":"foto's"} toegevoegd`;
+}
+window.removeExistingDiaryPhoto=index=>{diaryExistingPhotoPaths.splice(index,1);renderDiaryPhotoEditor();};
+window.removeNewDiaryPhoto=index=>{selectedDiaryPhotos.splice(index,1);renderDiaryPhotoEditor();};
+function addDiarySelectedFiles(fileList){
+  const files=Array.from(fileList||[]).filter(f=>f.type.startsWith("image/"));
+  const tooLarge=files.find(f=>f.size>10*1024*1024);
+  if(tooLarge){diaryMessage.textContent=`${tooLarge.name} is groter dan 10 MB.`;return;}
+  selectedDiaryPhotos.push(...files); renderDiaryPhotoEditor();
+}
 function renderDiary(){
   if(!window.diaryList) return;
   if(!currentUser){ diaryList.innerHTML='<div class="card muted">Log in om je dagboek te openen.</div>'; return; }
@@ -2271,14 +2327,24 @@ function renderDiary(){
   rows=rows.slice().sort((a,b)=>{
     if(sort==="oldest") return String(a.date||a.createdAt||"").localeCompare(String(b.date||b.createdAt||""));
     if(sort==="name") return String(a.title||"").localeCompare(String(b.title||""),"nl",{sensitivity:"base"});
+    if(sort==="favorites") return Number(b.favorite)-Number(a.favorite)||String(b.date||"").localeCompare(String(a.date||""));
     return String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""));
   });
-  diaryList.innerHTML=rows.length?rows.map(x=>`<article class="item-card diary-card">
-    ${x.photoPath?`<div class="diary-photo-wrap"><img data-diary-photo="${escapeHtml(x.photoPath)}" alt=""></div>`:""}
-    <div class="diary-card-head"><div><h3>${x.favorite?"⭐ ":""}${escapeHtml(x.title||"Zonder titel")}</h3><div class="meta">${diaryDateLabel(x.date)}</div></div><button class="mini-btn" onclick="editDiaryEntry('${x.id}')">Bewerken</button></div>
-    <p class="diary-preview">${escapeHtml(x.text||"").replaceAll("\n","<br>")}</p>
-  </article>`).join(""):'<div class="card muted">Nog geen dagboeknotities. Tik op <strong>+ Notitie</strong> om te beginnen.</div>';
-  document.querySelectorAll("[data-diary-photo]").forEach(async img=>{try{img.src=await storage.ref(img.dataset.diaryPhoto).getDownloadURL();}catch(_){img.closest(".diary-photo-wrap")?.remove();}});
+  diaryList.innerHTML=rows.length?rows.map(x=>{
+    const paths=diaryPhotoPaths(x);
+    return `<article class="item-card diary-card diary-timeline-card">
+      <div class="diary-date-badge"><span>${new Intl.DateTimeFormat("nl-NL",{day:"2-digit"}).format(new Date((x.date||new Date().toISOString().slice(0,10))+"T12:00:00"))}</span><small>${new Intl.DateTimeFormat("nl-NL",{month:"short",year:"numeric"}).format(new Date((x.date||new Date().toISOString().slice(0,10))+"T12:00:00"))}</small></div>
+      <div class="diary-card-content">
+        <div class="diary-card-head"><div><h3>${x.favorite?"⭐ ":""}${escapeHtml(x.title||"Zonder titel")}</h3><div class="meta">${diaryDateLabel(x.date)}${paths.length?` · 📷 ${paths.length}`:""}</div></div><button class="mini-btn" onclick="editDiaryEntry('${x.id}')">Bewerken</button></div>
+        ${paths.length?`<div class="diary-gallery">${paths.map((path,i)=>`<button type="button" class="diary-gallery-item" data-diary-photo="${escapeHtml(path)}" data-diary-title="${escapeHtml(x.title||"Dagboekfoto")}" data-diary-index="${i}"><span>🖼️</span></button>`).join("")}</div>`:""}
+        <p class="diary-preview">${escapeHtml(x.text||"").replaceAll("\n","<br>")}</p>
+      </div>
+    </article>`;
+  }).join(""):'<div class="card muted">Nog geen dagboeknotities. Tik op <strong>+ Notitie</strong> om te beginnen.</div>';
+  document.querySelectorAll("[data-diary-photo]").forEach(async el=>{try{const url=await storage.ref(el.dataset.diaryPhoto).getDownloadURL();el.innerHTML=`<img src="${url}" alt="${escapeHtml(el.dataset.diaryTitle)}">`;el.onclick=()=>openDiaryLightbox(url,el.dataset.diaryTitle);}catch(_){el.remove();}});
+}
+function openDiaryLightbox(url,title="Dagboekfoto"){
+  diaryLightboxImage.src=url; diaryLightboxImage.alt=title; diaryLightboxTitle.textContent=title; diaryLightbox.showModal();
 }
 function initDiaryForCurrentUser(){
   if(diaryUnsubscribe){diaryUnsubscribe();diaryUnsubscribe=null;}
@@ -2287,40 +2353,42 @@ function initDiaryForCurrentUser(){
   diaryUnsubscribe=col.onSnapshot(snap=>{
     diaryEntries=snap.docs.map(d=>({id:d.id,...d.data(),createdAt:d.data().createdAt?.toDate?.()?.toISOString?.()||d.data().createdAt||""}));
     renderDiary();
-  },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Publiceer de nieuwe Firestore-regels.</div>';});
+  },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Controleer de Firebase-regels.</div>';});
 }
 function openDiaryDialog(entry=null){
-  diaryForm.reset(); selectedDiaryPhoto=null; diaryPhotoInput.value=""; diaryMessage.textContent="";
+  diaryForm.reset(); selectedDiaryPhotos=[]; diaryExistingPhotoPaths=diaryPhotoPaths(entry); diaryPhotoCameraInput.value=""; diaryPhotoGalleryInput.value=""; diaryMessage.textContent="";
   diaryEditId.value=entry?.id||""; diaryDialogTitle.textContent=entry?"Dagboeknotitie bewerken":"Nieuwe dagboeknotitie";
   diaryTitle.value=entry?.title||""; diaryDate.value=entry?.date||new Date().toISOString().slice(0,10); diaryText.value=entry?.text||""; diaryFavorite.checked=!!entry?.favorite;
-  diaryPhotoInfo.textContent=entry?.photoPath?"Bestaande foto blijft staan, tenzij je een nieuwe kiest.":"Geen foto gekozen.";
+  renderDiaryPhotoEditor();
   diaryDeleteBtn.classList.toggle("hidden",!entry); diaryDialog.showModal();
 }
 window.editDiaryEntry=id=>openDiaryDialog(diaryEntries.find(x=>x.id===id));
 if(window.addDiaryBtn) addDiaryBtn.onclick=()=>openDiaryDialog();
 if(window.diarySearch) diarySearch.oninput=renderDiary;
 if(window.diarySort) diarySort.onchange=renderDiary;
-if(window.diaryPhotoInput) diaryPhotoInput.onchange=()=>{selectedDiaryPhoto=diaryPhotoInput.files?.[0]||null;diaryPhotoInfo.textContent=selectedDiaryPhoto?`${selectedDiaryPhoto.name} · ${formatBytes(selectedDiaryPhoto.size)}`:"Geen foto gekozen.";};
+if(window.diaryPhotoCameraInput) diaryPhotoCameraInput.onchange=()=>addDiarySelectedFiles(diaryPhotoCameraInput.files);
+if(window.diaryPhotoGalleryInput) diaryPhotoGalleryInput.onchange=()=>addDiarySelectedFiles(diaryPhotoGalleryInput.files);
 if(window.diaryForm) diaryForm.onsubmit=async e=>{
   e.preventDefault(); if(!currentUser||!db)return;
-  const id=diaryEditId.value||diaryCollection().doc().id; const existing=diaryEntries.find(x=>x.id===id); let photoPath=existing?.photoPath||"";
+  const id=diaryEditId.value||diaryCollection().doc().id; const existing=diaryEntries.find(x=>x.id===id); let photoPaths=[...diaryExistingPhotoPaths];
   diarySaveBtn.disabled=true; diaryMessage.textContent="Opslaan…";
   try{
-    if(selectedDiaryPhoto){
-      if(selectedDiaryPhoto.size>10*1024*1024) throw new Error("Foto mag maximaal 10 MB zijn.");
-      photoPath=`diaries/${currentUser.uid}/${id}/${safeFileName(selectedDiaryPhoto.name)}`;
-      await storage.ref(photoPath).put(selectedDiaryPhoto,{contentType:selectedDiaryPhoto.type||"image/jpeg"});
-      if(existing?.photoPath&&existing.photoPath!==photoPath){try{await storage.ref(existing.photoPath).delete();}catch(_){}}
+    for(let i=0;i<selectedDiaryPhotos.length;i++){
+      const file=selectedDiaryPhotos[i];
+      const path=`diaries/${currentUser.uid}/${id}/${Date.now()}-${i}-${safeFileName(file.name)}`;
+      await storage.ref(path).put(file,{contentType:file.type||"image/jpeg"}); photoPaths.push(path);
     }
-    await diaryCollection().doc(id).set({title:diaryTitle.value.trim(),date:diaryDate.value,text:diaryText.value.trim(),favorite:diaryFavorite.checked,photoPath,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:existing?.createdAt||firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-    diaryDialog.close();
+    const removed=diaryPhotoPaths(existing).filter(path=>!diaryExistingPhotoPaths.includes(path));
+    await Promise.all(removed.map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
+    await diaryCollection().doc(id).set({title:diaryTitle.value.trim(),date:diaryDate.value,text:diaryText.value.trim(),favorite:diaryFavorite.checked,photoPaths,photoPath:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:existing?.createdAt||firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    diaryDialog.close(); cleanupDiaryPreviewUrls();
   }catch(err){console.error(err);diaryMessage.textContent=err.message||"Opslaan mislukt.";}
   finally{diarySaveBtn.disabled=false;}
 };
 if(window.diaryDeleteBtn) diaryDeleteBtn.onclick=async()=>{
   const id=diaryEditId.value, entry=diaryEntries.find(x=>x.id===id); if(!id||!confirm("Deze dagboeknotitie verwijderen?"))return;
-  try{if(entry?.photoPath)await storage.ref(entry.photoPath).delete();}catch(_){}
-  await diaryCollection().doc(id).delete(); diaryDialog.close();
+  await Promise.all(diaryPhotoPaths(entry).map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
+  await diaryCollection().doc(id).delete(); diaryDialog.close(); cleanupDiaryPreviewUrls();
 };
 
 function initFirebase(){
@@ -2376,7 +2444,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.15");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.16");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -1,12 +1,20 @@
-# Hogeterpjes v1.3.15
+# Hogeterpjes v1.3.16
 
 ## Nieuw
-- Recepten staan automatisch alfabetisch op naam (A–Z).
-- De knop **+ Ingrediënt toevoegen** staat onderaan de ingrediëntenlijst.
-- Na toevoegen scrolt de app automatisch naar het nieuwe ingrediënt.
-- Persoonlijk privé-dagboek per ingelogde gebruiker.
-- Dagboeknotities toevoegen, bewerken, verwijderen, zoeken, sorteren en als favoriet markeren.
-- Optioneel een foto bij een dagboeknotitie, opgeslagen in Firebase Storage.
+- Persoonlijk dagboek met een aparte knop voor de camera en de fotogalerij.
+- Meerdere foto’s per dagboeknotitie.
+- Voorvertoning van gekozen foto’s vóór het opslaan.
+- Foto’s afzonderlijk verwijderen vóór het opslaan.
+- Bestaande dagboekfoto’s blijven behouden bij het bewerken.
+- Mooie dagboektijdlijn met datumblok, fotogalerij en kaartweergave.
+- Tik op een dagboekfoto om deze groot te bekijken.
+- Sorteren met **Favorieten eerst**.
+- Bij afspraken een knop **Toevoegen aan Google Agenda**.
+- Recepten blijven alfabetisch en de knop **+ Ingrediënt toevoegen** blijft onderaan staan.
 
-## Belangrijk
-Publiceer de meegeleverde `firestore.rules` en `storage.rules` opnieuw in Firebase. De dagboekregels zorgen dat uitsluitend de eigenaar zijn of haar notities en foto’s kan openen.
+## Uploaden naar GitHub
+Upload de losse bestanden uit deze map en vervang de bestaande bestanden.
+Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
+
+## Firebase
+Voor v1.3.16 zijn **geen nieuwe Firebase-regels nodig** wanneer de regels van v1.3.15 al zijn gepubliceerd. `firestore.rules` en `storage.rules` zijn ongewijzigd meegeleverd als back-up.
