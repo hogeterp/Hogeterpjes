@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.18</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.19</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.18</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.19</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -672,7 +672,9 @@
 
   <dialog id="agendaDialog" class="modal">
     <form id="agendaForm" method="dialog">
-      <div class="sheet-head"><h3>Afspraak toevoegen</h3><button type="button" data-close>✕</button></div>
+      <div class="sheet-head"><h3 id="agendaDialogTitle">Afspraak toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="agendaEditId" type="hidden">
+      <input id="agendaEditVisibility" type="hidden">
 
       <label>Titel<input name="title" required placeholder="Bijvoorbeeld: Tandarts"></label>
       <label>Datum<input name="date" type="date" required></label>
@@ -699,6 +701,40 @@
 
       <button class="primary-btn wide" type="submit">Opslaan</button>
     </form>
+  </dialog>
+
+  <dialog id="agendaDetailDialog" class="modal agenda-detail-dialog">
+    <div class="sheet-head"><h3>Afspraak</h3><button type="button" data-close>✕</button></div>
+    <span id="agendaDetailScope" class="agenda-scope"></span>
+    <h2 id="agendaDetailTitle"></h2>
+    <p id="agendaDetailDate" class="meta"></p>
+    <p id="agendaDetailLocation"></p>
+    <p id="agendaDetailNote" class="agenda-detail-note"></p>
+    <button class="primary-btn wide" type="button" onclick="editAgendaFromDetails()">✏️ Bewerken</button>
+  </dialog>
+
+  <dialog id="calendarChoiceDialog" class="modal calendar-choice-dialog">
+    <div class="sheet-head"><h3>Toevoegen aan agenda</h3><button type="button" data-close>✕</button></div>
+    <p id="calendarEventTitle" class="calendar-event-title"></p>
+    <label>Herinnering
+      <select id="calendarReminder">
+        <option value="-1">Geen herinnering</option>
+        <option value="0">Op tijd</option>
+        <option value="5">5 minuten vooraf</option>
+        <option value="15">15 minuten vooraf</option>
+        <option value="30" selected>30 minuten vooraf</option>
+        <option value="60">1 uur vooraf</option>
+        <option value="120">2 uur vooraf</option>
+        <option value="1440">1 dag vooraf</option>
+        <option value="10080">1 week vooraf</option>
+      </select>
+    </label>
+    <div class="calendar-choice-buttons">
+      <button class="secondary-btn" type="button" onclick="addCalendarApple()">🍎 Apple Agenda</button>
+      <button class="secondary-btn" type="button" onclick="addCalendarGoogle()">📅 Google Agenda</button>
+      <button class="secondary-btn" type="button" onclick="addCalendarIcs()">📄 ICS-bestand</button>
+    </div>
+    <p id="calendarGoogleNote" class="muted hidden">Google Agenda gebruikt bij rechtstreeks openen de standaardherinnering van jouw Google Agenda. Je kunt die in Google Agenda nog aanpassen.</p>
   </dialog>
 
   <dialog id="familyEditDialog" class="modal">

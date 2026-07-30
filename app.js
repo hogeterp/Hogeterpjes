@@ -486,20 +486,21 @@ function renderAgenda(){
   rows=rows.filter(e=>!householdId || e.householdId===householdId);
   rows.sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")));
 
-  agendaList.innerHTML=rows.length?rows.map(e=>`<article class="item-card agenda-card">
+  agendaList.innerHTML=rows.length?rows.map(e=>`<article class="item-card agenda-card agenda-card-clickable" role="button" tabindex="0" onclick="openAgendaDetails('${e.id}','${e.visibility}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgendaDetails('${e.id}','${e.visibility}')}" aria-label="Open afspraak ${escapeHtml(e.title)}">
     <div class="agenda-card-head">
       <div>
         <span class="agenda-scope">${agendaScopeLabel(e)}</span>
-        <h3>${e.title}</h3>
+        <h3>${escapeHtml(e.title)}</h3>
         <div class="meta">${formatAgendaDate(e)}</div>
       </div>
       <div class="agenda-card-actions">
-        <button class="mini-btn" type="button" onclick="addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen aan agenda</button>
-        <button class="mini-btn danger-mini" type="button" onclick="deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
+        <button class="mini-btn" type="button" onclick="event.stopPropagation();addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen aan agenda</button>
+        <button class="mini-btn danger-mini" type="button" onclick="event.stopPropagation();deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
       </div>
     </div>
     ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}
     ${e.note?`<p>${escapeHtml(e.note).replaceAll("\n","<br>")}</p>`:""}
+    <small class="agenda-tap-hint">Tik op de afspraak om te bekijken of wijzigen</small>
   </article>`).join(""):`<div class="card muted">Nog geen afspraken zichtbaar.</div>`;
 }
 
@@ -624,7 +625,7 @@ function productStores(p){
   return [p.store,...String(p.otherStores||"").split(",").map(x=>x.trim())].filter(Boolean);
 }
 function renderGroceries(){
-  const rows=data.groceries.filter(g=>g.householdId===currentHousehold);
+  const rows=data.groceries.filter(g=>g.householdId===currentHousehold && !g.done);
   const grouped={};
   rows.forEach(g=>{
     const store=(g.store||"Geen winkel opgegeven").trim();
@@ -1281,29 +1282,100 @@ function icsDatePart(date,time=""){
   const day=String(date||"").replaceAll("-","");
   return time ? `${day}T${String(time).replace(":","")}00` : day;
 }
-window.addToCalendar=(id,visibility)=>{
-  const event=getVisibleAgendaEvents().find(x=>x.id===id && x.visibility===visibility);
-  if(!event) return;
-  const start=icsDatePart(event.date,event.startTime);
-  let end;
-  if(event.endTime) end=icsDatePart(event.date,event.endTime);
-  else if(event.startTime){
+function agendaEventById(id,visibility){
+  return getVisibleAgendaEvents().find(x=>x.id===id && x.visibility===visibility);
+}
+function calendarEnd(event){
+  if(event.endTime) return icsDatePart(event.date,event.endTime);
+  if(event.startTime){
     const d=new Date(`${event.date}T${event.startTime}:00`); d.setHours(d.getHours()+1);
-    end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
-  }else{
-    const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
-    end=`${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+    return `${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
   }
+  const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
+  return `${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
+}
+function reminderMinutes(){ return Number(calendarReminder.value); }
+function createIcs(event){
+  const start=icsDatePart(event.date,event.startTime);
+  const end=calendarEnd(event);
   const allDay=!event.startTime;
-  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Hogeterpjes//NL","CALSCALE:GREGORIAN","BEGIN:VEVENT",`UID:${event.id}@hogeterpjes`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}`,`${allDay?"DTSTART;VALUE=DATE":"DTSTART"}:${start}`,`${allDay?"DTEND;VALUE=DATE":"DTEND"}:${end}`,`SUMMARY:${icsEscape(event.title||"Afspraak")}`,`DESCRIPTION:${icsEscape(event.note||"")}`,`LOCATION:${icsEscape(event.location||"")}`,"END:VEVENT","END:VCALENDAR"];
-  const blob=new Blob([lines.join("\r\n")],{type:"text/calendar;charset=utf-8"});
-  const url=URL.createObjectURL(blob); const a=document.createElement("a");
-  a.href=url; a.download=`${safeFileName(event.title||"afspraak")}.ics`; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),1500);
+  const reminder=reminderMinutes();
+  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Hogeterpjes//NL","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",`UID:${event.id}@hogeterpjes`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}`,`${allDay?"DTSTART;VALUE=DATE":"DTSTART"}:${start}`,`${allDay?"DTEND;VALUE=DATE":"DTEND"}:${end}`,`SUMMARY:${icsEscape(event.title||"Afspraak")}`,`DESCRIPTION:${icsEscape(event.note||"")}`,`LOCATION:${icsEscape(event.location||"")}`];
+  if(reminder>=0) lines.push("BEGIN:VALARM",`TRIGGER:${reminder===0?"PT0M":`-PT${reminder}M`}`,"ACTION:DISPLAY",`DESCRIPTION:${icsEscape(event.title||"Afspraak")}`,"END:VALARM");
+  lines.push("END:VEVENT","END:VCALENDAR");
+  return lines.join("\r\n");
+}
+function downloadIcs(event,openInstead=false){
+  const blob=new Blob([createIcs(event)],{type:"text/calendar;charset=utf-8"});
+  const url=URL.createObjectURL(blob);
+  if(openInstead){ window.location.href=url; }
+  else{
+    const a=document.createElement("a"); a.href=url; a.download=`${safeFileName(event.title||"afspraak")}.ics`; document.body.appendChild(a); a.click(); a.remove();
+  }
+  setTimeout(()=>URL.revokeObjectURL(url),5000);
+}
+let calendarEventId="",calendarEventVisibility="";
+window.addToCalendar=(id,visibility)=>{
+  const event=agendaEventById(id,visibility); if(!event) return;
+  calendarEventId=id; calendarEventVisibility=visibility;
+  calendarEventTitle.textContent=event.title||"Afspraak";
+  calendarReminder.value="30";
+  calendarGoogleNote.classList.add("hidden");
+  calendarChoiceDialog.showModal();
+};
+window.addCalendarApple=()=>{
+  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
+  downloadIcs(event,true); calendarChoiceDialog.close();
+};
+window.addCalendarGoogle=()=>{
+  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
+  const allDay=!event.startTime;
+  const dates=allDay ? `${icsDatePart(event.date)}/${calendarEnd(event)}` : `${icsDatePart(event.date,event.startTime)}/${calendarEnd(event)}`;
+  const params=new URLSearchParams({action:"TEMPLATE",text:event.title||"Afspraak",dates,details:event.note||"",location:event.location||""});
+  calendarGoogleNote.classList.remove("hidden");
+  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`,"_blank","noopener");
+};
+window.addCalendarIcs=()=>{
+  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
+  downloadIcs(event,false); calendarChoiceDialog.close();
+};
+let agendaDetailId="",agendaDetailVisibility="";
+window.openAgendaDetails=(id,visibility)=>{
+  const event=agendaEventById(id,visibility); if(!event)return;
+  agendaDetailId=id; agendaDetailVisibility=visibility;
+  agendaDetailScope.textContent=agendaScopeLabel(event);
+  agendaDetailTitle.textContent=event.title||"Afspraak";
+  agendaDetailDate.textContent=formatAgendaDate(event);
+  agendaDetailLocation.textContent=event.location?`📍 ${event.location}`:"";
+  agendaDetailLocation.classList.toggle("hidden",!event.location);
+  agendaDetailNote.textContent=event.note||"";
+  agendaDetailNote.classList.toggle("hidden",!event.note);
+  agendaDetailDialog.showModal();
+};
+window.editAgendaFromDetails=()=>{
+  const event=agendaEventById(agendaDetailId,agendaDetailVisibility); if(!event)return;
+  agendaDetailDialog.close();
+  agendaForm.reset();
+  agendaEditId.value=event.id;
+  agendaEditVisibility.value=event.visibility;
+  agendaDialogTitle.textContent="Afspraak wijzigen";
+  agendaForm.elements.title.value=event.title||"";
+  agendaForm.elements.date.value=event.date||"";
+  agendaForm.elements.startTime.value=event.startTime||"";
+  agendaForm.elements.endTime.value=event.endTime||"";
+  agendaForm.elements.visibility.value=event.visibility||"private";
+  fillAgendaHouseholds();
+  agendaForm.elements.householdId.value=event.householdId||"";
+  agendaForm.elements.location.value=event.location||"";
+  agendaForm.elements.note.value=event.note||"";
+  agendaDialog.showModal();
 };
 
 addAgendaBtn.onclick=()=>{
   agendaForm.reset();
+  agendaEditId.value="";
+  agendaEditVisibility.value="";
+  agendaDialogTitle.textContent="Afspraak toevoegen";
   agendaForm.elements.date.value=new Date().toISOString().slice(0,10);
   fillAgendaHouseholds();
   agendaDialog.showModal();
@@ -1318,8 +1390,11 @@ agendaForm.onsubmit=e=>{
   const f=new FormData(agendaForm);
   const visibility=f.get("visibility");
 
+  const editId=agendaEditId.value;
+  const originalVisibility=agendaEditVisibility.value;
+  const original=editId ? agendaEventById(editId,originalVisibility) : null;
   const event={
-    id:crypto.randomUUID(),
+    id:editId || crypto.randomUUID(),
     title:String(f.get("title")||"").trim(),
     date:f.get("date"),
     startTime:f.get("startTime"),
@@ -1328,16 +1403,22 @@ agendaForm.onsubmit=e=>{
     householdId:visibility==="household" ? f.get("householdId") : "",
     location:String(f.get("location")||"").trim(),
     note:String(f.get("note")||"").trim(),
-    createdBy:currentUser?.uid || "",
-    createdByName:currentPersonName(),
-    createdAt:new Date().toISOString()
+    createdBy:original?.createdBy || currentUser?.uid || "",
+    createdByName:original?.createdByName || currentPersonName(),
+    createdAt:original?.createdAt || new Date().toISOString(),
+    updatedAt:new Date().toISOString(),
+    updatedByName:currentPersonName()
   };
 
+  if(editId){
+    if(originalVisibility==="private") savePrivateEvents(loadPrivateEvents().filter(x=>x.id!==editId));
+    else data.events=(data.events||[]).filter(x=>x.id!==editId);
+  }
   if(visibility==="private"){
     const privateEvents=loadPrivateEvents();
     privateEvents.push(event);
     savePrivateEvents(privateEvents);
-    renderAgenda();
+    if(editId && originalVisibility!=="private") saveData(); else renderAgenda();
   }else{
     data.events=data.events || [];
     data.events.push(event);
@@ -1676,14 +1757,12 @@ window.deleteWish=id=>{
 
 window.toggleGrocery=id=>{
   const g=data.groceries.find(x=>x.id===id);
-  if(g){
-    g.done=!g.done;
-    const p=(data.products||[]).find(x=>x.id===g.productId);
-    if(p && g.done && !g.stockProcessed){ p.stock=Number(p.stock||0)+1; g.stockProcessed=true; }
-    if(p && !g.done && g.stockProcessed){ p.stock=Math.max(0,Number(p.stock||0)-1); g.stockProcessed=false; }
-    addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” ${g.done?"afgevinkt":"teruggezet"}.`});
-    saveData();
-  }
+  if(!g) return;
+  const p=(data.products||[]).find(x=>x.id===g.productId);
+  if(p && !g.stockProcessed){ p.stock=Number(p.stock||0)+1; g.stockProcessed=true; }
+  addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” afgevinkt.`});
+  data.groceries=data.groceries.filter(x=>x.id!==id);
+  saveData();
 };
 window.deleteGrocery=id=>{const g=data.groceries.find(x=>x.id===id); if(g)addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” verwijderd van de boodschappenlijst.`}); data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
 window.editGrocery=id=>{
@@ -2510,7 +2589,7 @@ if(window.diaryForm) diaryForm.onsubmit=async e=>{
   }catch(err){console.error(err);
     const code=String(err?.code||"");
     diaryMessage.textContent=(code.includes("permission-denied")||String(err?.message||"").toLowerCase().includes("insufficient permissions"))
-      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.18."
+      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.19."
       : (err.message||"Opslaan mislukt.");
   }
   finally{diarySaveBtn.disabled=false;}

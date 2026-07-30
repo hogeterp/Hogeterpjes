@@ -1,13 +1,8 @@
-HOGETERPJES v1.3.18 – FIREBASE
+HOGETERPJES v1.3.19 – FIREBASE
 
-Voor deze versie zijn de beveiligingsregels gewijzigd, omdat alleen Rinze het dagboek mag gebruiken.
+Voor deze versie zijn de Firestore- en Storage-regels niet gewijzigd.
+Je hoeft de regels daarom niet opnieuw te publiceren wanneer de regels van v1.3.18 al actief zijn.
 
-1. Open Firebase Console en kies project Hogeterpjes.
-2. Ga naar Firestore Database > Rules.
-3. Vervang de regels door de inhoud van firestore.rules en klik op Publiceren.
-4. Ga naar Storage > Rules.
-5. Vervang de regels door de inhoud van storage.rules en klik op Publiceren.
-6. Upload daarna alle losse webbestanden naar GitHub Pages en vervang de bestaande bestanden.
-7. Sluit de Hogeterpjes-app volledig af en open hem opnieuw.
-
-Zonder het publiceren van beide regelbestanden kan Firebase de melding “Missing or insufficient permissions” blijven geven.
+1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+2. Sluit de Hogeterpjes-app volledig af.
+3. Open de app opnieuw, zodat versie v1.3.19 en de nieuwe cache worden geladen.

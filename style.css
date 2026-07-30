@@ -249,3 +249,8 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 
 /* v1.3.17 – cadeau-evenementen, vrijdagweek en universele agenda */
 .gift-help{margin-bottom:14px}.gift-help p{margin:.35rem 0 0}.gift-event-card{display:grid;gap:13px}.gift-event-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.gift-event-head h3{margin:0 0 5px}.gift-wishes{display:grid;gap:10px}.gift-wish-card{border:1px solid var(--border);border-radius:15px;padding:12px;background:var(--bg);display:grid;gap:8px}.gift-wish-card.claimed{border-color:var(--accent)}.gift-wish-card img{width:100%;max-height:210px;object-fit:cover;border-radius:12px}.gift-wish-card p{margin:0}.gift-claim-status,.gift-secret-note{padding:8px 10px;border-radius:10px;background:var(--primary-2);font-weight:700;font-size:.88rem}.gift-actions{display:flex;flex-wrap:wrap;gap:7px}.gift-actions button{flex:1;min-width:105px}.gift-actions .text-btn{flex:0 0 auto}@media(max-width:520px){.gift-event-head{flex-direction:column}.gift-actions button{min-width:calc(50% - 7px)}}
+
+
+/* v1.3.19 – agenda bewerken, agendakeuze en actieve boodschappen */
+.agenda-card-clickable{cursor:pointer}.agenda-card-clickable:focus{outline:3px solid var(--accent);outline-offset:2px}.agenda-tap-hint{display:block;margin-top:10px;color:var(--muted)}
+.agenda-detail-dialog h2{margin:.8rem 0 .35rem}.agenda-detail-note{white-space:pre-wrap;line-height:1.5}.calendar-event-title{font-weight:900;font-size:1.1rem;margin:14px 0}.calendar-choice-buttons{display:grid;gap:10px;margin:12px 0}.calendar-choice-buttons button{text-align:left;padding:14px}.calendar-choice-dialog select{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}

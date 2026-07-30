@@ -1,15 +1,14 @@
-# Hogeterpjes v1.3.18
+# Hogeterpjes v1.3.19
 
 ## Aangepast
-- Het persoonlijke dagboek is alleen zichtbaar en bruikbaar voor Rinze.
-- Andere gebruikers zien de dagboekknop niet en kunnen de pagina niet openen.
-- Firestore- en Storage-toegang tot het dagboek is beperkt tot het beheerdersaccount van Rinze (`rohogeterp@gmail.com`).
-- Duidelijkere foutmelding wanneer de Firebase-regels nog niet zijn gepubliceerd.
-- Dagboeknotities mogen nog steeds alleen een datum bevatten; titel, tekst en foto’s zijn optioneel.
-- Versienummers en service-worker-cache zijn bijgewerkt naar v1.3.18.
+- Tik op een afspraakkaart om de afspraak te bekijken en via **Bewerken** aan te passen.
+- Bij **Toevoegen aan agenda** is er keuze uit Apple Agenda, Google Agenda en een ICS-bestand. Outlook is niet opgenomen.
+- Voor Apple Agenda en ICS kan een herinnering worden meegestuurd. Google Agenda opent rechtstreeks en gebruikt daarbij de standaardherinnering van het Google-account.
+- Een afgevinkte boodschap verdwijnt direct uit de actieve boodschappenlijst.
+- Versienummers en service-worker-cache zijn bijgewerkt naar v1.3.19.
 
-## Belangrijk: Firebase-regels publiceren
-Voor deze versie zijn de regels wél gewijzigd. Publiceer zowel `firestore.rules` als `storage.rules` in Firebase. Zie `FIREBASE-STAPPEN.txt`.
+## Firebase-regels
+Voor deze versie zijn de Firestore- en Storage-regels niet gewijzigd. De al gepubliceerde regels van v1.3.18 kunnen blijven staan.
 
 ## Uploaden naar GitHub
-Upload daarna alle losse webbestanden en vervang de bestaande bestanden. Sluit Hogeterpjes volledig af en open de app opnieuw.
+Upload alle 13 losse bestanden en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
