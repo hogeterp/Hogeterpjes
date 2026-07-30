@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.14">
-  <link rel="stylesheet" href="style.css?v=1.3.14">
+  <link rel="manifest" href="manifest.json?v=1.3.15">
+  <link rel="stylesheet" href="style.css?v=1.3.15">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.14</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.15</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.14</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.15</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -287,6 +287,23 @@
         </div>
       </section>
 
+      <section class="page" data-page="dagboek">
+        <div class="page-head">
+          <div><p class="eyebrow">Alleen voor jou</p><h2>📖 Persoonlijk dagboek</h2></div>
+          <button id="addDiaryBtn" class="primary-btn">+ Notitie</button>
+        </div>
+        <div class="card diary-privacy"><strong>🔒 Volledig privé</strong><p>Alleen jouw ingelogde account kan deze dagboeknotities lezen en wijzigen.</p></div>
+        <div class="diary-toolbar">
+          <input id="diarySearch" class="search" placeholder="Zoek in je dagboek">
+          <select id="diarySort" class="search" aria-label="Sorteer dagboek">
+            <option value="newest">Nieuwste eerst</option>
+            <option value="oldest">Oudste eerst</option>
+            <option value="name">Titel A–Z</option>
+          </select>
+        </div>
+        <div id="diaryList" class="list-grid"></div>
+      </section>
+
       <section class="page" data-page="profiel">
         <div class="page-head">
           <div><p class="eyebrow">Jouw account</p><h2>Profiel</h2></div>
@@ -349,6 +366,7 @@
     <button data-go="familie">👨‍👩‍👧‍👦 Familie</button>
     <button data-go="huishoudens">🏡 Huishoudens</button>
     <button data-go="agenda">📅 Agenda</button>
+    <button data-go="dagboek">📖 Mijn dagboek</button>
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
     <button data-go="producten">📦 Productdatabase</button>
@@ -419,9 +437,9 @@
             <span class="field-label">Ingrediënten</span>
             <small>Vul per ingrediënt de naam, hoeveelheid en eenheid in.</small>
           </div>
-          <button id="addIngredientRowBtn" class="secondary-btn compact-btn" type="button">+ Ingrediënt</button>
         </div>
         <div id="ingredientRows" class="ingredient-rows"></div>
+        <button id="addIngredientRowBtn" class="secondary-btn wide ingredient-add-bottom" type="button">+ Ingrediënt toevoegen</button>
         <p id="ingredientError" class="login-message"></p>
       </div>
       <label>Bereiding <small>Één stap per regel</small>
@@ -430,6 +448,22 @@
       <label>Toegevoegd door<select name="author" id="recipeAuthor"></select></label>
       <button id="recipeSaveBtn" class="primary-btn wide" type="submit">Recept opslaan</button>
       <button id="deleteRecipeBtn" class="secondary-btn wide danger-button hidden" type="button">Recept verwijderen</button>
+    </form>
+  </dialog>
+
+  <dialog id="diaryDialog" class="modal">
+    <form id="diaryForm" method="dialog">
+      <div class="sheet-head"><h3 id="diaryDialogTitle">Dagboeknotitie</h3><button type="button" data-close>✕</button></div>
+      <input id="diaryEditId" type="hidden">
+      <label>Titel<input id="diaryTitle" maxlength="120" required></label>
+      <label>Datum<input id="diaryDate" type="date" required></label>
+      <label>Tekst<textarea id="diaryText" rows="9" maxlength="12000" required></textarea></label>
+      <label class="photo-upload secondary-btn wide">📷 Foto toevoegen<input id="diaryPhotoInput" type="file" accept="image/*"></label>
+      <div id="diaryPhotoInfo" class="muted">Geen foto gekozen.</div>
+      <label class="check-row-simple"><input id="diaryFavorite" type="checkbox"> ⭐ Favoriet</label>
+      <p id="diaryMessage" class="login-message"></p>
+      <button id="diarySaveBtn" class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="diaryDeleteBtn" class="secondary-btn wide danger-button hidden" type="button">Notitie verwijderen</button>
     </form>
   </dialog>
 
@@ -654,7 +688,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.14"></script>
-  <script src="app.js?v=1.3.14"></script>
+  <script src="firebase-config.js?v=1.3.15"></script>
+  <script src="app.js?v=1.3.15"></script>
 </body>
 </html>

@@ -1,30 +1,21 @@
-HOGETERPJES v1.3.14 – FIREBASE-REGELS PUBLICEREN
-
-BELANGRIJK IN DEZE VERSIE
-- Voor v1.3.14 zijn geen nieuwe Firebase-regels nodig als de v1.3.13-regels al gepubliceerd zijn.
-- De prullenbak gebruikt dezelfde bestaande Firestore- en Storage-rechten.
-- De app vult allowedEmails automatisch aan vanuit de bestaande accounts-lijst.
-- De kluis herkent Rinze en Christa ook via hun Firebase-profielnaam.
-- Publiceer beide regelbestanden opnieuw, ook als je dit eerder al hebt gedaan.
+HOGETERPJES v1.3.15 – FIREBASE-REGELS PUBLICEREN
 
 FIRESTORE
 1. Open Firebase Console en kies project “hogeterpjes”.
 2. Ga naar Firestore Database > Rules / Regels.
-3. Open lokaal het bestand firestore.rules uit deze versie.
-4. Kopieer alles, vervang de bestaande regels en tik op Publish / Publiceren.
+3. Open firestore.rules uit deze versie.
+4. Vervang alle bestaande regels en tik op Publish / Publiceren.
 
 STORAGE
-1. Ga in hetzelfde Firebase-project naar Storage > Rules / Regels.
-2. Open lokaal het bestand storage.rules uit deze versie.
-3. Kopieer alles, vervang de bestaande regels en tik op Publish / Publiceren.
-4. Verschijnt “Attach permissions”? Tik daarop en wacht op het groene vinkje.
+1. Ga naar Storage > Rules / Regels.
+2. Open storage.rules uit deze versie.
+3. Vervang alle bestaande regels en tik op Publish / Publiceren.
+4. Verschijnt “Attach permissions”? Tik daarop.
 
 DAARNA
-1. Upload de losse webbestanden naar GitHub Pages en vervang de bestaande bestanden.
+1. Upload de losse webbestanden naar GitHub Pages.
 2. Sluit Hogeterpjes volledig af en open de app opnieuw.
-3. Log eerst één keer in als Rinze; de accounts-lijst wordt dan automatisch gesynchroniseerd.
-4. Test daarna in de Gezinskluis met een klein bestand.
+3. Het dagboek staat onder Meer > Mijn dagboek.
 
-BELANGRIJK
-- Upload firestore.rules en storage.rules niet naar GitHub om ze te activeren.
-- De inhoud moet apart in Firebase worden gepubliceerd.
+PRIVACY
+Dagboeknotities en dagboekfoto’s zijn alleen toegankelijk voor de Firebase-gebruiker die ze heeft aangemaakt.

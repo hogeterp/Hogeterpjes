@@ -41,6 +41,9 @@ let db=null;
 let storage=null;
 let cloudUnsubscribe=null;
 let vaultFilesUnsubscribe=null;
+let diaryUnsubscribe=null;
+let diaryEntries=[];
+let selectedDiaryPhoto=null;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
@@ -574,7 +577,9 @@ removeRecipePhotoBtn.onclick=resetRecipePhoto;
 
 function renderRecipes(){
   const q=recipeSearch.value?.toLowerCase()||"";
-  const rows=data.recipes.filter(r=>(r.name+" "+r.ingredients.map(i=>normalizeIngredient(i).name).join(" ")).toLowerCase().includes(q));
+  const rows=data.recipes
+    .filter(r=>(r.name+" "+r.ingredients.map(i=>normalizeIngredient(i).name).join(" ")).toLowerCase().includes(q))
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"nl",{sensitivity:"base"}));
   recipeList.innerHTML=rows.length?rows.map(r=>`<article class="item-card">
     ${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
     <h3>${escapeHtml(r.name)}</h3><div class="meta">Voor ${r.servings} personen · door ${escapeHtml(r.author||"Onbekend")}${r.updatedAt?`<br>Laatst gewijzigd ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(r.updatedAt))}${r.updatedBy?` door ${escapeHtml(r.updatedBy)}`:""}`:""}</div>
@@ -799,7 +804,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1250,7 +1255,12 @@ addWishBtn.onclick=openWishDialog;
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 
-addIngredientRowBtn.onclick=()=>addIngredientRow();
+addIngredientRowBtn.onclick=()=>{
+  addIngredientRow();
+  const newest=ingredientRows.lastElementChild;
+  newest?.scrollIntoView({behavior:"smooth",block:"center"});
+  newest?.querySelector(".ingredient-name")?.focus();
+};
 
 recipeForm.onsubmit=e=>{
   e.preventDefault();
@@ -1874,6 +1884,8 @@ logoutBtn.onclick=async()=>{
   if(auth){ await auth.signOut(); }
   if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
   if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
+  if(diaryUnsubscribe){ diaryUnsubscribe(); diaryUnsubscribe=null; }
+  diaryEntries=[];
   cloudReady=false;
   currentUser=null;
   loginScreen.classList.remove("hidden");
@@ -1894,7 +1906,7 @@ function showLoggedIn(user){
   renderWeekmenu();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
@@ -2242,6 +2254,75 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   finally{vaultUploadSubmit.disabled=false;}
 };
 
+
+function diaryCollection(){
+  return db && currentUser ? db.collection("diaries").doc(currentUser.uid).collection("entries") : null;
+}
+function diaryDateLabel(value){
+  if(!value) return "";
+  return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(value+"T12:00:00"));
+}
+function renderDiary(){
+  if(!window.diaryList) return;
+  if(!currentUser){ diaryList.innerHTML='<div class="card muted">Log in om je dagboek te openen.</div>'; return; }
+  const q=(diarySearch?.value||"").trim().toLowerCase();
+  const sort=diarySort?.value||"newest";
+  let rows=diaryEntries.filter(x=>!q||`${x.title||""} ${x.text||""}`.toLowerCase().includes(q));
+  rows=rows.slice().sort((a,b)=>{
+    if(sort==="oldest") return String(a.date||a.createdAt||"").localeCompare(String(b.date||b.createdAt||""));
+    if(sort==="name") return String(a.title||"").localeCompare(String(b.title||""),"nl",{sensitivity:"base"});
+    return String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""));
+  });
+  diaryList.innerHTML=rows.length?rows.map(x=>`<article class="item-card diary-card">
+    ${x.photoPath?`<div class="diary-photo-wrap"><img data-diary-photo="${escapeHtml(x.photoPath)}" alt=""></div>`:""}
+    <div class="diary-card-head"><div><h3>${x.favorite?"⭐ ":""}${escapeHtml(x.title||"Zonder titel")}</h3><div class="meta">${diaryDateLabel(x.date)}</div></div><button class="mini-btn" onclick="editDiaryEntry('${x.id}')">Bewerken</button></div>
+    <p class="diary-preview">${escapeHtml(x.text||"").replaceAll("\n","<br>")}</p>
+  </article>`).join(""):'<div class="card muted">Nog geen dagboeknotities. Tik op <strong>+ Notitie</strong> om te beginnen.</div>';
+  document.querySelectorAll("[data-diary-photo]").forEach(async img=>{try{img.src=await storage.ref(img.dataset.diaryPhoto).getDownloadURL();}catch(_){img.closest(".diary-photo-wrap")?.remove();}});
+}
+function initDiaryForCurrentUser(){
+  if(diaryUnsubscribe){diaryUnsubscribe();diaryUnsubscribe=null;}
+  diaryEntries=[]; renderDiary();
+  const col=diaryCollection(); if(!col) return;
+  diaryUnsubscribe=col.onSnapshot(snap=>{
+    diaryEntries=snap.docs.map(d=>({id:d.id,...d.data(),createdAt:d.data().createdAt?.toDate?.()?.toISOString?.()||d.data().createdAt||""}));
+    renderDiary();
+  },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Publiceer de nieuwe Firestore-regels.</div>';});
+}
+function openDiaryDialog(entry=null){
+  diaryForm.reset(); selectedDiaryPhoto=null; diaryPhotoInput.value=""; diaryMessage.textContent="";
+  diaryEditId.value=entry?.id||""; diaryDialogTitle.textContent=entry?"Dagboeknotitie bewerken":"Nieuwe dagboeknotitie";
+  diaryTitle.value=entry?.title||""; diaryDate.value=entry?.date||new Date().toISOString().slice(0,10); diaryText.value=entry?.text||""; diaryFavorite.checked=!!entry?.favorite;
+  diaryPhotoInfo.textContent=entry?.photoPath?"Bestaande foto blijft staan, tenzij je een nieuwe kiest.":"Geen foto gekozen.";
+  diaryDeleteBtn.classList.toggle("hidden",!entry); diaryDialog.showModal();
+}
+window.editDiaryEntry=id=>openDiaryDialog(diaryEntries.find(x=>x.id===id));
+if(window.addDiaryBtn) addDiaryBtn.onclick=()=>openDiaryDialog();
+if(window.diarySearch) diarySearch.oninput=renderDiary;
+if(window.diarySort) diarySort.onchange=renderDiary;
+if(window.diaryPhotoInput) diaryPhotoInput.onchange=()=>{selectedDiaryPhoto=diaryPhotoInput.files?.[0]||null;diaryPhotoInfo.textContent=selectedDiaryPhoto?`${selectedDiaryPhoto.name} · ${formatBytes(selectedDiaryPhoto.size)}`:"Geen foto gekozen.";};
+if(window.diaryForm) diaryForm.onsubmit=async e=>{
+  e.preventDefault(); if(!currentUser||!db)return;
+  const id=diaryEditId.value||diaryCollection().doc().id; const existing=diaryEntries.find(x=>x.id===id); let photoPath=existing?.photoPath||"";
+  diarySaveBtn.disabled=true; diaryMessage.textContent="Opslaan…";
+  try{
+    if(selectedDiaryPhoto){
+      if(selectedDiaryPhoto.size>10*1024*1024) throw new Error("Foto mag maximaal 10 MB zijn.");
+      photoPath=`diaries/${currentUser.uid}/${id}/${safeFileName(selectedDiaryPhoto.name)}`;
+      await storage.ref(photoPath).put(selectedDiaryPhoto,{contentType:selectedDiaryPhoto.type||"image/jpeg"});
+      if(existing?.photoPath&&existing.photoPath!==photoPath){try{await storage.ref(existing.photoPath).delete();}catch(_){}}
+    }
+    await diaryCollection().doc(id).set({title:diaryTitle.value.trim(),date:diaryDate.value,text:diaryText.value.trim(),favorite:diaryFavorite.checked,photoPath,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:existing?.createdAt||firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    diaryDialog.close();
+  }catch(err){console.error(err);diaryMessage.textContent=err.message||"Opslaan mislukt.";}
+  finally{diarySaveBtn.disabled=false;}
+};
+if(window.diaryDeleteBtn) diaryDeleteBtn.onclick=async()=>{
+  const id=diaryEditId.value, entry=diaryEntries.find(x=>x.id===id); if(!id||!confirm("Deze dagboeknotitie verwijderen?"))return;
+  try{if(entry?.photoPath)await storage.ref(entry.photoPath).delete();}catch(_){}
+  await diaryCollection().doc(id).delete(); diaryDialog.close();
+};
+
 function initFirebase(){
   const settings=window.HOGETERPJES_FIREBASE;
   if(!settings?.useFirebase) return false;
@@ -2295,7 +2376,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.14");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.15");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

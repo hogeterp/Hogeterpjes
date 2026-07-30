@@ -1,18 +1,12 @@
-# Hogeterpjes v1.3.14
+# Hogeterpjes v1.3.15
 
-## Opgelost
-- Bestaande `accounts`-lijst wordt automatisch omgezet naar de `allowedEmails` die de Firebase-regels gebruiken.
-- Account aanmaken controleert zowel `accounts` als `allowedEmails`.
-- Kluisrechten herkennen Rinze en Christa ook via hun Firebase-profielnaam.
-- Nieuwe Firestore- en Storage-regels meegeleverd.
-- Versie- en cacheverwijzingen bijgewerkt naar 1.3.14.
+## Nieuw
+- Recepten staan automatisch alfabetisch op naam (A–Z).
+- De knop **+ Ingrediënt toevoegen** staat onderaan de ingrediëntenlijst.
+- Na toevoegen scrolt de app automatisch naar het nieuwe ingrediënt.
+- Persoonlijk privé-dagboek per ingelogde gebruiker.
+- Dagboeknotities toevoegen, bewerken, verwijderen, zoeken, sorteren en als favoriet markeren.
+- Optioneel een foto bij een dagboeknotitie, opgeslagen in Firebase Storage.
 
-## Na upload naar GitHub
-Publiceer `firestore.rules` en `storage.rules` apart in Firebase. Volg daarvoor `FIREBASE-STAPPEN.txt`.
-
-
-## Versie 1.3.14
-- Foto-miniaturen in de Gezinskluis.
-- Prullenbak: bestanden eerst veilig verwijderen, daarna herstellen of definitief wissen.
-- Verwijderde bestanden blijven meetellen in de opslag totdat ze definitief worden verwijderd.
-- Duidelijkere bestandskaarten en acties.
+## Belangrijk
+Publiceer de meegeleverde `firestore.rules` en `storage.rules` opnieuw in Firebase. De dagboekregels zorgen dat uitsluitend de eigenaar zijn of haar notities en foto’s kan openen.
