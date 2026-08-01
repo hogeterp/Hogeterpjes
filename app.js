@@ -29,6 +29,7 @@ const KEY="hogeterpjes-data-v1";
 const PROFILE_KEY="hogeterpjes-demo-profile";
 const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
+const CALENDAR_PREF_KEY="hogeterpjes-calendar-preference-v1";
 let data=loadData();
 data.products=Array.isArray(data.products)?data.products:[];
 data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
@@ -202,7 +203,9 @@ function updateDiaryAccess(){
   const allowed=isDiaryOwner();
   const menu=document.getElementById("diaryMenuBtn");
   const page=document.querySelector('[data-page="dagboek"]');
+  const homeCard=document.getElementById("dashboardDiaryCard");
   if(menu) menu.classList.toggle("hidden",!allowed);
+  if(homeCard) homeCard.classList.toggle("hidden",!allowed);
   if(page) page.classList.toggle("diary-denied",!allowed);
   if(!allowed && page?.classList.contains("active")) navigate("home");
 }
@@ -499,6 +502,7 @@ function renderAgenda(){
       </div>
     </div>
     ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}
+    ${e.photo?`<img class="agenda-card-photo" src="${e.photo}" alt="Foto bij ${escapeHtml(e.title)}">`:""}
     ${e.note?`<p>${escapeHtml(e.note).replaceAll("\n","<br>")}</p>`:""}
     <small class="agenda-tap-hint">Tik op de afspraak om te bekijken of wijzigen</small>
   </article>`).join(""):`<div class="card muted">Nog geen afspraken zichtbaar.</div>`;
@@ -871,6 +875,11 @@ function renderHome(){
       <div><strong>${x.count} ${x.count===1?"product":"producten"}</strong><span>${x.house.name}</span></div>
     </div>
   `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
+
+  if(window.dashboardDiarySummary && isDiaryOwner()){
+    const latest=diaryEntries.slice().sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||"")))[0];
+    dashboardDiarySummary.textContent=latest ? `Laatste notitie: ${diaryDateLabel(latest.date)}` : "Open je dagboek om een notitie toe te voegen.";
+  }
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -1294,19 +1303,39 @@ function calendarEnd(event){
   const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
   return `${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
 }
-function reminderMinutes(){ return Number(calendarReminder.value); }
-function createIcs(event){
+function getCalendarPreference(){
+  try{return localStorage.getItem(CALENDAR_PREF_KEY)||"";}catch(_){return "";}
+}
+function setCalendarPreference(value){
+  try{localStorage.setItem(CALENDAR_PREF_KEY,value||"");}catch(_){}
+  updateCalendarPreferenceUi();
+}
+function calendarPreferenceLabel(value){
+  return value==="apple"?"Apple Agenda":value==="google"?"Google Agenda":value==="ics"?"ICS-bestand":"Nog niet gekozen";
+}
+function updateCalendarPreferenceUi(){
+  if(window.defaultCalendarSelect) defaultCalendarSelect.value=getCalendarPreference();
+  if(window.defaultCalendarHelp){
+    const pref=getCalendarPreference();
+    defaultCalendarHelp.textContent=pref==="google"
+      ? "Google Agenda gebruikt zijn eigen standaardherinnering; Hogeterpjes toont daarvoor geen herinneringskeuze."
+      : pref ? `Gekozen: ${calendarPreferenceLabel(pref)}. Bij Apple en ICS kun je per afspraak maximaal twee herinneringen kiezen.` : "Bij de eerste afspraak vraagt Hogeterpjes welke agenda je gebruikt.";
+  }
+}
+function selectedReminderMinutes(){
+  return [Number(calendarReminder1.value),Number(calendarReminder2.value)].filter((x,i,a)=>x>=0&&a.indexOf(x)===i);
+}
+function createIcs(event,reminders=[]){
   const start=icsDatePart(event.date,event.startTime);
   const end=calendarEnd(event);
   const allDay=!event.startTime;
-  const reminder=reminderMinutes();
   const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Hogeterpjes//NL","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",`UID:${event.id}@hogeterpjes`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}`,`${allDay?"DTSTART;VALUE=DATE":"DTSTART"}:${start}`,`${allDay?"DTEND;VALUE=DATE":"DTEND"}:${end}`,`SUMMARY:${icsEscape(event.title||"Afspraak")}`,`DESCRIPTION:${icsEscape(event.note||"")}`,`LOCATION:${icsEscape(event.location||"")}`];
-  if(reminder>=0) lines.push("BEGIN:VALARM",`TRIGGER:${reminder===0?"PT0M":`-PT${reminder}M`}`,"ACTION:DISPLAY",`DESCRIPTION:${icsEscape(event.title||"Afspraak")}`,"END:VALARM");
+  reminders.forEach(reminder=>lines.push("BEGIN:VALARM",`TRIGGER:${reminder===0?"PT0M":`-PT${reminder}M`}`,"ACTION:DISPLAY",`DESCRIPTION:${icsEscape(event.title||"Afspraak")}`,"END:VALARM"));
   lines.push("END:VEVENT","END:VCALENDAR");
   return lines.join("\r\n");
 }
-function downloadIcs(event,openInstead=false){
-  const blob=new Blob([createIcs(event)],{type:"text/calendar;charset=utf-8"});
+function downloadIcs(event,openInstead=false,reminders=[]){
+  const blob=new Blob([createIcs(event,reminders)],{type:"text/calendar;charset=utf-8"});
   const url=URL.createObjectURL(blob);
   if(openInstead){ window.location.href=url; }
   else{
@@ -1314,31 +1343,71 @@ function downloadIcs(event,openInstead=false){
   }
   setTimeout(()=>URL.revokeObjectURL(url),5000);
 }
-let calendarEventId="",calendarEventVisibility="";
-window.addToCalendar=(id,visibility)=>{
-  const event=agendaEventById(id,visibility); if(!event) return;
-  calendarEventId=id; calendarEventVisibility=visibility;
-  calendarEventTitle.textContent=event.title||"Afspraak";
-  calendarReminder.value="30";
-  calendarGoogleNote.classList.add("hidden");
-  calendarChoiceDialog.showModal();
-};
-window.addCalendarApple=()=>{
-  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
-  downloadIcs(event,true); calendarChoiceDialog.close();
-};
-window.addCalendarGoogle=()=>{
-  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
+function openGoogleCalendar(event){
   const allDay=!event.startTime;
   const dates=allDay ? `${icsDatePart(event.date)}/${calendarEnd(event)}` : `${icsDatePart(event.date,event.startTime)}/${calendarEnd(event)}`;
   const params=new URLSearchParams({action:"TEMPLATE",text:event.title||"Afspraak",dates,details:event.note||"",location:event.location||""});
-  calendarGoogleNote.classList.remove("hidden");
   window.open(`https://calendar.google.com/calendar/render?${params.toString()}`,"_blank","noopener");
-};
-window.addCalendarIcs=()=>{
+}
+let calendarEventId="",calendarEventVisibility="",calendarReminderMode="";
+function continueAddToCalendar(preference){
   const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
-  downloadIcs(event,false); calendarChoiceDialog.close();
+  if(preference==="google"){ openGoogleCalendar(event); return; }
+  calendarReminderMode=preference;
+  calendarEventTitle.textContent=event.title||"Afspraak";
+  calendarReminder1.value="30"; calendarReminder2.value="-1";
+  calendarReminderConfirmBtn.textContent=preference==="apple"?"Toevoegen aan Apple Agenda":"ICS-bestand maken";
+  calendarReminderDialog.showModal();
+}
+window.addToCalendar=(id,visibility)=>{
+  const event=agendaEventById(id,visibility); if(!event) return;
+  calendarEventId=id; calendarEventVisibility=visibility;
+  const pref=getCalendarPreference();
+  if(!pref){ calendarChoiceDialog.showModal(); return; }
+  continueAddToCalendar(pref);
 };
+window.chooseCalendarPreference=preference=>{
+  setCalendarPreference(preference);
+  calendarChoiceDialog.close();
+  continueAddToCalendar(preference);
+};
+calendarReminderConfirmBtn.onclick=()=>{
+  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
+  downloadIcs(event,calendarReminderMode==="apple",selectedReminderMinutes());
+  calendarReminderDialog.close();
+};
+let agendaPhotoObjectUrl="";
+function resetAgendaPhoto(){
+  agendaPhotoData.value=""; agendaCameraInput.value=""; agendaGalleryInput.value="";
+  agendaPhotoPreview.removeAttribute("src"); agendaPhotoPreviewWrap.classList.add("hidden");
+  if(agendaPhotoObjectUrl){URL.revokeObjectURL(agendaPhotoObjectUrl);agendaPhotoObjectUrl="";}
+}
+function setAgendaPhoto(dataUrl){
+  agendaPhotoData.value=dataUrl||"";
+  if(dataUrl){agendaPhotoPreview.src=dataUrl;agendaPhotoPreviewWrap.classList.remove("hidden");}
+  else resetAgendaPhoto();
+}
+function processAgendaPhoto(file){
+  if(!file)return;
+  if(!file.type.startsWith("image/")){alert("Kies een geldige foto of screenshot.");return;}
+  if(file.size>12*1024*1024){alert("Kies een afbeelding kleiner dan 12 MB.");return;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=900,scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      setAgendaPhoto(canvas.toDataURL("image/jpeg",0.68));
+    };
+    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+agendaCameraInput.onchange=()=>processAgendaPhoto(agendaCameraInput.files?.[0]);
+agendaGalleryInput.onchange=()=>processAgendaPhoto(agendaGalleryInput.files?.[0]);
+removeAgendaPhotoBtn.onclick=resetAgendaPhoto;
+
 let agendaDetailId="",agendaDetailVisibility="";
 window.openAgendaDetails=(id,visibility)=>{
   const event=agendaEventById(id,visibility); if(!event)return;
@@ -1348,6 +1417,7 @@ window.openAgendaDetails=(id,visibility)=>{
   agendaDetailDate.textContent=formatAgendaDate(event);
   agendaDetailLocation.textContent=event.location?`📍 ${event.location}`:"";
   agendaDetailLocation.classList.toggle("hidden",!event.location);
+  if(event.photo){agendaDetailPhoto.src=event.photo;agendaDetailPhoto.classList.remove("hidden");}else{agendaDetailPhoto.removeAttribute("src");agendaDetailPhoto.classList.add("hidden");}
   agendaDetailNote.textContent=event.note||"";
   agendaDetailNote.classList.toggle("hidden",!event.note);
   agendaDetailDialog.showModal();
@@ -1367,6 +1437,7 @@ window.editAgendaFromDetails=()=>{
   fillAgendaHouseholds();
   agendaForm.elements.householdId.value=event.householdId||"";
   agendaForm.elements.location.value=event.location||"";
+  setAgendaPhoto(event.photo||"");
   agendaForm.elements.note.value=event.note||"";
   agendaDialog.showModal();
 };
@@ -1376,12 +1447,14 @@ addAgendaBtn.onclick=()=>{
   agendaEditId.value="";
   agendaEditVisibility.value="";
   agendaDialogTitle.textContent="Afspraak toevoegen";
+  resetAgendaPhoto();
   agendaForm.elements.date.value=new Date().toISOString().slice(0,10);
   fillAgendaHouseholds();
   agendaDialog.showModal();
 };
 
 agendaVisibility.onchange=fillAgendaHouseholds;
+if(window.defaultCalendarSelect){defaultCalendarSelect.onchange=()=>setCalendarPreference(defaultCalendarSelect.value);}
 agendaTypeFilter.onchange=renderAgenda;
 agendaHouseholdFilter.onchange=renderAgenda;
 
@@ -1402,6 +1475,7 @@ agendaForm.onsubmit=e=>{
     visibility,
     householdId:visibility==="household" ? f.get("householdId") : "",
     location:String(f.get("location")||"").trim(),
+    photo:agendaPhotoData.value||"",
     note:String(f.get("note")||"").trim(),
     createdBy:original?.createdBy || currentUser?.uid || "",
     createdByName:original?.createdByName || currentPersonName(),
@@ -1426,6 +1500,7 @@ agendaForm.onsubmit=e=>{
   }
 
   agendaDialog.close();
+  resetAgendaPhoto();
 };
 
 window.deleteAgendaEvent=(id,visibility)=>{
@@ -2131,6 +2206,7 @@ function showLoggedIn(user){
   renderAgenda();
   renderWeekmenu();
   updateDiaryAccess();
+  updateCalendarPreferenceUi();
 
   if(firstOpen){
     loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
@@ -2556,6 +2632,7 @@ function initDiaryForCurrentUser(){
   diaryUnsubscribe=col.onSnapshot(snap=>{
     diaryEntries=snap.docs.map(d=>({id:d.id,...d.data(),createdAt:d.data().createdAt?.toDate?.()?.toISOString?.()||d.data().createdAt||""}));
     renderDiary();
+    renderHome();
   },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Controleer de Firebase-regels.</div>';});
 }
 function openDiaryDialog(entry=null){

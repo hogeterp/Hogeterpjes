@@ -1,8 +1,8 @@
-HOGETERPJES v1.3.19 – FIREBASE
+HOGETERPJES v1.3.20 – FIREBASE
 
 Voor deze versie zijn de Firestore- en Storage-regels niet gewijzigd.
 Je hoeft de regels daarom niet opnieuw te publiceren wanneer de regels van v1.3.18 al actief zijn.
 
 1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit de Hogeterpjes-app volledig af.
-3. Open de app opnieuw, zodat versie v1.3.19 en de nieuwe cache worden geladen.
+3. Open de app opnieuw, zodat versie v1.3.20 en de nieuwe cache worden geladen.

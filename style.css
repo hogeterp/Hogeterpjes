@@ -254,3 +254,9 @@ form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form se
 /* v1.3.19 – agenda bewerken, agendakeuze en actieve boodschappen */
 .agenda-card-clickable{cursor:pointer}.agenda-card-clickable:focus{outline:3px solid var(--accent);outline-offset:2px}.agenda-tap-hint{display:block;margin-top:10px;color:var(--muted)}
 .agenda-detail-dialog h2{margin:.8rem 0 .35rem}.agenda-detail-note{white-space:pre-wrap;line-height:1.5}.calendar-event-title{font-weight:900;font-size:1.1rem;margin:14px 0}.calendar-choice-buttons{display:grid;gap:10px;margin:12px 0}.calendar-choice-buttons button{text-align:left;padding:14px}.calendar-choice-dialog select{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}
+
+
+/* v1.3.20 – snelle dagboektegel, agenda-afbeeldingen en standaardagenda */
+.dashboard-diary-card{background:linear-gradient(145deg,var(--surface),var(--primary-2));border-color:color-mix(in srgb,var(--primary) 25%,var(--border))}
+.agenda-photo-field{margin:13px 0}.agenda-photo-preview{display:grid;gap:8px;margin-top:12px}.agenda-photo-preview img,.agenda-detail-photo,.agenda-card-photo{width:100%;max-height:320px;object-fit:contain;border-radius:16px;background:var(--primary-2)}
+.agenda-card-photo{margin-top:10px;max-height:220px;object-fit:cover}.agenda-detail-photo{margin:12px 0}.calendar-choice-dialog label{display:grid;gap:6px;margin:13px 0;font-weight:700}.calendar-choice-dialog select,.settings select{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}
