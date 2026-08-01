@@ -745,9 +745,32 @@ function subscribePrivateGiftIdeas(){
   privateGiftIdeasUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
     privateGiftIdeas=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
     renderGiftEvents();
+    renderPrivateGiftIdeasPage();
   },err=>{ console.error("Privé cadeau-ideeën laden mislukt",err); });
 }
 
+function privateIdeaRecipients(idea){
+  if(Array.isArray(idea?.recipients)) return idea.recipients;
+  return idea?.person ? [idea.person] : [];
+}
+function privateIdeaStatusLabel(status){
+  return ({idea:"💡 Idee",reserved:"🛒 Gereserveerd",bought:"✅ Gekocht",wrapped:"🎁 Ingepakt"})[status] || "💡 Idee";
+}
+function renderPrivateGiftIdeasPage(){
+  if(!window.privateGiftIdeaList) return;
+  const q=(privateGiftIdeaSearch?.value||"").trim().toLowerCase();
+  const filtered=(privateGiftIdeas||[]).filter(i=>[i.title,i.note,i.link,...privateIdeaRecipients(i)].join(" ").toLowerCase().includes(q));
+  const groups=data.family.map(p=>({person:p.name,ideas:filtered.filter(i=>privateIdeaRecipients(i).includes(p.name))})).filter(g=>g.ideas.length);
+  privateGiftIdeaList.innerHTML=groups.length?groups.map(g=>`<section class="card private-person-group">
+    <button class="private-person-summary" type="button" onclick="this.nextElementSibling.classList.toggle('hidden')"><strong>🎁 Cadeaus ${escapeHtml(g.person)}</strong><span>${g.ideas.length} idee${g.ideas.length===1?'':'ën'} ▾</span></button>
+    <div class="private-person-ideas">${g.ideas.sort((a,b)=>Number(b.favorite)-Number(a.favorite)).map(i=>`<article class="private-idea-card">
+      <div class="private-idea-head"><div><h3>${i.favorite?'⭐ ':''}${escapeHtml(i.title)}</h3><div class="private-idea-people">${privateIdeaRecipients(i).map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('')}</div></div><span class="private-idea-status">${privateIdeaStatusLabel(i.status)}</span></div>
+      ${i.price?`<div class="meta">€ ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`:''}
+      ${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}
+      <div class="private-idea-actions"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('', '${i.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div>
+    </article>`).join('')}</div>
+  </section>`).join(''):`<div class="card muted private-idea-empty">${q?'Geen cadeau-ideeën gevonden.':'Je hebt nog geen verborgen cadeau-ideeën.'}</div>`;
+}
 function giftEventCanManage(event){
   return isAdmin() || event.createdByUid===currentUser?.uid;
 }
@@ -769,40 +792,20 @@ function renderGiftEvents(){
   const events=(data.giftEvents||[]).filter(giftEventVisible).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
   giftEventList.innerHTML=events.length?events.map(event=>{
     const canBuy=(event.buyers||[]).includes(person);
-    const personalWishes=(data.wishes||[]).filter(w=>(event.recipients||[]).includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
-    const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>i.eventId===event.id && (event.recipients||[]).includes(i.person));
-    const renderCard=(w,isPrivate=false)=>{
-      const ownWish=w.person===person && !isPrivate;
-      const claim=giftWishStatus(event,w);
-      const maySeeClaim=!ownWish;
-      let actions="";
-      if(canBuy && !ownWish){
-        if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`;
-        else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`;
-      }
-      return `<article class="gift-wish-card ${claim&&maySeeClaim?"claimed":""} ${isPrivate?"private-gift-idea":""}">
-        <div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${isPrivate?"Alleen voor jou zichtbaar":escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>
-        ${isPrivate?`<div class="gift-secret-note">🔒 Mijn verborgen cadeau-idee</div>`:""}
-        ${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
-        ${maySeeClaim&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:""}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:""}
-        ${actions?`<div class="gift-actions">${actions}</div>`:""}
-        ${isPrivate?`<button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${w.id}')">Verwijder privé-idee</button>`:""}
-      </article>`;
+    const recipients=event.recipients||[];
+    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
+    const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>privateIdeaRecipients(i).some(x=>recipients.includes(x)) && (!i.eventId || i.eventId===event.id));
+    const publicCard=w=>{
+      const ownWish=w.person===person, claim=giftWishStatus(event,w); let actions="";
+      if(canBuy&&!ownWish){ if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`; else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`; }
+      return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||'')}${w.price?` · € ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
     };
-    const publicCards=personalWishes.length?personalWishes.map(w=>renderCard(w,false)).join(""):(event.occasion==="Verjaardag"
-      ? `<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml((event.recipients||[])[0]||"de jarige")}.</p>`
-      : `<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
-    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(w=>renderCard(w,true)).join(""):`<p class="muted">Je hebt nog geen verborgen cadeau-ideeën voor dit evenement.</p>`;
-    const peopleLabel=event.occasion==="Verjaardag"
-      ? `<span class="chip">🎂 Jarige: ${escapeHtml((event.recipients||[])[0]||"")}</span>`
-      : `<span class="chip">🎁 Voor: ${(event.recipients||[]).map(escapeHtml).join(", ")}</span>`;
-    return `<section class="item-card gift-event-card">
-      <div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||"Overig")}${event.budget?` · budget € ${Number(event.budget).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:""}</div>
-      <div class="chips">${peopleLabel}</div>
-      <section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>
-      ${canBuy?`<section class="gift-section private-gift-section"><h4>🔒 Mijn verborgen cadeau-ideeën</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Verborgen idee toevoegen</button></section>`:""}
-    </section>`;
-  }).join(""):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
+    const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
+    const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
+    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(privateCard).join(''):`<p class="muted">Je hebt nog geen verborgen cadeau-ideeën voor dit evenement.</p>`;
+    const peopleLabel=event.occasion==='Verjaardag'?`<span class="chip">🎂 Jarige: ${escapeHtml(recipients[0]||'')}</span>`:`<span class="chip">🎁 Voor: ${recipients.map(escapeHtml).join(', ')}</span>`;
+    return `<section class="item-card gift-event-card"><div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||'Overig')}${event.budget?` · budget € ${Number(event.budget).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:''}</div><div class="chips">${peopleLabel}</div><section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>${canBuy?`<section class="gift-section private-gift-section"><h4>🔒 Mijn verborgen cadeau-ideeën</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Verborgen idee toevoegen</button></section>`:''}</section>`;
+  }).join(''):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
 }
 function fillGiftMemberChecks(container,selected=[]){
   container.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.includes(p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
@@ -932,7 +935,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1680,27 +1683,26 @@ if(window.deleteGiftEventBtn) deleteGiftEventBtn.onclick=()=>{
 };
 
 let giftIdeaEventId="";
-window.openGiftIdeaDialog=eventId=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
-  giftIdeaEventId=eventId; giftIdeaForm.reset();
-  giftIdeaRecipient.innerHTML=(event.recipients||[]).map(x=>`<option value="${x}">${x}</option>`).join("");
-  giftIdeaMessage.textContent="";
-  giftIdeaDialog.showModal();
+window.openGiftIdeaDialog=(eventId="",ideaId="",presetPerson="")=>{
+  const event=eventId?(data.giftEvents||[]).find(x=>x.id===eventId):null;
+  const idea=ideaId?(privateGiftIdeas||[]).find(x=>x.id===ideaId):null;
+  giftIdeaEventId=eventId||idea?.eventId||""; giftIdeaForm.reset(); giftIdeaEditId.value=idea?.id||"";
+  const allowedPeople=event?.recipients?.length?event.recipients:data.family.map(p=>p.name);
+  const selected=idea?privateIdeaRecipients(idea):(presetPerson?[presetPerson]:[]);
+  giftIdeaRecipientChecks.innerHTML=allowedPeople.map(name=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(name)}" ${selected.includes(name)?'checked':''}><span>${escapeHtml(name)}</span></label>`).join('');
+  giftIdeaTitle.value=idea?.title||""; giftIdeaPrice.value=idea?.price||""; giftIdeaLink.value=idea?.link||""; giftIdeaNote.value=idea?.note||""; giftIdeaStatus.value=idea?.status||"idea"; giftIdeaFavorite.checked=!!idea?.favorite;
+  giftIdeaMessage.textContent=""; giftIdeaDialog.querySelector('h3').textContent=idea?'Verborgen cadeau-idee bewerken':'Verborgen cadeau-idee toevoegen'; giftIdeaDialog.showModal();
 };
-window.deletePrivateGiftIdea=async id=>{
-  const collection=privateGiftIdeasCollection(); if(!collection)return;
-  if(!confirm("Dit verborgen cadeau-idee verwijderen?"))return;
-  try{ await collection.doc(id).delete(); }catch(err){ alert(err.message||"Verwijderen mislukt."); }
-};
+window.deletePrivateGiftIdea=async id=>{ const collection=privateGiftIdeasCollection(); if(!collection)return; if(!confirm("Dit verborgen cadeau-idee verwijderen?"))return; try{await collection.doc(id).delete();}catch(err){alert(err.message||"Verwijderen mislukt.");} };
+window.setPrivateGiftIdeaStatus=async(id,status)=>{const c=privateGiftIdeasCollection();if(!c)return;try{await c.doc(id).update({status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(err){alert(err.message||'Status aanpassen mislukt.');}};
 if(window.giftIdeaForm) giftIdeaForm.onsubmit=async e=>{
-  e.preventDefault(); const event=(data.giftEvents||[]).find(x=>x.id===giftIdeaEventId); if(!event)return;
-  const collection=privateGiftIdeasCollection();
-  if(!collection){ giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan."; return; }
-  try{
-    await collection.add({eventId:event.id,person:giftIdeaRecipient.value,title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),ownerUid:currentUser.uid,ownerName:currentPersonName(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-    giftIdeaDialog.close();
-  }catch(err){ console.error(err); giftIdeaMessage.textContent=err.message||"Opslaan mislukt."; }
+  e.preventDefault(); const collection=privateGiftIdeasCollection(); if(!collection){giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan.";return;}
+  const recipients=[...giftIdeaRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value); if(!recipients.length){giftIdeaMessage.textContent='Kies minimaal één familielid.';return;}
+  const payload={eventId:giftIdeaEventId||"",recipients,person:recipients[0],title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),status:giftIdeaStatus.value,favorite:giftIdeaFavorite.checked,ownerUid:currentUser.uid,ownerName:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  try{ if(giftIdeaEditId.value) await collection.doc(giftIdeaEditId.value).update(payload); else await collection.add({...payload,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); giftIdeaDialog.close(); }catch(err){console.error(err);giftIdeaMessage.textContent=err.message||"Opslaan mislukt.";}
 };
+if(window.addPrivateGiftIdeaBtn) addPrivateGiftIdeaBtn.onclick=()=>openGiftIdeaDialog();
+if(window.privateGiftIdeaSearch) privateGiftIdeaSearch.oninput=renderPrivateGiftIdeasPage;
 
 function normalizeProductKey(p){
   return [p.name,p.brand,p.amount,p.unit].map(x=>String(x||"").trim().toLowerCase()).join("|");

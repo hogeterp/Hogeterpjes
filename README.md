@@ -1,14 +1,16 @@
-# Hogeterpjes v1.3.23
+# Hogeterpjes v1.3.24
 
-## Wensen en cadeau-evenementen
-- Iedereen kan alle openbare wensen bekijken.
-- Een openbare wens kan voor ieder familielid worden toegevoegd.
-- In een cadeau-evenement staan openbare wensen apart van persoonlijke verborgen cadeau-ideeën.
-- Een verborgen cadeau-idee is uitsluitend zichtbaar voor de gebruiker die het heeft toegevoegd.
-- Verborgen ideeën worden veilig in een persoonlijke Firestore-collectie opgeslagen.
+## Mijn verborgen cadeau-ideeën
+- Nieuwe pagina **Mijn cadeau-ideeën** onder Meer.
+- Ideeën worden per familielid gegroepeerd, bijvoorbeeld Cadeaus Lisa en Cadeaus Tessa.
+- Eén idee kan aan één of meerdere familieleden worden gekoppeld.
+- Ideeën kunnen worden toegevoegd, bewerkt en verwijderd.
+- Per idee zijn prijs, link, opmerking, favoriet en status beschikbaar.
+- Alleen de ingelogde maker kan zijn of haar verborgen ideeën lezen.
+- Bij een cadeau-evenement verschijnen automatisch jouw ideeën voor de gekozen ontvanger(s).
 
-## Firebase
-De Firestore-regels zijn gewijzigd. Publiceer `firestore.rules` opnieuw voordat verborgen cadeau-ideeën kunnen worden opgeslagen. De Storage-regels zijn niet gewijzigd.
+## Bestaande functies
+Alle functies uit v1.3.23, waaronder agenda per dag, openbare wensen, dagboek, weekmenu en uitnodigingsbeveiliging, zijn behouden.
 
 ## Uploaden
-Upload alle 13 losse bestanden naar GitHub Pages, vervang de bestaande bestanden en sluit de app daarna volledig af.
+Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit de app daarna volledig af en open hem opnieuw.
