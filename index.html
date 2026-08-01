@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.20">
-  <link rel="stylesheet" href="style.css?v=1.3.20">
+  <link rel="manifest" href="manifest.json?v=1.3.21">
+  <link rel="stylesheet" href="style.css?v=1.3.21">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.20</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.21</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -27,7 +27,7 @@
         <button class="primary-btn wide" type="submit">Inloggen</button>
       </form>
 
-      <div class="login-links"><button id="showSignupBtn" type="button" class="text-btn">Eerste keer? Account aanmaken</button><button id="forgotPasswordBtn" type="button" class="text-btn">Wachtwoord vergeten</button></div><p class="login-help">Je kunt alleen een account maken als Rinze jouw e-mailadres eerst heeft uitgenodigd.</p>
+      <div class="login-links"><button id="showSignupBtn" type="button" class="text-btn">Eerste keer? Account aanmaken</button><button id="forgotPasswordBtn" type="button" class="text-btn">Wachtwoord vergeten</button></div><p class="login-help">Je kunt alleen een account maken met exact het e-mailadres dat Rinze vooraf bij Beheer heeft uitgenodigd.</p>
       <p id="loginMessage" class="login-message"></p>
     </div>
   </section>
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.20</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.21</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -184,7 +184,7 @@
           <button id="addWishBtn" class="primary-btn">+ Wens</button>
         </div>
         <div id="wishPrivacyNote" class="card wish-privacy-note">
-          Je ziet en beheert hier alleen je eigen verlanglijstje.
+          Iedereen kan de wensen van alle familieleden bekijken.
         </div>
         <div class="filters">
           <select id="wishPersonFilter"></select>
@@ -272,7 +272,8 @@
           <select id="agendaHouseholdFilter"></select>
         </div>
 
-        <div id="agendaList" class="list-grid"></div>
+        <button id="togglePastAgendaBtn" class="secondary-btn wide agenda-past-toggle" type="button">Eerdere afspraken</button>
+        <div id="agendaList"></div>
       </section>
 
       <section class="page" data-page="kluis">
@@ -683,11 +684,25 @@
       <label>Gelegenheid<select id="giftEventOccasion"><option>Verjaardag</option><option>Sinterklaas</option><option>Kerst</option><option>Overig</option></select></label>
       <label>Datum<input id="giftEventDate" type="date" required></label>
       <label>Budget per persoon (optioneel)<input id="giftEventBudget" type="number" min="0" step="0.01"></label>
-      <fieldset class="member-fieldset"><legend>Ontvangers</legend><div id="giftRecipientChecks" class="member-checks"></div></fieldset>
+      <label id="giftBirthdayRecipientLabel">Voor wie is de verjaardag?<select id="giftBirthdayRecipient"></select></label>
+      <fieldset id="giftMultipleRecipients" class="member-fieldset hidden"><legend>Ontvangers</legend><div id="giftRecipientChecks" class="member-checks"></div></fieldset>
       <fieldset class="member-fieldset"><legend>Wie mogen kopen?</legend><div id="giftBuyerChecks" class="member-checks"></div></fieldset>
       <p id="giftEventMessage" class="login-message"></p>
       <button class="primary-btn wide" type="submit">Evenement opslaan</button>
       <button id="deleteGiftEventBtn" class="secondary-btn wide danger-button hidden" type="button">Evenement verwijderen</button>
+    </form>
+  </dialog>
+
+
+  <dialog id="giftIdeaDialog" class="modal">
+    <form id="giftIdeaForm" method="dialog">
+      <div class="sheet-head"><h3>Cadeau-idee toevoegen</h3><button type="button" data-close>✕</button></div>
+      <label>Voor wie?<select id="giftIdeaRecipient" required></select></label>
+      <label>Cadeau-idee<input id="giftIdeaTitle" required maxlength="140" placeholder="Bijvoorbeeld: parfum"></label>
+      <label>Prijs (optioneel)<input id="giftIdeaPrice" type="number" min="0" step="0.01"></label>
+      <label>Link (optioneel)<input id="giftIdeaLink" type="url"></label>
+      <label>Opmerking (optioneel)<textarea id="giftIdeaNote" rows="4"></textarea></label>
+      <button class="primary-btn wide" type="submit">Idee opslaan</button>
     </form>
   </dialog>
 
@@ -817,7 +832,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.20"></script>
-  <script src="app.js?v=1.3.20"></script>
+  <script src="firebase-config.js?v=1.3.21"></script>
+  <script src="app.js?v=1.3.21"></script>
 </body>
 </html>

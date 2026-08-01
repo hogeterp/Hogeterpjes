@@ -1,16 +1,30 @@
-# Hogeterpjes v1.3.20
+# Hogeterpjes v1.3.21
 
-## Aangepast
-- Het persoonlijke dagboek staat voor Rinze als snelle tegel op de homepagina.
-- De gebruiker kiest één keer Apple Agenda, Google Agenda of ICS; deze keuze wordt op het apparaat onthouden en kan bij Instellingen worden gewijzigd.
-- Google Agenda opent rechtstreeks zonder herinneringskeuze en gebruikt de eigen standaardherinnering van Google Agenda.
-- Voor Apple Agenda en ICS kunnen maximaal twee herinneringen worden gekozen.
-- Bij een agenda-afspraak kan via camera of galerij een foto of screenshot worden toegevoegd, bekeken, vervangen en verwijderd.
-- Afgevinkte boodschappen blijven automatisch uit de actieve lijst verdwijnen.
-- Versienummers en service-worker-cache zijn bijgewerkt naar v1.3.20.
+## Beveiliging en accounts
+- Alleen vooraf door Rinze uitgenodigde e-mailadressen krijgen toegang.
+- Bij registratie wordt de uitnodiging gecontroleerd voordat de app wordt geopend.
+- Een niet-uitgenodigd account wordt direct geweigerd en waar mogelijk verwijderd.
+- Ook bestaande niet-uitgenodigde accounts kunnen de familie-app niet openen.
+- Lisa kan met haar bestaande account inloggen zodra exact hetzelfde e-mailadres bij Beheer is uitgenodigd.
 
-## Firebase-regels
-Voor deze versie zijn de Firestore- en Storage-regels niet gewijzigd. De regels van v1.3.18 kunnen actief blijven.
+## Wensen en cadeau-evenementen
+- Iedereen binnen Hogeterpjes kan de wensen van alle familieleden bekijken.
+- Alleen de eigenaar kan zijn of haar eigen wensen verwijderen.
+- Bij een verjaardag kies je één jarige via ‘Voor wie is de verjaardag?’.
+- Bij Sinterklaas, Kerst en Overig kunnen meerdere ontvangers worden gekozen.
+- De ontvanger wordt automatisch uitgesloten als koper.
+- De app toont binnen een cadeau-evenement alleen wensen van de gekozen ontvanger(s).
+- Kopers kunnen extra cadeau-ideeën voor een ontvanger toevoegen.
+- De ontvanger ziet niet wie een cadeau reserveert, koopt of inpakt.
 
-## Uploaden naar GitHub
-Upload alle 13 losse bestanden en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
+## Agenda
+- Komende afspraken worden per dag gegroepeerd.
+- Vandaag en morgen hebben een duidelijke eigen kop.
+- Verlopen afspraken verdwijnen uit de standaardweergave.
+- Met ‘Eerdere afspraken’ kunnen oude afspraken worden teruggekeken.
+
+## Uploaden
+Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
+
+## Firebase
+De Firestore- en Storage-regels zijn niet gewijzigd. De bestaande regels van v1.3.18 of nieuwer kunnen actief blijven.

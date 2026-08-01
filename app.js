@@ -30,6 +30,8 @@ const PROFILE_KEY="hogeterpjes-demo-profile";
 const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
 const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
 const CALENDAR_PREF_KEY="hogeterpjes-calendar-preference-v1";
+let showPastAgenda=false;
+let signupVerificationInProgress=false;
 let data=loadData();
 data.products=Array.isArray(data.products)?data.products:[];
 data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
@@ -471,43 +473,36 @@ function getVisibleAgendaEvents(){
   return [...privateEvents,...sharedEvents];
 }
 
+function agendaEventHasPassed(event){
+  const now=new Date();
+  const endTime=event.endTime || event.startTime || "23:59";
+  return new Date(`${event.date}T${endTime}:00`) < now;
+}
+function agendaDayLabel(dateIso){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const date=new Date(dateIso+"T12:00:00"); date.setHours(0,0,0,0);
+  const diff=Math.round((date-today)/86400000);
+  if(diff===0) return "Vandaag";
+  if(diff===1) return "Morgen";
+  if(diff===-1) return "Gisteren";
+  return new Intl.DateTimeFormat("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(date);
+}
 function renderAgenda(){
   if(!window.agendaList) return;
-
   const type=agendaTypeFilter.value || "";
   const householdId=agendaHouseholdFilter.value || "";
-
-  agendaHouseholdFilter.innerHTML=
-    `<option value="">Alle huishoudens</option>`+
-    data.households
-      .filter(h=>userHouseholdIds().includes(h.id))
-      .map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
+  agendaHouseholdFilter.innerHTML=`<option value="">Alle huishoudens</option>`+data.households.filter(h=>userHouseholdIds().includes(h.id)).map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
   agendaHouseholdFilter.value=householdId;
-
-  let rows=getVisibleAgendaEvents();
-  rows=rows.filter(e=>!type || e.visibility===type);
-  rows=rows.filter(e=>!householdId || e.householdId===householdId);
+  let rows=getVisibleAgendaEvents().filter(e=>(!type||e.visibility===type)&&(!householdId||e.householdId===householdId));
+  rows=rows.filter(e=>showPastAgenda ? agendaEventHasPassed(e) : !agendaEventHasPassed(e));
   rows.sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")));
-
-  agendaList.innerHTML=rows.length?rows.map(e=>`<article class="item-card agenda-card agenda-card-clickable" role="button" tabindex="0" onclick="openAgendaDetails('${e.id}','${e.visibility}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgendaDetails('${e.id}','${e.visibility}')}" aria-label="Open afspraak ${escapeHtml(e.title)}">
-    <div class="agenda-card-head">
-      <div>
-        <span class="agenda-scope">${agendaScopeLabel(e)}</span>
-        <h3>${escapeHtml(e.title)}</h3>
-        <div class="meta">${formatAgendaDate(e)}</div>
-      </div>
-      <div class="agenda-card-actions">
-        <button class="mini-btn" type="button" onclick="event.stopPropagation();addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen aan agenda</button>
-        <button class="mini-btn danger-mini" type="button" onclick="event.stopPropagation();deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button>
-      </div>
-    </div>
-    ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}
-    ${e.photo?`<img class="agenda-card-photo" src="${e.photo}" alt="Foto bij ${escapeHtml(e.title)}">`:""}
-    ${e.note?`<p>${escapeHtml(e.note).replaceAll("\n","<br>")}</p>`:""}
-    <small class="agenda-tap-hint">Tik op de afspraak om te bekijken of wijzigen</small>
-  </article>`).join(""):`<div class="card muted">Nog geen afspraken zichtbaar.</div>`;
+  if(showPastAgenda) rows.reverse();
+  if(window.togglePastAgendaBtn) togglePastAgendaBtn.textContent=showPastAgenda?"Toekomstige afspraken":"Eerdere afspraken";
+  const groups={}; rows.forEach(e=>(groups[e.date]||=[]).push(e));
+  agendaList.innerHTML=rows.length?Object.entries(groups).map(([date,events])=>`<section class="agenda-day-group"><h3 class="agenda-day-title">${agendaDayLabel(date)}</h3>${events.map(e=>`<article class="item-card agenda-card agenda-card-clickable" role="button" tabindex="0" onclick="openAgendaDetails('${e.id}','${e.visibility}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgendaDetails('${e.id}','${e.visibility}')}" aria-label="Open afspraak ${escapeHtml(e.title)}">
+    <div class="agenda-card-head"><div><span class="agenda-scope">${agendaScopeLabel(e)}</span><h3>${escapeHtml(e.title)}</h3><div class="meta">${formatAgendaDate(e)}</div></div><div class="agenda-card-actions"><button class="mini-btn" type="button" onclick="event.stopPropagation();addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen</button><button class="mini-btn danger-mini" type="button" onclick="event.stopPropagation();deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button></div></div>
+    ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}${e.photo?`<img class="agenda-card-photo" src="${e.photo}" alt="Foto bij ${escapeHtml(e.title)}">`:""}${e.note?`<p>${escapeHtml(e.note).replaceAll("\\n","<br>")}</p>`:""}<small class="agenda-tap-hint">Tik om te bekijken of wijzigen</small></article>`).join("")}</section>`).join(""):`<div class="card muted">${showPastAgenda?"Geen eerdere afspraken.":"Geen komende afspraken."}</div>`;
 }
-
 function fillAgendaHouseholds(){
   const allowed=data.households.filter(h=>userHouseholdIds().includes(h.id));
   agendaHousehold.innerHTML=allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
@@ -728,27 +723,14 @@ wishGalleryInput.onchange=()=>processWishPhoto(wishGalleryInput.files?.[0]);
 removeWishPhotoBtn.onclick=resetWishPhoto;
 
 function renderWishes(){
-  const ownName=currentPersonName();
+  const selected=wishPersonFilter.value||"";
   const occasion=wishOccasionFilter.value||"";
-  const rows=data.wishes.filter(w=>w.person===ownName && (!occasion||w.occasion===occasion));
-
-  wishPageTitle.textContent="Mijn wensen";
-  wishPrivacyNote.textContent=`Ingelogd als ${ownName || "familielid"}. Alleen jouw eigen wensen worden hier getoond.`;
-  wishPersonFilter.classList.add("hidden");
-
-  wishList.innerHTML=rows.length?rows.map(w=>`<article class="item-card">
-    <div class="wish-card-head">
-      <div>
-        <h3>${w.title}</h3>
-        <div class="meta">${w.occasion}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div>
-      </div>
-      <button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>
-    </div>
-    ${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${w.title}">`:""}
-    ${w.note?`<p>${w.note}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
-  </article>`).join(""):`<div class="card muted">Je hebt nog geen wensen toegevoegd.</div>`;
+  const rows=data.wishes.filter(w=>(!selected||w.person===selected)&&(!occasion||w.occasion===occasion));
+  wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
+  wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
+  wishPersonFilter.classList.remove("hidden");
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
-
 function giftEventCanManage(event){
   return isAdmin() || event.createdByUid===currentUser?.uid;
 }
@@ -770,7 +752,9 @@ function renderGiftEvents(){
   const events=(data.giftEvents||[]).filter(giftEventVisible).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
   giftEventList.innerHTML=events.length?events.map(event=>{
     const canBuy=(event.buyers||[]).includes(person);
-    const wishes=(data.wishes||[]).filter(w=>(event.recipients||[]).includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
+    const personalWishes=(data.wishes||[]).filter(w=>(event.recipients||[]).includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
+    const ideaWishes=(event.ideas||[]).map(i=>({...i,id:i.id||crypto.randomUUID(),occasion:event.occasion,isEventIdea:true}));
+    const wishes=[...personalWishes,...ideaWishes];
     const wishCards=wishes.length?wishes.map(w=>{
       const ownWish=w.person===person;
       const claim=giftWishStatus(event,w);
@@ -782,7 +766,7 @@ function renderGiftEvents(){
       }
       return `<article class="gift-wish-card ${claim&&maySeeClaim?"claimed":""}">
         <div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>
-        ${w.photo?`<img src="${w.photo}" alt="">`:""}
+        ${w.photo?`<img src="${w.photo}" alt="">`:""}${w.isEventIdea?`<div class="gift-secret-note">💡 Extra cadeau-idee</div>`:""}
         ${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
         ${maySeeClaim&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:""}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:""}
         ${actions?`<div class="gift-actions">${actions}</div>`:""}
@@ -791,18 +775,26 @@ function renderGiftEvents(){
     return `<section class="item-card gift-event-card">
       <div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||"Overig")}${event.budget?` · budget € ${Number(event.budget).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:""}</div>
       <div class="chips">${(event.recipients||[]).map(x=>`<span class="chip">🎁 ${escapeHtml(x)}</span>`).join("")}</div>
-      <div class="gift-wishes">${wishCards}</div>
+      <div class="gift-wishes">${wishCards}</div>${canBuy?`<button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Cadeau-idee toevoegen</button>`:""}
     </section>`;
   }).join(""):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
 }
 function fillGiftMemberChecks(container,selected=[]){
   container.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.includes(p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
 }
+function updateGiftRecipientMode(){
+  const birthday=giftEventOccasion.value==="Verjaardag";
+  giftBirthdayRecipientLabel.classList.toggle("hidden",!birthday);
+  giftMultipleRecipients.classList.toggle("hidden",birthday);
+  if(birthday){
+    giftBirthdayRecipient.innerHTML=data.family.map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
+  }
+}
 window.openGiftEventDialog=id=>{
   const event=(data.giftEvents||[]).find(x=>x.id===id);
   if(event && !giftEventCanManage(event)) return;
   giftEventForm.reset(); giftEventEditId.value=event?.id||""; giftEventDialogTitle.textContent=event?"Cadeau-evenement bewerken":"Cadeau-evenement maken";
-  giftEventName.value=event?.name||""; giftEventOccasion.value=event?.occasion||"Verjaardag"; giftEventDate.value=event?.date||new Date().toISOString().slice(0,10); giftEventBudget.value=event?.budget||"";
+  giftEventName.value=event?.name||""; giftEventOccasion.value=event?.occasion||"Verjaardag"; giftEventDate.value=event?.date||new Date().toISOString().slice(0,10); giftEventBudget.value=event?.budget||""; updateGiftRecipientMode(); giftBirthdayRecipient.value=event?.recipients?.[0]||data.family[0]?.name||"";
   fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
   giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
 };
@@ -889,8 +881,8 @@ function fillSelects(){
   wishPerson.innerHTML=`<option>${safeName}</option>`;
   wishPerson.value=safeName;
   wishPerson.disabled=true;
-  wishPersonFilter.innerHTML=`<option value="${safeName}">${safeName}</option>`;
-  wishPersonFilter.value=safeName;
+  wishPersonFilter.innerHTML=`<option value="">Alle familieleden</option>`+data.family.map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
+  if(!wishPersonFilter.value) wishPersonFilter.value=safeName;
 }
 function renderProfile(){
   const name=currentUser?.displayName || currentUser?.name || "Niet ingelogd";
@@ -1457,6 +1449,7 @@ agendaVisibility.onchange=fillAgendaHouseholds;
 if(window.defaultCalendarSelect){defaultCalendarSelect.onchange=()=>setCalendarPreference(defaultCalendarSelect.value);}
 agendaTypeFilter.onchange=renderAgenda;
 agendaHouseholdFilter.onchange=renderAgenda;
+if(window.togglePastAgendaBtn) togglePastAgendaBtn.onclick=()=>{showPastAgenda=!showPastAgenda;renderAgenda();};
 
 agendaForm.onsubmit=e=>{
   e.preventDefault();
@@ -1643,20 +1636,34 @@ wishForm.onsubmit=e=>{
 
 
 if(window.addGiftEventBtn) addGiftEventBtn.onclick=()=>openGiftEventDialog();
+if(window.giftEventOccasion) giftEventOccasion.onchange=updateGiftRecipientMode;
 if(window.giftEventForm) giftEventForm.onsubmit=e=>{
   e.preventDefault();
-  const recipients=[...giftRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value);
+  const recipients=giftEventOccasion.value==='Verjaardag'?[giftBirthdayRecipient.value]:[...giftRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value);
   const buyers=[...giftBuyerChecks.querySelectorAll('input:checked')].map(x=>x.value);
   if(!recipients.length){giftEventMessage.textContent="Kies minimaal één ontvanger.";return;}
-  if(!buyers.length){giftEventMessage.textContent="Kies minimaal één persoon die cadeaus mag kopen.";return;}
+  const filteredBuyers=buyers.filter(x=>!recipients.includes(x)); if(!filteredBuyers.length){giftEventMessage.textContent="Kies minimaal één koper die geen ontvanger is.";return;}
   data.giftEvents=data.giftEvents||[]; const id=giftEventEditId.value; const existing=data.giftEvents.find(x=>x.id===id);
-  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers,claims:existing?.claims||{},createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers:filteredBuyers,claims:existing?.claims||{},ideas:existing?.ideas||[],createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.giftEvents.push(record);
   giftEventDialog.close(); saveData();
 };
 if(window.deleteGiftEventBtn) deleteGiftEventBtn.onclick=()=>{
   const event=(data.giftEvents||[]).find(x=>x.id===giftEventEditId.value); if(!event||!giftEventCanManage(event))return;
   if(!confirm(`Cadeau-evenement “${event.name}” verwijderen?`))return; data.giftEvents=data.giftEvents.filter(x=>x.id!==event.id); giftEventDialog.close(); saveData();
+};
+
+let giftIdeaEventId="";
+window.openGiftIdeaDialog=eventId=>{
+  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
+  giftIdeaEventId=eventId; giftIdeaForm.reset();
+  giftIdeaRecipient.innerHTML=(event.recipients||[]).map(x=>`<option value="${x}">${x}</option>`).join("");
+  giftIdeaDialog.showModal();
+};
+if(window.giftIdeaForm) giftIdeaForm.onsubmit=e=>{
+  e.preventDefault(); const event=(data.giftEvents||[]).find(x=>x.id===giftIdeaEventId); if(!event)return;
+  event.ideas=event.ideas||[]; event.ideas.push({id:crypto.randomUUID(),person:giftIdeaRecipient.value,title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),addedBy:currentPersonName(),createdAt:new Date().toISOString()});
+  giftIdeaDialog.close(); saveData();
 };
 
 function normalizeProductKey(p){
@@ -2125,22 +2132,27 @@ signupForm.onsubmit=async e=>{
   e.preventDefault();
   const email=signupEmail.value.trim().toLowerCase(), p1=signupPassword.value, p2=signupPassword2.value;
   if(p1!==p2){ signupMessage.textContent='De wachtwoorden zijn niet hetzelfde.'; return; }
-  signupMessage.textContent='Account aanmaken…';
+  signupMessage.textContent='Uitnodiging controleren…'; let result=null; signupVerificationInProgress=true;
   try{
-    const result=await auth.createUserWithEmailAndPassword(email,p1);
-    const snap=await db.doc(ADMIN_DOC).get();
-    const settings=snap.exists?snap.data():{};
-    const allowedByList=(settings.allowedEmails||[]).map(x=>String(x).toLowerCase()).includes(email);
-    const allowedByAccount=(settings.accounts||[]).some(a=>a && a.active!==false && String(a.email||'').toLowerCase()===email);
-    if(!allowedByList && !allowedByAccount){ await result.user.delete(); signupMessage.textContent='Dit e-mailadres is nog niet door Rinze uitgenodigd.'; return; }
-    signupDialog.close();
-    loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
+    result=await auth.createUserWithEmailAndPassword(email,p1);
+    const allowed=await verifyInvitedUser(result.user);
+    if(!allowed){
+      try{await result.user.delete();}catch(_){await auth.signOut();}
+      signupVerificationInProgress=false;
+      signupMessage.textContent='Je bent nog niet uitgenodigd voor deze familie. Vraag Rinze om jouw e-mailadres eerst bij Beheer toe te voegen.';
+      return;
+    }
+    signupVerificationInProgress=false;
+    signupDialog.close(); loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
+    showLoggedIn(provisionalProfile(result.user));
+    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{currentUser=profile;renderAll();});
   }catch(err){
-    const msgs={"auth/email-already-in-use":"Voor dit e-mailadres bestaat al een account.","auth/weak-password":"Kies een wachtwoord van minimaal 6 tekens.","auth/invalid-email":"Dit e-mailadres is niet geldig."};
-    signupMessage.textContent=msgs[err.code]||'Account aanmaken lukt niet.';
+    signupVerificationInProgress=false;
+    if(result?.user){try{await result.user.delete();}catch(_){try{await auth.signOut();}catch(__){}}}
+    const msgs={"auth/email-already-in-use":"Voor dit e-mailadres bestaat al een account. Log hiermee in.","auth/weak-password":"Kies een wachtwoord van minimaal 6 tekens.","auth/invalid-email":"Dit e-mailadres is niet geldig."};
+    signupMessage.textContent=msgs[err.code]||'Account aanmaken lukt niet. Controleer of Rinze dit e-mailadres heeft uitgenodigd.';
   }
 };
-
 
 profilePhotoInput.onchange=()=>{
   const file=profilePhotoInput.files?.[0];
@@ -2194,6 +2206,19 @@ logoutBtn.onclick=async()=>{
   renderProfile();
 };
 
+async function verifyInvitedUser(user){
+  const email=(user?.email||"").trim().toLowerCase();
+  if(email===ADMIN_EMAIL) return true;
+  try{
+    const snap=await db.doc(ADMIN_DOC).get();
+    if(!snap.exists) return false;
+    const settings=snap.data()||{};
+    return (settings.accounts||[]).some(a=>a&&a.active!==false&&String(a.email||"").trim().toLowerCase()===email)
+      || (settings.allowedEmails||[]).some(x=>String(x).trim().toLowerCase()===email);
+  }catch(err){
+    return false;
+  }
+}
 function showLoggedIn(user){
   const firstOpen=!currentUser;
   currentUser=user;
@@ -2232,8 +2257,7 @@ loginForm.onsubmit=async e=>{
       "Firebase reageert niet op tijd"
     );
 
-    // Open de app direct. Het profiel wordt daarna op de achtergrond geladen.
-    showLoggedIn(provisionalProfile(result.user));
+    loginMessage.textContent="Toegang controleren…";
   }catch(err){
     console.error("Firebase login error:", err.code, err.message);
 
@@ -2666,7 +2690,7 @@ if(window.diaryForm) diaryForm.onsubmit=async e=>{
   }catch(err){console.error(err);
     const code=String(err?.code||"");
     diaryMessage.textContent=(code.includes("permission-denied")||String(err?.message||"").toLowerCase().includes("insufficient permissions"))
-      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.19."
+      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.21."
       : (err.message||"Opslaan mislukt.");
   }
   finally{diarySaveBtn.disabled=false;}
@@ -2686,23 +2710,18 @@ function initFirebase(){
     auth=firebase.auth();
     db=firebase.firestore();
     storage=firebase.storage();
-    auth.onAuthStateChanged(user=>{
-      if(!user){
-        currentUser=null;
-        loginScreen.classList.remove("hidden");
+    auth.onAuthStateChanged(async user=>{
+      if(signupVerificationInProgress) return;
+      if(!user){ currentUser=null; loginScreen.classList.remove("hidden"); return; }
+      loginScreen.classList.remove("hidden"); loginMessage.textContent="Toegang controleren…";
+      const allowed=await verifyInvitedUser(user);
+      if(!allowed){
+        await auth.signOut();
+        loginMessage.textContent="Dit account is niet uitgenodigd voor Hogeterpjes. Vraag Rinze om toegang.";
         return;
       }
-
-      // Meteen openen met een voorlopig profiel.
       showLoggedIn(provisionalProfile(user));
-
-      // Daarna uitnodigingen en het echte profiel op de achtergrond laden.
-      loadAdminSettings().then(()=>loadUserProfile(user))
-        .then(profile=>{
-          currentUser=profile;
-          renderProfile();
-        })
-        .catch(err=>console.warn("Profiel bijwerken mislukt:",err));
+      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{currentUser=profile;renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
     firebaseStatus.textContent="Firebase gekoppeld";
     loginMessage.textContent="";
@@ -2731,7 +2750,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.18");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.21");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -1,8 +1,14 @@
-HOGETERPJES v1.3.20 – FIREBASE
+HOGETERPJES v1.3.21 – INSTALLATIE
 
-Voor deze versie zijn de Firestore- en Storage-regels niet gewijzigd.
-Je hoeft de regels daarom niet opnieuw te publiceren wanneer de regels van v1.3.18 al actief zijn.
+De Firestore- en Storage-regels zijn in deze versie niet gewijzigd.
+Je hoeft de regels niet opnieuw te publiceren als de regels van v1.3.18 of nieuwer al actief zijn.
 
-1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
-2. Sluit de Hogeterpjes-app volledig af.
-3. Open de app opnieuw, zodat versie v1.3.20 en de nieuwe cache worden geladen.
+1. Upload alle 13 losse bestanden uit deze versie naar GitHub Pages.
+2. Vervang de bestaande bestanden.
+3. Sluit Hogeterpjes volledig af.
+4. Open de app opnieuw zodat v1.3.21 en de nieuwe cache worden geladen.
+
+BELANGRIJK BIJ ACCOUNTS
+- Voeg een familielid eerst toe via Beheer > Uitnodiging klaarzetten.
+- Gebruik exact hetzelfde e-mailadres waarmee het familielid registreert of inlogt.
+- Niet-uitgenodigde accounts krijgen geen toegang tot de app.
