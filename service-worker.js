@@ -1,5 +1,5 @@
-const CACHE="hogeterpjes-v1.3.21-security-gifts-agenda";
-const ASSETS=["./","./index.html","./style.css?v=1.3.21","./app.js?v=1.3.21","./firebase-config.js?v=1.3.21","./manifest.json?v=1.3.21","./logo.jpg","./icon-192.png","./icon-512.png"];
+const CACHE="hogeterpjes-v1.3.22-duidelijke-cadeauteksten";
+const ASSETS=["./","./index.html","./style.css?v=1.3.22","./app.js?v=1.3.22","./firebase-config.js?v=1.3.22","./manifest.json?v=1.3.22","./logo.jpg","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
 self.addEventListener("message",e=>{if(e.data?.type==="SKIP_WAITING")self.skipWaiting()});

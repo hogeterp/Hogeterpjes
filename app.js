@@ -771,10 +771,15 @@ function renderGiftEvents(){
         ${maySeeClaim&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:""}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:""}
         ${actions?`<div class="gift-actions">${actions}</div>`:""}
       </article>`;
-    }).join(""):`<p class="muted">Nog geen passende wensen voor de gekozen ontvangers en gelegenheid.</p>`;
+    }).join(""):(event.occasion==="Verjaardag"
+      ? `<p class="muted">Nog geen wensen gevonden voor de verjaardag van ${escapeHtml((event.recipients||[])[0]||"de jarige")}.</p>`
+      : `<p class="muted">Er zijn nog geen wensen toegevoegd voor de gekozen personen.</p>`);
+    const peopleLabel=event.occasion==="Verjaardag"
+      ? `<span class="chip">🎂 Jarige: ${escapeHtml((event.recipients||[])[0]||"")}</span>`
+      : `<span class="chip">🎁 Voor: ${(event.recipients||[]).map(escapeHtml).join(", ")}</span>`;
     return `<section class="item-card gift-event-card">
       <div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||"Overig")}${event.budget?` · budget € ${Number(event.budget).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:""}</div>
-      <div class="chips">${(event.recipients||[]).map(x=>`<span class="chip">🎁 ${escapeHtml(x)}</span>`).join("")}</div>
+      <div class="chips">${peopleLabel}</div>
       <div class="gift-wishes">${wishCards}</div>${canBuy?`<button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Cadeau-idee toevoegen</button>`:""}
     </section>`;
   }).join(""):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
@@ -1641,8 +1646,8 @@ if(window.giftEventForm) giftEventForm.onsubmit=e=>{
   e.preventDefault();
   const recipients=giftEventOccasion.value==='Verjaardag'?[giftBirthdayRecipient.value]:[...giftRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value);
   const buyers=[...giftBuyerChecks.querySelectorAll('input:checked')].map(x=>x.value);
-  if(!recipients.length){giftEventMessage.textContent="Kies minimaal één ontvanger.";return;}
-  const filteredBuyers=buyers.filter(x=>!recipients.includes(x)); if(!filteredBuyers.length){giftEventMessage.textContent="Kies minimaal één koper die geen ontvanger is.";return;}
+  if(!recipients.length){giftEventMessage.textContent="Kies minimaal één persoon voor wie de cadeaus zijn.";return;}
+  const filteredBuyers=buyers.filter(x=>!recipients.includes(x)); if(!filteredBuyers.length){giftEventMessage.textContent="Kies minimaal één koper die zelf geen cadeau krijgt.";return;}
   data.giftEvents=data.giftEvents||[]; const id=giftEventEditId.value; const existing=data.giftEvents.find(x=>x.id===id);
   const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers:filteredBuyers,claims:existing?.claims||{},ideas:existing?.ideas||[],createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.giftEvents.push(record);
