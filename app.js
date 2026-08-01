@@ -50,6 +50,8 @@ let diaryEntries=[];
 let selectedDiaryPhotos=[];
 let diaryExistingPhotoPaths=[];
 let diaryPreviewObjectUrls=[];
+let privateGiftIdeas=[];
+let privateGiftIdeasUnsubscribe=null;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
@@ -731,6 +733,21 @@ function renderWishes(){
   wishPersonFilter.classList.remove("hidden");
   wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
+
+function privateGiftIdeasCollection(){
+  return db && currentUser ? db.collection("privateGiftIdeas").doc(currentUser.uid).collection("ideas") : null;
+}
+function subscribePrivateGiftIdeas(){
+  if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
+  privateGiftIdeas=[];
+  const collection=privateGiftIdeasCollection();
+  if(!collection) return;
+  privateGiftIdeasUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
+    privateGiftIdeas=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    renderGiftEvents();
+  },err=>{ console.error("Privé cadeau-ideeën laden mislukt",err); });
+}
+
 function giftEventCanManage(event){
   return isAdmin() || event.createdByUid===currentUser?.uid;
 }
@@ -753,10 +770,9 @@ function renderGiftEvents(){
   giftEventList.innerHTML=events.length?events.map(event=>{
     const canBuy=(event.buyers||[]).includes(person);
     const personalWishes=(data.wishes||[]).filter(w=>(event.recipients||[]).includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
-    const ideaWishes=(event.ideas||[]).map(i=>({...i,id:i.id||crypto.randomUUID(),occasion:event.occasion,isEventIdea:true}));
-    const wishes=[...personalWishes,...ideaWishes];
-    const wishCards=wishes.length?wishes.map(w=>{
-      const ownWish=w.person===person;
+    const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>i.eventId===event.id && (event.recipients||[]).includes(i.person));
+    const renderCard=(w,isPrivate=false)=>{
+      const ownWish=w.person===person && !isPrivate;
       const claim=giftWishStatus(event,w);
       const maySeeClaim=!ownWish;
       let actions="";
@@ -764,23 +780,27 @@ function renderGiftEvents(){
         if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`;
         else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`;
       }
-      return `<article class="gift-wish-card ${claim&&maySeeClaim?"claimed":""}">
-        <div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>
-        ${w.photo?`<img src="${w.photo}" alt="">`:""}${w.isEventIdea?`<div class="gift-secret-note">💡 Extra cadeau-idee</div>`:""}
+      return `<article class="gift-wish-card ${claim&&maySeeClaim?"claimed":""} ${isPrivate?"private-gift-idea":""}">
+        <div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${isPrivate?"Alleen voor jou zichtbaar":escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>
+        ${isPrivate?`<div class="gift-secret-note">🔒 Mijn verborgen cadeau-idee</div>`:""}
         ${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}
         ${maySeeClaim&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:""}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:""}
         ${actions?`<div class="gift-actions">${actions}</div>`:""}
+        ${isPrivate?`<button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${w.id}')">Verwijder privé-idee</button>`:""}
       </article>`;
-    }).join(""):(event.occasion==="Verjaardag"
-      ? `<p class="muted">Nog geen wensen gevonden voor de verjaardag van ${escapeHtml((event.recipients||[])[0]||"de jarige")}.</p>`
-      : `<p class="muted">Er zijn nog geen wensen toegevoegd voor de gekozen personen.</p>`);
+    };
+    const publicCards=personalWishes.length?personalWishes.map(w=>renderCard(w,false)).join(""):(event.occasion==="Verjaardag"
+      ? `<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml((event.recipients||[])[0]||"de jarige")}.</p>`
+      : `<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
+    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(w=>renderCard(w,true)).join(""):`<p class="muted">Je hebt nog geen verborgen cadeau-ideeën voor dit evenement.</p>`;
     const peopleLabel=event.occasion==="Verjaardag"
       ? `<span class="chip">🎂 Jarige: ${escapeHtml((event.recipients||[])[0]||"")}</span>`
       : `<span class="chip">🎁 Voor: ${(event.recipients||[]).map(escapeHtml).join(", ")}</span>`;
     return `<section class="item-card gift-event-card">
       <div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||"Overig")}${event.budget?` · budget € ${Number(event.budget).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:""}</div>
       <div class="chips">${peopleLabel}</div>
-      <div class="gift-wishes">${wishCards}</div>${canBuy?`<button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Cadeau-idee toevoegen</button>`:""}
+      <section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>
+      ${canBuy?`<section class="gift-section private-gift-section"><h4>🔒 Mijn verborgen cadeau-ideeën</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Verborgen idee toevoegen</button></section>`:""}
     </section>`;
   }).join(""):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
 }
@@ -1615,7 +1635,7 @@ deleteRecipeBtn.onclick=()=>{
 };
 wishForm.onsubmit=e=>{
   e.preventDefault(); const f=new FormData(wishForm);
-  const person=currentPersonName();
+  const person=wishPerson.value || currentPersonName();
   if(!person){
     alert("Je account is nog niet aan een familielid gekoppeld.");
     return;
@@ -1630,6 +1650,7 @@ wishForm.onsubmit=e=>{
     note:f.get("note"),
     photo:wishPhotoData.value,
     createdBy:currentUser?.uid || "",
+    addedByName:currentPersonName(),
     createdAt:new Date().toISOString()
   });
   wishForm.reset();
@@ -1663,12 +1684,22 @@ window.openGiftIdeaDialog=eventId=>{
   const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
   giftIdeaEventId=eventId; giftIdeaForm.reset();
   giftIdeaRecipient.innerHTML=(event.recipients||[]).map(x=>`<option value="${x}">${x}</option>`).join("");
+  giftIdeaMessage.textContent="";
   giftIdeaDialog.showModal();
 };
-if(window.giftIdeaForm) giftIdeaForm.onsubmit=e=>{
+window.deletePrivateGiftIdea=async id=>{
+  const collection=privateGiftIdeasCollection(); if(!collection)return;
+  if(!confirm("Dit verborgen cadeau-idee verwijderen?"))return;
+  try{ await collection.doc(id).delete(); }catch(err){ alert(err.message||"Verwijderen mislukt."); }
+};
+if(window.giftIdeaForm) giftIdeaForm.onsubmit=async e=>{
   e.preventDefault(); const event=(data.giftEvents||[]).find(x=>x.id===giftIdeaEventId); if(!event)return;
-  event.ideas=event.ideas||[]; event.ideas.push({id:crypto.randomUUID(),person:giftIdeaRecipient.value,title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),addedBy:currentPersonName(),createdAt:new Date().toISOString()});
-  giftIdeaDialog.close(); saveData();
+  const collection=privateGiftIdeasCollection();
+  if(!collection){ giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan."; return; }
+  try{
+    await collection.add({eventId:event.id,person:giftIdeaRecipient.value,title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),ownerUid:currentUser.uid,ownerName:currentPersonName(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});
+    giftIdeaDialog.close();
+  }catch(err){ console.error(err); giftIdeaMessage.textContent=err.message||"Opslaan mislukt."; }
 };
 
 function normalizeProductKey(p){
@@ -2203,7 +2234,9 @@ logoutBtn.onclick=async()=>{
   if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
   if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
   if(diaryUnsubscribe){ diaryUnsubscribe(); diaryUnsubscribe=null; }
+  if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
   diaryEntries=[];
+  privateGiftIdeas=[];
   cloudReady=false;
   currentUser=null;
   loginScreen.classList.remove("hidden");
@@ -2239,7 +2272,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribePrivateGiftIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 

@@ -1,18 +1,14 @@
-# Hogeterpjes v1.3.22
+# Hogeterpjes v1.3.23
 
-## Cadeau-evenementen duidelijker
-- Bij een verjaardag staat nu **🎂 Jarige: naam** in plaats van alleen een onduidelijk cadeau-label.
-- Wanneer er geen wensen zijn, noemt de melding duidelijk de jarige.
-- Bij Sinterklaas, Kerst en overige evenementen staat **🎁 Voor:** met de gekozen personen.
-- In het formulier heet de meervoudige keuze nu **Voor wie zijn de cadeaus?** in plaats van **Ontvangers**.
-- De uitleg over geheimhouding gebruikt duidelijkere taal.
-
-## Agenda en beveiliging
-- De agenda blijft per dag gegroepeerd, met verlopen afspraken onder **Eerdere afspraken**.
-- Alleen vooraf uitgenodigde e-mailadressen krijgen toegang.
+## Wensen en cadeau-evenementen
+- Iedereen kan alle openbare wensen bekijken.
+- Een openbare wens kan voor ieder familielid worden toegevoegd.
+- In een cadeau-evenement staan openbare wensen apart van persoonlijke verborgen cadeau-ideeën.
+- Een verborgen cadeau-idee is uitsluitend zichtbaar voor de gebruiker die het heeft toegevoegd.
+- Verborgen ideeën worden veilig in een persoonlijke Firestore-collectie opgeslagen.
 
 ## Firebase
-De Firestore- en Storage-regels zijn niet gewijzigd. Bestaande regels van v1.3.18 of nieuwer kunnen actief blijven.
+De Firestore-regels zijn gewijzigd. Publiceer `firestore.rules` opnieuw voordat verborgen cadeau-ideeën kunnen worden opgeslagen. De Storage-regels zijn niet gewijzigd.
 
 ## Uploaden
-Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open de app opnieuw.
+Upload alle 13 losse bestanden naar GitHub Pages, vervang de bestaande bestanden en sluit de app daarna volledig af.

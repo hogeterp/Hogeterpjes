@@ -1,14 +1,13 @@
-HOGETERPJES v1.3.22 – INSTALLATIE
+HOGETERPJES v1.3.23 – INSTALLATIE
 
-De Firestore- en Storage-regels zijn in deze versie niet gewijzigd.
-Je hoeft de regels niet opnieuw te publiceren als de regels van v1.3.18 of nieuwer al actief zijn.
+BELANGRIJK: de Firestore-regels zijn gewijzigd voor persoonlijke verborgen cadeau-ideeën.
 
-1. Upload alle 13 losse bestanden uit deze versie naar GitHub Pages.
-2. Vervang de bestaande bestanden.
-3. Sluit Hogeterpjes volledig af.
-4. Open de app opnieuw zodat v1.3.22 en de nieuwe cache worden geladen.
+1. Open Firebase Console en kies project Hogeterpjes.
+2. Ga naar Firestore Database > Rules.
+3. Vervang de regels door de inhoud van firestore.rules uit deze versie.
+4. Klik op Publiceren.
+5. Storage-regels hoeven niet opnieuw te worden gepubliceerd.
+6. Upload daarna alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+7. Sluit Hogeterpjes volledig af en open de app opnieuw.
 
-NIEUW
-- Bij verjaardagen staat duidelijk wie de jarige is.
-- Bij andere cadeau-evenementen staat duidelijk voor wie de cadeaus zijn.
-- Meldingen zonder wensen zijn duidelijker geformuleerd.
+Verborgen cadeau-ideeën worden per gebruikersaccount opgeslagen en zijn door de beveiligingsregels alleen voor de maker leesbaar.
