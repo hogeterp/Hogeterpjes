@@ -58,6 +58,8 @@ let sharedCollectionsReady=false;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
+let agendaSaveInProgress=false;
+const agendaDeleteInProgress=new Set();
 const SHARED_DATA_DOC="appData/hogeterpjes";
 const ADMIN_DOC="appAdmin/settings";
 const WEEK_MENUS_COLLECTION="sharedWeekMenus";
@@ -164,8 +166,12 @@ async function saveWeekMenuRecord(record,beforeValue=null){
 async function deleteWeekMenuRecord(record){
   if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
   setSyncStatus("Weekmenu verwijderen…");
-  await writeChangeLog("weekmenu","delete",record,null);
-  await db.collection(WEEK_MENUS_COLLECTION).doc(record.id).delete();
+  await withTimeout(
+    db.collection(WEEK_MENUS_COLLECTION).doc(record.id).delete(),
+    20000,
+    "Weekmenu verwijderen duurde te lang"
+  );
+  void writeChangeLog("weekmenu","delete",record,null);
   setSyncStatus("✓ Weekmenu bijgewerkt");
 }
 async function saveSharedAgendaRecord(record,beforeValue=null){
@@ -178,8 +184,12 @@ async function saveSharedAgendaRecord(record,beforeValue=null){
 async function deleteSharedAgendaRecord(record){
   if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
   setSyncStatus("Afspraak verwijderen…");
-  await writeChangeLog("agenda","delete",record,null);
-  await db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).delete();
+  await withTimeout(
+    db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).delete(),
+    20000,
+    "Afspraak verwijderen duurde te lang"
+  );
+  void writeChangeLog("agenda","delete",record,null);
   setSyncStatus("✓ Agenda bijgewerkt");
 }
 
@@ -1582,6 +1592,11 @@ if(window.togglePastAgendaBtn) togglePastAgendaBtn.onclick=()=>{showPastAgenda=!
 
 agendaForm.onsubmit=async e=>{
   e.preventDefault();
+  if(agendaSaveInProgress) return;
+  agendaSaveInProgress=true;
+  const submitBtn=agendaForm.querySelector('button[type="submit"]');
+  const originalSubmitText=submitBtn?.textContent || "Opslaan";
+  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent="Bezig met opslaan…"; }
   const f=new FormData(agendaForm);
   const visibility=f.get("visibility");
 
@@ -1618,22 +1633,43 @@ agendaForm.onsubmit=async e=>{
       data.events=(data.events||[]).filter(x=>x.id!==event.id); data.events.push(event); renderAgenda(); renderDashboard();
     }
     agendaDialog.close(); resetAgendaPhoto();
-  }catch(error){ console.error(error); showSaveWarning("De afspraak is niet opgeslagen. Laat de app open en probeer opnieuw."); }
+    showSaveWarning("✓ Afspraak opgeslagen");
+  }catch(error){
+    console.error(error);
+    showSaveWarning(`De afspraak is niet opgeslagen${error?.message?`: ${error.message}`:""}. Probeer opnieuw.`);
+  }finally{
+    agendaSaveInProgress=false;
+    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent=originalSubmitText; }
+  }
 };
 
 window.deleteAgendaEvent=async (id,visibility)=>{
+  if(agendaDeleteInProgress.has(id)) return;
   if(!confirm("Deze afspraak verwijderen?")) return;
 
   if(visibility==="private"){
     savePrivateEvents(loadPrivateEvents().filter(e=>e.id!==id));
     renderAgenda();
+    renderDashboard();
+    showSaveWarning("✓ Afspraak verwijderd");
     return;
   }
 
   const record=(data.events||[]).find(e=>e.id===id); if(!record)return;
-  data.events=(data.events||[]).filter(e=>e.id!==id); renderAgenda();
-  try{ await deleteSharedAgendaRecord(record); renderDashboard(); }
-  catch(error){ data.events.push(record); renderAgenda(); showSaveWarning("Verwijderen mislukt. De afspraak is teruggezet."); }
+  agendaDeleteInProgress.add(id);
+  try{
+    await deleteSharedAgendaRecord(record);
+    data.events=(data.events||[]).filter(e=>e.id!==id);
+    localStorage.setItem(KEY,JSON.stringify(data));
+    renderAgenda();
+    renderDashboard();
+    showSaveWarning("✓ Afspraak verwijderd");
+  }catch(error){
+    console.error("Afspraak verwijderen mislukt",error);
+    showSaveWarning(`Verwijderen mislukt${error?.message?`: ${error.message}`:""}. De afspraak is niet verwijderd.`);
+  }finally{
+    agendaDeleteInProgress.delete(id);
+  }
 };
 
 function openNewRecipeDialog(){

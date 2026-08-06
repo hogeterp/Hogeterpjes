@@ -1,15 +1,10 @@
-HOGETERPJES v1.3.25 – VEILIGE OPSLAG
+HOGETERPJES v1.3.26 – AGENDAFIX
 
-BELANGRIJK: de Firestore-regels zijn gewijzigd voor de aparte opslag van agenda en weekmenu.
+De Firestore-regels en Storage-regels zijn NIET gewijzigd ten opzichte van v1.3.25.
+Als je de regels uit v1.3.25 al hebt gepubliceerd, hoef je ze niet opnieuw te publiceren.
 
-1. Open Firebase Console en kies project Hogeterpjes.
-2. Ga naar Firestore Database > Rules.
-3. Vervang de regels door de inhoud van firestore.rules uit deze versie.
-4. Klik op Publiceren.
-5. Storage-regels hoeven niet opnieuw te worden gepubliceerd.
-6. Upload daarna alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
-7. Sluit Hogeterpjes op alle telefoons volledig af.
-8. Open Hogeterpjes daarna eerst op één telefoon en wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
-9. Open de app vervolgens op de andere telefoons.
-
-Bestaande agenda- en weekmenugegevens worden bij de eerste start automatisch naar de nieuwe aparte Firebase-collecties overgezet. Nieuwe wijzigingen kunnen daarna niet meer door een verouderde volledige gegevenskopie worden overschreven.
+1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+2. Sluit Hogeterpjes op alle telefoons volledig af.
+3. Open de app opnieuw en controleer dat v1.3.26 bovenaan staat.
+4. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
+5. Verwijder daarna drie van de vier dubbele afspraken.

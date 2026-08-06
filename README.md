@@ -1,20 +1,15 @@
-# Hogeterpjes v1.3.25
+# Hogeterpjes v1.3.26
 
-## Belangrijkste verbetering: veilig opslaan
-- Gedeelde agenda-afspraken worden voortaan als afzonderlijke Firebase-documenten opgeslagen.
-- Weekmenu-gerechten worden eveneens afzonderlijk opgeslagen.
-- Een telefoon met oudere gegevens kan daardoor niet meer het volledige weekmenu of de hele agenda overschrijven.
-- Na opslaan verschijnt pas een bevestiging nadat Firebase het opslaan heeft bevestigd.
-- Bij een fout verschijnt een duidelijke rode waarschuwing en wordt een mislukte verwijdering lokaal teruggezet.
-- Wijzigingen aan agenda en weekmenu worden in een alleen door Rinze leesbaar wijzigingslog vastgelegd.
-- Bij verborgen cadeau-ideeën kun je nu direct een camerafoto of een screenshot uit de galerij toevoegen.
-- Bestaande agenda- en weekmenugegevens worden bij de eerste start automatisch naar de nieuwe opslag gemigreerd.
-
-## Overige functies
-Alle functies uit v1.3.24, waaronder persoonlijke verborgen cadeau-ideeën, blijven behouden.
+## Agenda gerepareerd
+- Na één tik op Opslaan wordt de knop direct uitgeschakeld en toont hij “Bezig met opslaan…”.
+- Meerdere snelle tikken kunnen niet langer dubbele afspraken maken.
+- Het venster sluit pas nadat Firebase het opslaan heeft bevestigd.
+- Verwijderen gebeurt nu eerst rechtstreeks in `sharedAgendaEvents`; het wijzigingslog wordt daarna apart geschreven.
+- Bij een fout verschijnt de echte foutmelding en blijft de afspraak zichtbaar.
+- Dezelfde verbetering is toegepast op het verwijderen van weekmenu-items.
 
 ## Firebase
-De Firestore-regels zijn gewijzigd. Publiceer `firestore.rules` uit deze versie voordat je de nieuwe webbestanden gebruikt. Storage-regels zijn niet gewijzigd.
+De Firestore- en Storage-regels zijn niet gewijzigd ten opzichte van v1.3.25. Wanneer de regels van v1.3.25 al zijn gepubliceerd, hoef je ze niet opnieuw te publiceren.
 
 ## Uploaden
-Upload alle 13 losse bestanden naar GitHub Pages, vervang de bestaande bestanden, sluit de app volledig af en open hem opnieuw.
+Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit daarna Hogeterpjes volledig af en open de app opnieuw.
