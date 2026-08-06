@@ -205,7 +205,7 @@ function subscribeSharedCollections(){
       const batch=db.batch(); data.weekMenus.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
       await batch.commit();
     }else{
-      data.weekMenus=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderWeekmenu(); renderDashboard();
+      data.weekMenus=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderWeekmenu(); renderHome();
     }
     weekLoaded=true; markReady();
   },error=>{ console.error(error); setSyncStatus("Weekmenu kon niet worden geladen",true); });
@@ -215,7 +215,7 @@ function subscribeSharedCollections(){
       const batch=db.batch(); data.events.forEach(row=>batch.set(db.collection(SHARED_AGENDA_COLLECTION).doc(row.id),row));
       await batch.commit();
     }else{
-      data.events=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderAgenda(); renderDashboard();
+      data.events=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderAgenda(); renderHome();
     }
     agendaLoaded=true; markReady();
   },error=>{ console.error(error); setSyncStatus("Agenda kon niet worden geladen",true); });
@@ -1630,7 +1630,7 @@ agendaForm.onsubmit=async e=>{
       if(editId && originalVisibility==="private") savePrivateEvents(loadPrivateEvents().filter(x=>x.id!==editId));
       if(editId && originalVisibility!=="private" && originalVisibility!==visibility && original) await deleteSharedAgendaRecord(original);
       await saveSharedAgendaRecord(event,originalVisibility!=="private"?original:null);
-      data.events=(data.events||[]).filter(x=>x.id!==event.id); data.events.push(event); renderAgenda(); renderDashboard();
+      data.events=(data.events||[]).filter(x=>x.id!==event.id); data.events.push(event); renderAgenda(); renderHome();
     }
     agendaDialog.close(); resetAgendaPhoto();
     showSaveWarning("✓ Afspraak opgeslagen");
@@ -1650,7 +1650,7 @@ window.deleteAgendaEvent=async (id,visibility)=>{
   if(visibility==="private"){
     savePrivateEvents(loadPrivateEvents().filter(e=>e.id!==id));
     renderAgenda();
-    renderDashboard();
+    renderHome();
     showSaveWarning("✓ Afspraak verwijderd");
     return;
   }
@@ -1662,7 +1662,7 @@ window.deleteAgendaEvent=async (id,visibility)=>{
     data.events=(data.events||[]).filter(e=>e.id!==id);
     localStorage.setItem(KEY,JSON.stringify(data));
     renderAgenda();
-    renderDashboard();
+    renderHome();
     showSaveWarning("✓ Afspraak verwijderd");
   }catch(error){
     console.error("Afspraak verwijderen mislukt",error);

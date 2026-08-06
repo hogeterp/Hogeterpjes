@@ -1,10 +1,11 @@
-HOGETERPJES v1.3.26 – AGENDAFIX
+HOGETERPJES v1.3.27 – AGENDAFIX 2
 
-De Firestore-regels en Storage-regels zijn NIET gewijzigd ten opzichte van v1.3.25.
-Als je de regels uit v1.3.25 al hebt gepubliceerd, hoef je ze niet opnieuw te publiceren.
+De Firestore-regels en Storage-regels zijn NIET gewijzigd ten opzichte van v1.3.25 en v1.3.26.
+Als je die regels al hebt gepubliceerd, hoef je ze niet opnieuw te publiceren.
 
 1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit Hogeterpjes op alle telefoons volledig af.
-3. Open de app opnieuw en controleer dat v1.3.26 bovenaan staat.
+3. Open de app opnieuw en controleer dat v1.3.27 bovenaan staat.
 4. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
-5. Verwijder daarna drie van de vier dubbele afspraken.
+5. Probeer daarna één dubbele afspraak te verwijderen.
+6. Werkt dit goed, verwijder dan de overige dubbele afspraken.
