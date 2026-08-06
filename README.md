@@ -1,15 +1,16 @@
-# Hogeterpjes v1.3.27
+# Hogeterpjes v1.3.28
 
-## Agenda gerepareerd
-- De fout `renderDashboard is not defined` is opgelost.
-- Na opslaan, verwijderen en synchroniseren wordt het beginscherm nu bijgewerkt met de bestaande functie `renderHome()`.
-- Agenda-afspraken kunnen daardoor na bevestiging uit Firebase normaal worden verwijderd.
-- De beveiliging tegen meerdere snelle tikken op Opslaan blijft behouden.
-- De echte Firebase-foutmelding blijft zichtbaar als een bewerking toch mislukt.
-- Dezelfde veilige Firebase-opslag voor agenda en weekmenu uit v1.3.26 blijft behouden.
+## Nieuw
+- Agenda-afspraken kunnen nu zichtbaar worden gemaakt voor zelf gekozen familieleden, bijvoorbeeld alleen Rinze en Christa.
+- Bij **Voor wie?** staat de nieuwe keuze **Zelf personen kiezen** met vinkjes per familielid.
+- Nieuw onderdeel **Mijn to-do's**: iedere gebruiker heeft een eigen, volledig privé takenlijst.
+- Taken kunnen worden toegevoegd, bewerkt, afgevinkt en verwijderd, met datum, tijd, omschrijving en prioriteit.
 
 ## Firebase
-De Firestore- en Storage-regels zijn niet gewijzigd ten opzichte van v1.3.25/v1.3.26. Wanneer die regels al zijn gepubliceerd, hoef je ze niet opnieuw te publiceren.
+De Firestore-regels zijn gewijzigd voor de nieuwe privé to-do-collectie `privateTodos`. Publiceer daarom eerst `firestore.rules` uit deze versie. Storage-regels zijn niet gewijzigd.
 
 ## Uploaden
-Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit daarna Hogeterpjes volledig af en open de app opnieuw. Controleer bovenaan dat versie 1.3.27 zichtbaar is.
+1. Publiceer eerst de nieuwe `firestore.rules` in Firebase.
+2. Upload daarna alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
+3. Sluit Hogeterpjes volledig af en open de app opnieuw.
+4. Controleer bovenaan dat versie 1.3.28 zichtbaar is.

@@ -52,6 +52,8 @@ let diaryExistingPhotoPaths=[];
 let diaryPreviewObjectUrls=[];
 let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
+let privateTodos=[];
+let privateTodosUnsubscribe=null;
 let weekMenusUnsubscribe=null;
 let sharedAgendaUnsubscribe=null;
 let sharedCollectionsReady=false;
@@ -550,6 +552,7 @@ function userHouseholdIds(){
 function canSeeSharedEvent(event){
   if(event.visibility==="family") return true;
   if(event.visibility==="household") return userHouseholdIds().includes(event.householdId);
+  if(event.visibility==="selected") return Array.isArray(event.visibleTo) && event.visibleTo.includes(currentPersonName());
   return false;
 }
 
@@ -565,6 +568,7 @@ function formatAgendaDate(event){
 function agendaScopeLabel(event){
   if(event.visibility==="private") return "🔒 Privé";
   if(event.visibility==="family") return "👨‍👩‍👧‍👦 Familie";
+  if(event.visibility==="selected") return `👥 ${Array.isArray(event.visibleTo)?event.visibleTo.join(", "):"Gekozen personen"}`;
   const household=data.households.find(h=>h.id===event.householdId);
   return `🏡 ${household?.name || "Huishouden"}`;
 }
@@ -609,6 +613,12 @@ function fillAgendaHouseholds(){
   const allowed=data.households.filter(h=>userHouseholdIds().includes(h.id));
   agendaHousehold.innerHTML=allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
   agendaHouseholdLabel.classList.toggle("hidden",agendaVisibility.value!=="household");
+  if(window.agendaSelectedPeopleField){
+    agendaSelectedPeopleField.classList.toggle("hidden",agendaVisibility.value!=="selected");
+    if(agendaVisibility.value==="selected" && !agendaSelectedPeopleChecks.children.length){
+      agendaSelectedPeopleChecks.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" name="visibleTo" value="${escapeHtml(p.name)}"><span>${escapeHtml(p.name)}</span></label>`).join("");
+    }
+  }
 }
 
 function navigate(page){
@@ -872,6 +882,53 @@ function renderPrivateGiftIdeasPage(){
     </article>`).join('')}</div>
   </section>`).join(''):`<div class="card muted private-idea-empty">${q?'Geen cadeau-ideeën gevonden.':'Je hebt nog geen verborgen cadeau-ideeën.'}</div>`;
 }
+function privateTodosCollection(){
+  return db && currentUser ? db.collection("privateTodos").doc(currentUser.uid).collection("items") : null;
+}
+function subscribePrivateTodos(){
+  if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
+  privateTodos=[];
+  const collection=privateTodosCollection();
+  if(!collection){ renderPrivateTodos(); return; }
+  privateTodosUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
+    privateTodos=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    renderPrivateTodos();
+  },err=>{ console.error("Privé to-do's laden mislukt",err); showSaveWarning("Je to-do's konden niet worden geladen."); });
+}
+function todoPriorityLabel(priority){ return ({high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[priority]||"🟡 Normaal"; }
+function renderPrivateTodos(){
+  if(!window.todoList) return;
+  const showCompleted=window.todoShowCompleted?.checked ?? true;
+  const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>{
+    if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
+    const ad=(a.date||"9999-12-31")+" "+(a.time||"");
+    const bd=(b.date||"9999-12-31")+" "+(b.time||"");
+    return ad.localeCompare(bd);
+  });
+  todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
+    <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
+    ${t.note?`<p>${escapeHtml(t.note).replaceAll("\n","<br>")}</p>`:""}
+    <div class="todo-actions"><button class="secondary-btn" type="button" onclick="openTodoDialog('${t.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateTodo('${t.id}')">Verwijderen</button></div>
+  </article>`).join(""):`<div class="card muted">Je hebt nog geen persoonlijke taken.</div>`;
+}
+window.openTodoDialog=(id="")=>{
+  todoForm.reset(); todoEditId.value=id; todoDialogTitle.textContent=id?"Taak wijzigen":"Taak toevoegen";
+  const item=(privateTodos||[]).find(t=>t.id===id);
+  if(item){ todoTitle.value=item.title||""; todoNote.value=item.note||""; todoDate.value=item.date||""; todoTime.value=item.time||""; todoPriority.value=item.priority||"normal"; }
+  else todoPriority.value="normal";
+  todoDialog.showModal();
+};
+window.togglePrivateTodo=async(id,completed)=>{
+  const item=(privateTodos||[]).find(t=>t.id===id); if(!item)return;
+  try{ await privateTodosCollection().doc(id).set({...item,completed,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }
+  catch(error){ console.error(error); showSaveWarning(`Taak aanpassen mislukt${error?.message?`: ${error.message}`:""}.`); }
+};
+window.deletePrivateTodo=async id=>{
+  if(!confirm("Deze taak verwijderen?"))return;
+  try{ await privateTodosCollection().doc(id).delete(); showSaveWarning("✓ Taak verwijderd"); }
+  catch(error){ console.error(error); showSaveWarning(`Taak verwijderen mislukt${error?.message?`: ${error.message}`:""}.`); }
+};
+
 function giftEventCanManage(event){
   return isAdmin() || event.createdByUid===currentUser?.uid;
 }
@@ -1036,7 +1093,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1567,6 +1624,10 @@ window.editAgendaFromDetails=()=>{
   agendaForm.elements.visibility.value=event.visibility||"private";
   fillAgendaHouseholds();
   agendaForm.elements.householdId.value=event.householdId||"";
+  if(window.agendaSelectedPeopleChecks){
+    const selected=new Set(Array.isArray(event.visibleTo)?event.visibleTo:[]);
+    agendaSelectedPeopleChecks.querySelectorAll('input[name="visibleTo"]').forEach(input=>input.checked=selected.has(input.value));
+  }
   agendaForm.elements.location.value=event.location||"";
   setAgendaPhoto(event.photo||"");
   agendaForm.elements.note.value=event.note||"";
@@ -1584,7 +1645,15 @@ addAgendaBtn.onclick=()=>{
   agendaDialog.showModal();
 };
 
-agendaVisibility.onchange=fillAgendaHouseholds;
+agendaVisibility.onchange=()=>{
+  fillAgendaHouseholds();
+  if(agendaVisibility.value==="selected"){
+    const checks=[...agendaSelectedPeopleChecks.querySelectorAll('input[name="visibleTo"]')];
+    if(!checks.some(x=>x.checked)){
+      const own=checks.find(x=>x.value===currentPersonName()); if(own) own.checked=true;
+    }
+  }
+};
 if(window.defaultCalendarSelect){defaultCalendarSelect.onchange=()=>setCalendarPreference(defaultCalendarSelect.value);}
 agendaTypeFilter.onchange=renderAgenda;
 agendaHouseholdFilter.onchange=renderAgenda;
@@ -1599,6 +1668,13 @@ agendaForm.onsubmit=async e=>{
   if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent="Bezig met opslaan…"; }
   const f=new FormData(agendaForm);
   const visibility=f.get("visibility");
+  const visibleTo=visibility==="selected" ? f.getAll("visibleTo").map(String) : [];
+  if(visibility==="selected" && !visibleTo.length){
+    agendaSaveInProgress=false;
+    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent=originalSubmitText; }
+    showSaveWarning("Kies minimaal één persoon die deze afspraak mag zien.");
+    return;
+  }
 
   const editId=agendaEditId.value;
   const originalVisibility=agendaEditVisibility.value;
@@ -1611,6 +1687,7 @@ agendaForm.onsubmit=async e=>{
     endTime:f.get("endTime"),
     visibility,
     householdId:visibility==="household" ? f.get("householdId") : "",
+    visibleTo,
     location:String(f.get("location")||"").trim(),
     photo:agendaPhotoData.value||"",
     note:String(f.get("note")||"").trim(),
@@ -1670,6 +1747,25 @@ window.deleteAgendaEvent=async (id,visibility)=>{
   }finally{
     agendaDeleteInProgress.delete(id);
   }
+};
+
+if(window.addTodoBtn) addTodoBtn.onclick=()=>openTodoDialog();
+if(window.todoShowCompleted) todoShowCompleted.onchange=renderPrivateTodos;
+if(window.todoForm) todoForm.onsubmit=async e=>{
+  e.preventDefault();
+  const id=todoEditId.value || crypto.randomUUID();
+  const original=(privateTodos||[]).find(t=>t.id===id);
+  const record={
+    id,title:todoTitle.value.trim(),note:todoNote.value.trim(),date:todoDate.value,time:todoTime.value,
+    priority:todoPriority.value||"normal",completed:original?.completed||false,
+    createdAt:original?.createdAt||firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const button=todoForm.querySelector('button[type="submit"]'); const label=button.textContent;
+  button.disabled=true; button.textContent="Bezig met opslaan…";
+  try{ await privateTodosCollection().doc(id).set(record,{merge:true}); todoDialog.close(); showSaveWarning("✓ Taak opgeslagen"); }
+  catch(error){ console.error(error); showSaveWarning(`Taak opslaan mislukt${error?.message?`: ${error.message}`:""}.`); }
+  finally{ button.disabled=false; button.textContent=label; }
 };
 
 function openNewRecipeDialog(){
@@ -2390,8 +2486,10 @@ logoutBtn.onclick=async()=>{
   if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
   if(diaryUnsubscribe){ diaryUnsubscribe(); diaryUnsubscribe=null; }
   if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
+  if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
   diaryEntries=[];
   privateGiftIdeas=[];
+  privateTodos=[];
   cloudReady=false;
   currentUser=null;
   loginScreen.classList.remove("hidden");
@@ -2427,7 +2525,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
