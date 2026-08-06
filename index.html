@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.24">
-  <link rel="stylesheet" href="style.css?v=1.3.24">
+  <link rel="manifest" href="manifest.json?v=1.3.25">
+  <link rel="stylesheet" href="style.css?v=1.3.25">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.24</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.25</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.24</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.25</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -715,6 +715,15 @@
       <label>Cadeau-idee<input id="giftIdeaTitle" required maxlength="140" placeholder="Bijvoorbeeld: parfum"></label>
       <label>Prijs (optioneel)<input id="giftIdeaPrice" type="number" min="0" step="0.01"></label>
       <label>Link (optioneel)<input id="giftIdeaLink" type="url"></label>
+      <div class="gift-idea-photo-field">
+        <span class="field-label">Foto of screenshot (optioneel)</span>
+        <div class="photo-action-row">
+          <label class="secondary-btn photo-action">📷 Camera<input id="giftIdeaCameraInput" type="file" accept="image/*" capture="environment"></label>
+          <label class="secondary-btn photo-action">🖼️ Screenshot / galerij<input id="giftIdeaGalleryInput" type="file" accept="image/*"></label>
+        </div>
+        <input id="giftIdeaPhotoData" type="hidden">
+        <div id="giftIdeaPhotoPreviewWrap" class="gift-idea-photo-preview hidden"><img id="giftIdeaPhotoPreview" alt="Voorbeeld cadeau-idee"><button id="removeGiftIdeaPhotoBtn" class="text-btn" type="button">Foto verwijderen</button></div>
+      </div>
       <label>Status<select id="giftIdeaStatus"><option value="idea">Idee</option><option value="reserved">Gereserveerd</option><option value="bought">Gekocht</option><option value="wrapped">Ingepakt</option></select></label>
       <label class="check-row-simple"><input id="giftIdeaFavorite" type="checkbox"> ⭐ Favoriet</label>
       <label>Opmerking (optioneel)<textarea id="giftIdeaNote" rows="4"></textarea></label>
@@ -849,7 +858,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.24"></script>
-  <script src="app.js?v=1.3.24"></script>
+  <script src="firebase-config.js?v=1.3.25"></script>
+  <script src="app.js?v=1.3.25"></script>
 </body>
 </html>

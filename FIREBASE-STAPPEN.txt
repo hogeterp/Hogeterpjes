@@ -1,15 +1,15 @@
-HOGETERPJES v1.3.24 – INSTALLATIE
+HOGETERPJES v1.3.25 – VEILIGE OPSLAG
 
-De Firestore- en Storage-regels zijn in deze versie niet gewijzigd ten opzichte van v1.3.23.
-Als je de regels van v1.3.23 al hebt gepubliceerd, hoef je ze niet opnieuw te publiceren.
+BELANGRIJK: de Firestore-regels zijn gewijzigd voor de aparte opslag van agenda en weekmenu.
 
-1. Upload alle 13 losse bestanden uit deze versie naar GitHub Pages.
-2. Vervang de bestaande bestanden.
-3. Sluit Hogeterpjes volledig af.
-4. Open de app opnieuw zodat v1.3.24 en de nieuwe cache worden geladen.
+1. Open Firebase Console en kies project Hogeterpjes.
+2. Ga naar Firestore Database > Rules.
+3. Vervang de regels door de inhoud van firestore.rules uit deze versie.
+4. Klik op Publiceren.
+5. Storage-regels hoeven niet opnieuw te worden gepubliceerd.
+6. Upload daarna alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+7. Sluit Hogeterpjes op alle telefoons volledig af.
+8. Open Hogeterpjes daarna eerst op één telefoon en wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
+9. Open de app vervolgens op de andere telefoons.
 
-NIEUW
-- Eigen pagina Mijn cadeau-ideeën.
-- Verborgen ideeën gegroepeerd per familielid.
-- Eén idee kan voor meerdere familieleden zijn.
-- Bewerken, verwijderen, favoriet en status.
+Bestaande agenda- en weekmenugegevens worden bij de eerste start automatisch naar de nieuwe aparte Firebase-collecties overgezet. Nieuwe wijzigingen kunnen daarna niet meer door een verouderde volledige gegevenskopie worden overschreven.

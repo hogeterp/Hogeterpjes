@@ -29,6 +29,18 @@ service cloud.firestore {
     match /appData/hogeterpjes {
       allow read, write: if isInvited() || isAdmin();
     }
+
+    match /sharedWeekMenus/{mealId} {
+      allow read, create, update, delete: if isInvited() || isAdmin();
+    }
+    match /sharedAgendaEvents/{eventId} {
+      allow read, create, update, delete: if isInvited() || isAdmin();
+    }
+    match /appChangeLog/{changeId} {
+      allow read: if isAdmin();
+      allow create: if isInvited() || isAdmin();
+      allow update, delete: if false;
+    }
     match /profielen/{userId} {
       allow read: if signedIn() && ((request.auth.uid == userId && (isInvited() || isAdmin())) || isAdmin());
       allow write: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());

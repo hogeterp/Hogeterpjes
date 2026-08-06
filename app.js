@@ -52,11 +52,17 @@ let diaryExistingPhotoPaths=[];
 let diaryPreviewObjectUrls=[];
 let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
+let weekMenusUnsubscribe=null;
+let sharedAgendaUnsubscribe=null;
+let sharedCollectionsReady=false;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
 const SHARED_DATA_DOC="appData/hogeterpjes";
 const ADMIN_DOC="appAdmin/settings";
+const WEEK_MENUS_COLLECTION="sharedWeekMenus";
+const SHARED_AGENDA_COLLECTION="sharedAgendaEvents";
+const CHANGE_LOG_COLLECTION="appChangeLog";
 const ADMIN_EMAIL="rohogeterp@gmail.com";
 const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
@@ -109,16 +115,100 @@ async function pushDataToCloud(){
   if(!db || !currentUser || !cloudReady) return;
   try{
     setSyncStatus("Wijzigingen opslaan…");
+    const {events,weekMenus,...sharedData}=data;
     await db.doc(SHARED_DATA_DOC).set({
-      ...data,
+      ...sharedData,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
       updatedBy: currentUser.uid
-    });
-    setSyncStatus("Alles is gesynchroniseerd");
+    },{merge:true});
+    setSyncStatus("✓ Opgeslagen in Firebase");
   }catch(error){
     console.error(error);
-    setSyncStatus("Synchroniseren mislukt",true);
+    setSyncStatus("Opslaan mislukt — controleer je verbinding",true);
+    showSaveWarning("De wijziging kon niet in Firebase worden opgeslagen. Laat deze pagina open en probeer opnieuw.");
   }
+}
+
+function showSaveWarning(message){
+  let box=document.getElementById("saveWarningToast");
+  if(!box){
+    box=document.createElement("div");
+    box.id="saveWarningToast";
+    box.className="save-warning-toast";
+    document.body.appendChild(box);
+  }
+  box.textContent=message;
+  box.classList.add("show");
+  clearTimeout(showSaveWarning.timer);
+  showSaveWarning.timer=setTimeout(()=>box.classList.remove("show"),6500);
+}
+
+async function writeChangeLog(kind,action,beforeValue,afterValue){
+  if(!db || !currentUser) return;
+  try{
+    await db.collection(CHANGE_LOG_COLLECTION).add({
+      kind,action,before:beforeValue||null,after:afterValue||null,
+      userUid:currentUser.uid,userName:currentPersonName(),
+      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(error){ console.warn("Back-upregistratie mislukt",error); }
+}
+
+async function saveWeekMenuRecord(record,beforeValue=null){
+  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
+  setSyncStatus("Weekmenu opslaan…");
+  await db.collection(WEEK_MENUS_COLLECTION).doc(record.id).set({...record,serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  await writeChangeLog("weekmenu",beforeValue?"update":"create",beforeValue,record);
+  setSyncStatus("✓ Weekmenu opgeslagen in Firebase");
+}
+async function deleteWeekMenuRecord(record){
+  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
+  setSyncStatus("Weekmenu verwijderen…");
+  await writeChangeLog("weekmenu","delete",record,null);
+  await db.collection(WEEK_MENUS_COLLECTION).doc(record.id).delete();
+  setSyncStatus("✓ Weekmenu bijgewerkt");
+}
+async function saveSharedAgendaRecord(record,beforeValue=null){
+  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
+  setSyncStatus("Afspraak opslaan…");
+  await db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).set({...record,serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+  await writeChangeLog("agenda",beforeValue?"update":"create",beforeValue,record);
+  setSyncStatus("✓ Afspraak opgeslagen in Firebase");
+}
+async function deleteSharedAgendaRecord(record){
+  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
+  setSyncStatus("Afspraak verwijderen…");
+  await writeChangeLog("agenda","delete",record,null);
+  await db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).delete();
+  setSyncStatus("✓ Agenda bijgewerkt");
+}
+
+function subscribeSharedCollections(){
+  if(!db || !currentUser) return;
+  if(weekMenusUnsubscribe) weekMenusUnsubscribe();
+  if(sharedAgendaUnsubscribe) sharedAgendaUnsubscribe();
+  let weekLoaded=false, agendaLoaded=false;
+  const markReady=()=>{ if(weekLoaded&&agendaLoaded){ sharedCollectionsReady=true; setSyncStatus("✓ Alles is gesynchroniseerd"); } };
+  weekMenusUnsubscribe=db.collection(WEEK_MENUS_COLLECTION).onSnapshot(async snap=>{
+    const rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    if(snap.empty && Array.isArray(data.weekMenus) && data.weekMenus.length){
+      const batch=db.batch(); data.weekMenus.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
+      await batch.commit();
+    }else{
+      data.weekMenus=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderWeekmenu(); renderDashboard();
+    }
+    weekLoaded=true; markReady();
+  },error=>{ console.error(error); setSyncStatus("Weekmenu kon niet worden geladen",true); });
+  sharedAgendaUnsubscribe=db.collection(SHARED_AGENDA_COLLECTION).onSnapshot(async snap=>{
+    const rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
+    if(snap.empty && Array.isArray(data.events) && data.events.length){
+      const batch=db.batch(); data.events.forEach(row=>batch.set(db.collection(SHARED_AGENDA_COLLECTION).doc(row.id),row));
+      await batch.commit();
+    }else{
+      data.events=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderAgenda(); renderDashboard();
+    }
+    agendaLoaded=true; markReady();
+  },error=>{ console.error(error); setSyncStatus("Agenda kon niet worden geladen",true); });
 }
 
 function setSyncStatus(text,isError=false){
@@ -148,8 +238,8 @@ function subscribeToCloudData(){
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
           wishes:Array.isArray(remote.wishes)?remote.wishes:[],
           giftEvents:Array.isArray(remote.giftEvents)?remote.giftEvents:[],
-          events:Array.isArray(remote.events)?remote.events:[],
-          weekMenus:Array.isArray(remote.weekMenus)?remote.weekMenus:[],
+          events:Array.isArray(data.events)?data.events:(Array.isArray(remote.events)?remote.events:[]),
+          weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(Array.isArray(remote.weekMenus)?remote.weekMenus:[]),
           notifications:Array.isArray(remote.notifications)?remote.notifications:[],
           products:Array.isArray(remote.products)?remote.products:[],
           stores:Array.isArray(remote.stores)&&remote.stores.length?remote.stores:data.stores
@@ -766,6 +856,7 @@ function renderPrivateGiftIdeasPage(){
     <div class="private-person-ideas">${g.ideas.sort((a,b)=>Number(b.favorite)-Number(a.favorite)).map(i=>`<article class="private-idea-card">
       <div class="private-idea-head"><div><h3>${i.favorite?'⭐ ':''}${escapeHtml(i.title)}</h3><div class="private-idea-people">${privateIdeaRecipients(i).map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('')}</div></div><span class="private-idea-status">${privateIdeaStatusLabel(i.status)}</span></div>
       ${i.price?`<div class="meta">€ ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`:''}
+      ${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}
       ${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}
       <div class="private-idea-actions"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('', '${i.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div>
     </article>`).join('')}</div>
@@ -800,7 +891,7 @@ function renderGiftEvents(){
       if(canBuy&&!ownWish){ if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`; else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`; }
       return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||'')}${w.price?` · € ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
     };
-    const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
+    const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
     const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
     const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(privateCard).join(''):`<p class="muted">Je hebt nog geen verborgen cadeau-ideeën voor dit evenement.</p>`;
     const peopleLabel=event.occasion==='Verjaardag'?`<span class="chip">🎂 Jarige: ${escapeHtml(recipients[0]||'')}</span>`:`<span class="chip">🎁 Voor: ${recipients.map(escapeHtml).join(', ')}</span>`;
@@ -1135,7 +1226,7 @@ nextWeekBtn.onclick=()=>{
   renderWeekmenu();
 };
 
-weekMealForm.onsubmit=e=>{
+weekMealForm.onsubmit=async e=>{
   e.preventDefault();
   if(!currentWeekmenuHousehold) return;
 
@@ -1168,8 +1259,9 @@ weekMealForm.onsubmit=e=>{
     data.weekMenus=data.weekMenus.filter(m=>m.id!==sameDay.id);
   }
 
+  const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
   const record={
-    id:existing?.id || crypto.randomUUID(),
+    id:existing?.id || stableWeekMenuId,
     householdId:currentWeekmenuHousehold,
     weekStart:weekMenuKey(),
     dayIndex,
@@ -1181,15 +1273,20 @@ weekMealForm.onsubmit=e=>{
     attendees: existing?.attendees || (householdById(currentWeekmenuHousehold)?.members || []).map(name=>({type:"family",name}))
   };
 
-  if(existing){
-    Object.assign(existing,record);
-  }else{
-    data.weekMenus.push(record);
+  const beforeValue=existing?{...existing}:null;
+  if(existing){ Object.assign(existing,record); }else{ data.weekMenus.push(record); }
+  renderWeekmenu();
+  try{
+    if(sameDay) await deleteWeekMenuRecord(sameDay);
+    await saveWeekMenuRecord(record,beforeValue);
+    addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
+    saveData();
+    weekMealDialog.close();
+  }catch(error){
+    console.error(error); showSaveWarning("Het weekmenu is niet opgeslagen. Probeer opnieuw en sluit de app nog niet af.");
+    if(existing&&beforeValue) Object.assign(existing,beforeValue); else data.weekMenus=data.weekMenus.filter(x=>x.id!==record.id);
+    renderWeekmenu();
   }
-
-  addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
-  weekMealDialog.close();
-  saveData();
 };
 
 
@@ -1202,14 +1299,18 @@ window.openAttendees=id=>{
   attendeeGuests.value=selected.filter(a=>a.type==="guest").map(a=>a.name).join("\n");
   attendeesDialog.showModal();
 };
-attendeesForm.onsubmit=e=>{
+attendeesForm.onsubmit=async e=>{
   e.preventDefault();
   const meal=(data.weekMenus||[]).find(m=>m.id===attendeesMealId.value); if(!meal)return;
   const family=[...attendeeFamilyChecks.querySelectorAll('input:checked')].map(x=>({type:"family",name:x.value}));
   const guests=attendeeGuests.value.split("\n").map(x=>x.trim()).filter(Boolean).map(name=>({type:"guest",name}));
+  const beforeValue={...meal,attendees:[...(meal.attendees||[])]};
   meal.attendees=[...family,...guests]; meal.updatedBy=currentPersonName(); meal.updatedAt=new Date().toISOString();
-  addNotification({householdId:meal.householdId,text:`${currentPersonName()} heeft de mee-eters voor ${WEEK_DAYS[meal.dayIndex].toLowerCase()} aangepast (${meal.attendees.length} eters).`});
-  attendeesDialog.close(); saveData();
+  try{
+    await saveWeekMenuRecord(meal,beforeValue);
+    addNotification({householdId:meal.householdId,text:`${currentPersonName()} heeft de mee-eters voor ${WEEK_DAYS[meal.dayIndex].toLowerCase()} aangepast (${meal.attendees.length} eters).`});
+    attendeesDialog.close(); saveData();
+  }catch(error){ Object.assign(meal,beforeValue); renderWeekmenu(); showSaveWarning("De mee-eters zijn niet opgeslagen."); }
 };
 
 window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
@@ -1220,15 +1321,16 @@ window.editWeekMeal=id=>{
   openWeekMealDialog(meal.dayIndex,meal);
 };
 
-window.deleteWeekMeal=id=>{
+window.deleteWeekMeal=async id=>{
   const meal=(data.weekMenus || []).find(m=>m.id===id);
   if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
   if(!confirm(`"${recipeMealName(meal)}" uit het weekmenu verwijderen?`)) return;
-  data.weekMenus=data.weekMenus.filter(m=>m.id!==id);
-  saveData();
+  data.weekMenus=data.weekMenus.filter(m=>m.id!==id); renderWeekmenu();
+  try{ await deleteWeekMenuRecord(meal); }
+  catch(error){ data.weekMenus.push(meal); renderWeekmenu(); showSaveWarning("Verwijderen mislukt. Het gerecht is teruggezet."); }
 };
 
-copyWeekmenuBtn.onclick=()=>{
+copyWeekmenuBtn.onclick=async ()=>{
   const source=getWeekMeals();
   if(!source.length){
     alert("Deze week bevat nog geen gerechten.");
@@ -1244,22 +1346,21 @@ copyWeekmenuBtn.onclick=()=>{
     return;
   }
 
-  data.weekMenus=(data.weekMenus || []).filter(m=>
-    !(m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart)
-  );
-
-  source.forEach(meal=>{
-    data.weekMenus.push({
-      ...meal,
-      id:crypto.randomUUID(),
-      weekStart:nextStart,
-      updatedBy:currentPersonName(),
-      updatedAt:new Date().toISOString()
-    });
-  });
-
-  saveData();
-  alert("Het weekmenu is naar de volgende week gekopieerd.");
+  const previous=[...existingNext];
+  const copies=source.map(meal=>({
+    ...meal,id:`${currentWeekmenuHousehold}__${nextStart}__${meal.dayIndex}`.replaceAll("/","-"),weekStart:nextStart,
+    updatedBy:currentPersonName(),updatedAt:new Date().toISOString()
+  }));
+  try{
+    setSyncStatus("Weekmenu kopiëren…");
+    const batch=db.batch();
+    previous.forEach(row=>batch.delete(db.collection(WEEK_MENUS_COLLECTION).doc(row.id)));
+    copies.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
+    await batch.commit();
+    data.weekMenus=(data.weekMenus||[]).filter(m=>!(m.householdId===currentWeekmenuHousehold&&m.weekStart===nextStart)).concat(copies);
+    renderWeekmenu(); setSyncStatus("✓ Weekmenu gekopieerd en opgeslagen");
+    alert("Het weekmenu is naar de volgende week gekopieerd en opgeslagen.");
+  }catch(error){ console.error(error); showSaveWarning("Kopiëren is niet opgeslagen. Probeer opnieuw."); }
 };
 
 weekmenuGroceriesBtn.onclick=()=>{
@@ -1479,7 +1580,7 @@ agendaTypeFilter.onchange=renderAgenda;
 agendaHouseholdFilter.onchange=renderAgenda;
 if(window.togglePastAgendaBtn) togglePastAgendaBtn.onclick=()=>{showPastAgenda=!showPastAgenda;renderAgenda();};
 
-agendaForm.onsubmit=e=>{
+agendaForm.onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(agendaForm);
   const visibility=f.get("visibility");
@@ -1505,26 +1606,22 @@ agendaForm.onsubmit=e=>{
     updatedByName:currentPersonName()
   };
 
-  if(editId){
-    if(originalVisibility==="private") savePrivateEvents(loadPrivateEvents().filter(x=>x.id!==editId));
-    else data.events=(data.events||[]).filter(x=>x.id!==editId);
-  }
-  if(visibility==="private"){
-    const privateEvents=loadPrivateEvents();
-    privateEvents.push(event);
-    savePrivateEvents(privateEvents);
-    if(editId && originalVisibility!=="private") saveData(); else renderAgenda();
-  }else{
-    data.events=data.events || [];
-    data.events.push(event);
-    saveData();
-  }
-
-  agendaDialog.close();
-  resetAgendaPhoto();
+  try{
+    if(visibility==="private"){
+      if(editId && originalVisibility!=="private" && original) await deleteSharedAgendaRecord(original);
+      const privateEvents=loadPrivateEvents().filter(x=>x.id!==editId); privateEvents.push(event); savePrivateEvents(privateEvents); renderAgenda();
+      setSyncStatus("✓ Privé-afspraak opgeslagen op dit toestel");
+    }else{
+      if(editId && originalVisibility==="private") savePrivateEvents(loadPrivateEvents().filter(x=>x.id!==editId));
+      if(editId && originalVisibility!=="private" && originalVisibility!==visibility && original) await deleteSharedAgendaRecord(original);
+      await saveSharedAgendaRecord(event,originalVisibility!=="private"?original:null);
+      data.events=(data.events||[]).filter(x=>x.id!==event.id); data.events.push(event); renderAgenda(); renderDashboard();
+    }
+    agendaDialog.close(); resetAgendaPhoto();
+  }catch(error){ console.error(error); showSaveWarning("De afspraak is niet opgeslagen. Laat de app open en probeer opnieuw."); }
 };
 
-window.deleteAgendaEvent=(id,visibility)=>{
+window.deleteAgendaEvent=async (id,visibility)=>{
   if(!confirm("Deze afspraak verwijderen?")) return;
 
   if(visibility==="private"){
@@ -1533,8 +1630,10 @@ window.deleteAgendaEvent=(id,visibility)=>{
     return;
   }
 
-  data.events=(data.events || []).filter(e=>e.id!==id);
-  saveData();
+  const record=(data.events||[]).find(e=>e.id===id); if(!record)return;
+  data.events=(data.events||[]).filter(e=>e.id!==id); renderAgenda();
+  try{ await deleteSharedAgendaRecord(record); renderDashboard(); }
+  catch(error){ data.events.push(record); renderAgenda(); showSaveWarning("Verwijderen mislukt. De afspraak is teruggezet."); }
 };
 
 function openNewRecipeDialog(){
@@ -1682,6 +1781,21 @@ if(window.deleteGiftEventBtn) deleteGiftEventBtn.onclick=()=>{
   if(!confirm(`Cadeau-evenement “${event.name}” verwijderen?`))return; data.giftEvents=data.giftEvents.filter(x=>x.id!==event.id); giftEventDialog.close(); saveData();
 };
 
+
+function setGiftIdeaPhoto(value=""){
+  giftIdeaPhotoData.value=value;
+  if(value){ giftIdeaPhotoPreview.src=value; giftIdeaPhotoPreviewWrap.classList.remove("hidden"); }
+  else{ giftIdeaPhotoPreview.removeAttribute("src"); giftIdeaPhotoPreviewWrap.classList.add("hidden"); }
+}
+function processGiftIdeaPhoto(file){
+  if(!file) return;
+  if(!file.type.startsWith("image/")){ giftIdeaMessage.textContent="Kies een geldige foto of screenshot."; return; }
+  if(file.size>10*1024*1024){ giftIdeaMessage.textContent="Kies een afbeelding kleiner dan 10 MB."; return; }
+  const reader=new FileReader();
+  reader.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=700,scale=Math.min(1,max/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.max(1,Math.round(img.width*scale)); canvas.height=Math.max(1,Math.round(img.height*scale)); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); setGiftIdeaPhoto(canvas.toDataURL("image/jpeg",0.76)); }; img.src=reader.result; };
+  reader.readAsDataURL(file);
+}
+
 let giftIdeaEventId="";
 window.openGiftIdeaDialog=(eventId="",ideaId="",presetPerson="")=>{
   const event=eventId?(data.giftEvents||[]).find(x=>x.id===eventId):null;
@@ -1690,7 +1804,7 @@ window.openGiftIdeaDialog=(eventId="",ideaId="",presetPerson="")=>{
   const allowedPeople=event?.recipients?.length?event.recipients:data.family.map(p=>p.name);
   const selected=idea?privateIdeaRecipients(idea):(presetPerson?[presetPerson]:[]);
   giftIdeaRecipientChecks.innerHTML=allowedPeople.map(name=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(name)}" ${selected.includes(name)?'checked':''}><span>${escapeHtml(name)}</span></label>`).join('');
-  giftIdeaTitle.value=idea?.title||""; giftIdeaPrice.value=idea?.price||""; giftIdeaLink.value=idea?.link||""; giftIdeaNote.value=idea?.note||""; giftIdeaStatus.value=idea?.status||"idea"; giftIdeaFavorite.checked=!!idea?.favorite;
+  giftIdeaTitle.value=idea?.title||""; giftIdeaPrice.value=idea?.price||""; giftIdeaLink.value=idea?.link||""; giftIdeaNote.value=idea?.note||""; giftIdeaStatus.value=idea?.status||"idea"; giftIdeaFavorite.checked=!!idea?.favorite; setGiftIdeaPhoto(idea?.photo||"");
   giftIdeaMessage.textContent=""; giftIdeaDialog.querySelector('h3').textContent=idea?'Verborgen cadeau-idee bewerken':'Verborgen cadeau-idee toevoegen'; giftIdeaDialog.showModal();
 };
 window.deletePrivateGiftIdea=async id=>{ const collection=privateGiftIdeasCollection(); if(!collection)return; if(!confirm("Dit verborgen cadeau-idee verwijderen?"))return; try{await collection.doc(id).delete();}catch(err){alert(err.message||"Verwijderen mislukt.");} };
@@ -1698,9 +1812,12 @@ window.setPrivateGiftIdeaStatus=async(id,status)=>{const c=privateGiftIdeasColle
 if(window.giftIdeaForm) giftIdeaForm.onsubmit=async e=>{
   e.preventDefault(); const collection=privateGiftIdeasCollection(); if(!collection){giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan.";return;}
   const recipients=[...giftIdeaRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value); if(!recipients.length){giftIdeaMessage.textContent='Kies minimaal één familielid.';return;}
-  const payload={eventId:giftIdeaEventId||"",recipients,person:recipients[0],title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),note:giftIdeaNote.value.trim(),status:giftIdeaStatus.value,favorite:giftIdeaFavorite.checked,ownerUid:currentUser.uid,ownerName:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+  const payload={eventId:giftIdeaEventId||"",recipients,person:recipients[0],title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),photo:giftIdeaPhotoData.value||"",note:giftIdeaNote.value.trim(),status:giftIdeaStatus.value,favorite:giftIdeaFavorite.checked,ownerUid:currentUser.uid,ownerName:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
   try{ if(giftIdeaEditId.value) await collection.doc(giftIdeaEditId.value).update(payload); else await collection.add({...payload,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); giftIdeaDialog.close(); }catch(err){console.error(err);giftIdeaMessage.textContent=err.message||"Opslaan mislukt.";}
 };
+if(window.giftIdeaCameraInput) giftIdeaCameraInput.onchange=()=>processGiftIdeaPhoto(giftIdeaCameraInput.files?.[0]);
+if(window.giftIdeaGalleryInput) giftIdeaGalleryInput.onchange=()=>processGiftIdeaPhoto(giftIdeaGalleryInput.files?.[0]);
+if(window.removeGiftIdeaPhotoBtn) removeGiftIdeaPhotoBtn.onclick=()=>setGiftIdeaPhoto("");
 if(window.addPrivateGiftIdeaBtn) addPrivateGiftIdeaBtn.onclick=()=>openGiftIdeaDialog();
 if(window.privateGiftIdeaSearch) privateGiftIdeaSearch.oninput=renderPrivateGiftIdeasPage;
 
@@ -2274,7 +2391,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribePrivateGiftIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
