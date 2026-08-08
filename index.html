@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.30</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.31</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.30</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.31</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -212,11 +212,11 @@
 
       <section class="page" data-page="cadeau-ideeen">
         <div class="page-head">
-          <div><p class="eyebrow">Alleen voor jou</p><h2>🔒 Mijn cadeau-ideeën</h2></div>
+          <div><p class="eyebrow">Alleen voor jou</p><h2>🎁 Cadeautjes voor anderen</h2></div>
           <button id="addPrivateGiftIdeaBtn" class="primary-btn">+ Idee</button>
         </div>
-        <div class="card private-idea-notice"><strong>Helemaal privé</strong><p>Alleen jij kunt deze cadeau-ideeën zien. Je kunt één idee aan één of meerdere familieleden koppelen.</p></div>
-        <input id="privateGiftIdeaSearch" class="search" placeholder="Zoek cadeau-idee of familielid">
+        <div class="card private-idea-notice"><strong>Helemaal privé</strong><p>Hier bewaar je privé cadeautjes die jij misschien voor iemand anders wilt kopen. Alleen jij kunt deze zien. Je kunt een cadeau aan één of meerdere familieleden koppelen.</p></div>
+        <input id="privateGiftIdeaSearch" class="search" placeholder="Zoek cadeau of familielid">
         <div id="privateGiftIdeaList" class="private-idea-groups"></div>
       </section>
 
@@ -427,7 +427,7 @@
     <button data-go="agenda">📅 Agenda</button>
     <button data-go="todos">✅ Mijn to-do's</button>
     <button data-go="cadeau-evenementen">🎁 Cadeau-evenementen</button>
-    <button data-go="cadeau-ideeen">🔒 Mijn cadeau-ideeën</button>
+    <button data-go="cadeau-ideeen">🎁 Cadeautjes voor anderen</button>
     <button id="diaryMenuBtn" class="hidden" data-go="dagboek">📖 Mijn dagboek</button>
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
@@ -725,11 +725,11 @@
 
   <dialog id="giftIdeaDialog" class="modal">
     <form id="giftIdeaForm" method="dialog">
-      <div class="sheet-head"><h3>Verborgen cadeau-idee toevoegen</h3><button type="button" data-close>✕</button></div>
+      <div class="sheet-head"><h3>Cadeautje voor iemand toevoegen</h3><button type="button" data-close>✕</button></div>
       <input id="giftIdeaEditId" type="hidden">
       <fieldset class="member-fieldset"><legend>Voor wie is dit idee?</legend><div id="giftIdeaRecipientChecks" class="member-checks"></div></fieldset>
       <p class="card private-idea-notice">🔒 Dit idee is alleen zichtbaar in jouw eigen account.</p>
-      <label>Cadeau-idee<input id="giftIdeaTitle" required maxlength="140" placeholder="Bijvoorbeeld: parfum"></label>
+      <label>Cadeau<input id="giftIdeaTitle" required maxlength="140" placeholder="Bijvoorbeeld: parfum"></label>
       <label>Prijs (optioneel)<input id="giftIdeaPrice" type="number" min="0" step="0.01"></label>
       <label>Link (optioneel)<input id="giftIdeaLink" type="url"></label>
       <div class="gift-idea-photo-field">
@@ -739,7 +739,7 @@
           <label class="secondary-btn photo-action">🖼️ Screenshot / galerij<input id="giftIdeaGalleryInput" type="file" accept="image/*"></label>
         </div>
         <input id="giftIdeaPhotoData" type="hidden">
-        <div id="giftIdeaPhotoPreviewWrap" class="gift-idea-photo-preview hidden"><img id="giftIdeaPhotoPreview" alt="Voorbeeld cadeau-idee"><button id="removeGiftIdeaPhotoBtn" class="text-btn" type="button">Foto verwijderen</button></div>
+        <div id="giftIdeaPhotoPreviewWrap" class="gift-idea-photo-preview hidden"><img id="giftIdeaPhotoPreview" alt="Voorbeeld cadeau"><button id="removeGiftIdeaPhotoBtn" class="text-btn" type="button">Foto verwijderen</button></div>
       </div>
       <label>Status<select id="giftIdeaStatus"><option value="idea">Idee</option><option value="reserved">Gereserveerd</option><option value="bought">Gekocht</option><option value="wrapped">Ingepakt</option></select></label>
       <label class="check-row-simple"><input id="giftIdeaFavorite" type="checkbox"> ⭐ Favoriet</label>
@@ -756,7 +756,7 @@
       <label>Taak<input id="todoTitle" required maxlength="160" placeholder="Bijvoorbeeld: afspraak maken"></label>
       <label>Omschrijving (optioneel)<textarea id="todoNote" rows="4"></textarea></label>
       <div class="agenda-time-grid"><label>Datum (optioneel)<input id="todoDate" type="date"></label><label>Tijd (optioneel)<input id="todoTime" type="time"></label></div>
-      <label>Prioriteit<select id="todoPriority"><option value="high">🔴 Hoog</option><option value="normal" selected>🟡 Normaal</option><option value="low">🟢 Laag</option></select></label>
+      <label>Prioriteit<select id="todoPriority"><option value="urgent">🚨 Dringend</option><option value="high">🔴 Hoog</option><option value="normal" selected>🟡 Normaal</option><option value="low">🟢 Laag</option></select></label>
       <button class="primary-btn wide" type="submit">Taak opslaan</button>
     </form>
   </dialog>

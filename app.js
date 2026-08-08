@@ -856,7 +856,7 @@ function subscribePrivateGiftIdeas(){
     privateGiftIdeas=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
     renderGiftEvents();
     renderPrivateGiftIdeasPage();
-  },err=>{ console.error("Privé cadeau-ideeën laden mislukt",err); });
+  },err=>{ console.error("Cadeautjes voor anderen laden mislukt",err); });
 }
 
 function privateIdeaRecipients(idea){
@@ -880,7 +880,7 @@ function renderPrivateGiftIdeasPage(){
       ${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}
       <div class="private-idea-actions"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('', '${i.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div>
     </article>`).join('')}</div>
-  </section>`).join(''):`<div class="card muted private-idea-empty">${q?'Geen cadeau-ideeën gevonden.':'Je hebt nog geen verborgen cadeau-ideeën.'}</div>`;
+  </section>`).join(''):`<div class="card muted private-idea-empty">${q?'Geen cadeautjes gevonden.':'Je hebt nog geen cadeautjes voor anderen.'}</div>`;
 }
 function privateTodosCollection(){
   return db && currentUser ? db.collection("privateTodos").doc(currentUser.uid).collection("items") : null;
@@ -896,7 +896,8 @@ function subscribePrivateTodos(){
     renderHome();
   },err=>{ console.error("Privé to-do's laden mislukt",err); showSaveWarning("Je to-do's konden niet worden geladen."); });
 }
-function todoPriorityLabel(priority){ return ({high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[priority]||"🟡 Normaal"; }
+function todoPriorityLabel(priority){ return ({urgent:"🚨 Dringend",high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[priority]||"🟡 Normaal"; }
+function todoPriorityRank(priority){ return ({urgent:0,high:1,normal:2,low:3})[priority] ?? 2; }
 function renderPrivateTodos(){
   if(!window.todoList) return;
   const showCompleted=window.todoShowCompleted?.checked ?? true;
@@ -904,7 +905,9 @@ function renderPrivateTodos(){
     if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
     const ad=(a.date||"9999-12-31")+" "+(a.time||"");
     const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-    return ad.localeCompare(bd);
+    const dateOrder=ad.localeCompare(bd);
+    if(dateOrder!==0) return dateOrder;
+    return todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
   });
   todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
     <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
@@ -961,9 +964,9 @@ function renderGiftEvents(){
     };
     const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
     const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
-    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(privateCard).join(''):`<p class="muted">Je hebt nog geen verborgen cadeau-ideeën voor dit evenement.</p>`;
+    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(privateCard).join(''):`<p class="muted">Je hebt nog geen cadeautjes voor anderen voor dit evenement.</p>`;
     const peopleLabel=event.occasion==='Verjaardag'?`<span class="chip">🎂 Jarige: ${escapeHtml(recipients[0]||'')}</span>`:`<span class="chip">🎁 Voor: ${recipients.map(escapeHtml).join(', ')}</span>`;
-    return `<section class="item-card gift-event-card"><div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||'Overig')}${event.budget?` · budget € ${Number(event.budget).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:''}</div><div class="chips">${peopleLabel}</div><section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>${canBuy?`<section class="gift-section private-gift-section"><h4>🔒 Mijn verborgen cadeau-ideeën</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Verborgen idee toevoegen</button></section>`:''}</section>`;
+    return `<section class="item-card gift-event-card"><div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||'Overig')}${event.budget?` · budget € ${Number(event.budget).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:''}</div><div class="chips">${peopleLabel}</div><section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>${canBuy?`<section class="gift-section private-gift-section"><h4>🎁 Mijn cadeautjes voor anderen</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Cadeautje toevoegen</button></section>`:''}</section>`;
   }).join(''):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
 }
 function fillGiftMemberChecks(container,selected=[]){
@@ -1056,7 +1059,12 @@ function renderHome(){
   `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
 
   if(window.dashboardTodos){
-    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>((a.date||"9999-12-31")+" "+(a.time||"")).localeCompare((b.date||"9999-12-31")+" "+(b.time||""))).slice(0,4);
+    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>{
+      const ad=(a.date||"9999-12-31")+" "+(a.time||"");
+      const bd=(b.date||"9999-12-31")+" "+(b.time||"");
+      const dateOrder=ad.localeCompare(bd);
+      return dateOrder!==0 ? dateOrder : todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+    }).slice(0,5);
     dashboardTodos.innerHTML=upcoming.length ? upcoming.map(t=>`<div class="dashboard-row"><div><strong>${escapeHtml(t.title)}</strong><span>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</span></div></div>`).join("") : `<p class="muted">Geen openstaande taken.</p>`;
   }
 
@@ -1928,9 +1936,9 @@ window.openGiftIdeaDialog=(eventId="",ideaId="",presetPerson="")=>{
   const selected=idea?privateIdeaRecipients(idea):(presetPerson?[presetPerson]:[]);
   giftIdeaRecipientChecks.innerHTML=allowedPeople.map(name=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(name)}" ${selected.includes(name)?'checked':''}><span>${escapeHtml(name)}</span></label>`).join('');
   giftIdeaTitle.value=idea?.title||""; giftIdeaPrice.value=idea?.price||""; giftIdeaLink.value=idea?.link||""; giftIdeaNote.value=idea?.note||""; giftIdeaStatus.value=idea?.status||"idea"; giftIdeaFavorite.checked=!!idea?.favorite; setGiftIdeaPhoto(idea?.photo||"");
-  giftIdeaMessage.textContent=""; giftIdeaDialog.querySelector('h3').textContent=idea?'Verborgen cadeau-idee bewerken':'Verborgen cadeau-idee toevoegen'; giftIdeaDialog.showModal();
+  giftIdeaMessage.textContent=""; giftIdeaDialog.querySelector('h3').textContent=idea?'Cadeautje voor iemand bewerken':'Cadeautje voor iemand toevoegen'; giftIdeaDialog.showModal();
 };
-window.deletePrivateGiftIdea=async id=>{ const collection=privateGiftIdeasCollection(); if(!collection)return; if(!confirm("Dit verborgen cadeau-idee verwijderen?"))return; try{await collection.doc(id).delete();}catch(err){alert(err.message||"Verwijderen mislukt.");} };
+window.deletePrivateGiftIdea=async id=>{ const collection=privateGiftIdeasCollection(); if(!collection)return; if(!confirm("Dit cadeautje verwijderen?"))return; try{await collection.doc(id).delete();}catch(err){alert(err.message||"Verwijderen mislukt.");} };
 window.setPrivateGiftIdeaStatus=async(id,status)=>{const c=privateGiftIdeasCollection();if(!c)return;try{await c.doc(id).update({status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(err){alert(err.message||'Status aanpassen mislukt.');}};
 if(window.giftIdeaForm) giftIdeaForm.onsubmit=async e=>{
   e.preventDefault(); const collection=privateGiftIdeasCollection(); if(!collection){giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan.";return;}
@@ -3032,7 +3040,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.30");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.31");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

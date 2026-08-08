@@ -1,17 +1,19 @@
-# Hogeterpjes v1.3.30
+# Hogeterpjes v1.3.31
 
-## Deze versie
-- Gebaseerd op de complete v1.3.28 met 13 bestanden.
-- Alle functies van v1.3.28 zijn behouden, waaronder gekozen agenda-personen en privé to-do's.
-- Versienummers, cacheverwijzingen en service-workerregistratie zijn bijgewerkt naar v1.3.30.
-- Geen nieuwe functionele wijziging toegevoegd; dit is de nieuwe basisversie.
+## Nieuw / aangepast
+- **Mijn cadeau-ideeën** heet nu duidelijker **Cadeautjes voor anderen**.
+- De uitleg en knoppen bij dit privé-onderdeel zijn daarop aangepast.
+- Mijn to-do's heeft nu vier prioriteiten: **Dringend, Hoog, Normaal en Laag**.
+- De prioriteit is zichtbaar in de volledige to-do-lijst én op Home.
+- Bij taken met dezelfde datum/tijd komt een hogere prioriteit eerst.
+- Op Home worden maximaal vijf openstaande persoonlijke taken getoond.
+- Bestaande functies uit v1.3.30 blijven behouden.
 
 ## Firebase
-De Firestore-regels uit v1.3.28 blijven nodig voor `privateTodos`. Storage-regels zijn niet gewijzigd.
+De Firestore- en Storage-regels zijn in v1.3.31 niet gewijzigd. Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je ze niet opnieuw te publiceren.
 
 ## Uploaden
-1. Zorg dat de Firestore-regels uit deze map gepubliceerd zijn.
-2. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
-3. Sluit Hogeterpjes op alle telefoons volledig af.
-4. Open de app opnieuw en controleer dat v1.3.30 bovenaan staat.
-5. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
+1. Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
+2. Sluit Hogeterpjes volledig af.
+3. Open de app opnieuw.
+4. Controleer bovenaan dat versie v1.3.31 zichtbaar is.
