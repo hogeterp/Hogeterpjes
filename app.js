@@ -896,18 +896,31 @@ function subscribePrivateTodos(){
     renderHome();
   },err=>{ console.error("Privé to-do's laden mislukt",err); showSaveWarning("Je to-do's konden niet worden geladen."); });
 }
-function todoPriorityLabel(priority){ return ({urgent:"🚨 Dringend",high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[priority]||"🟡 Normaal"; }
-function todoPriorityRank(priority){ return ({urgent:0,high:1,normal:2,low:3})[priority] ?? 2; }
+function normalizeTodoPriority(priority){
+  const value=String(priority||"normal").trim().toLowerCase();
+  const aliases={
+    urgent:"urgent",dringend:"urgent","🚨 dringend":"urgent",
+    high:"high",hoog:"high","🔴 hoog":"high",
+    normal:"normal",normaal:"normal","🟡 normaal":"normal",
+    low:"low",laag:"low","🟢 laag":"low"
+  };
+  return aliases[value] || "normal";
+}
+function todoPriorityLabel(priority){ return ({urgent:"🚨 Dringend",high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[normalizeTodoPriority(priority)]; }
+function todoPriorityRank(priority){ return ({urgent:0,high:1,normal:2,low:3})[normalizeTodoPriority(priority)]; }
+function compareTodosByPriorityThenDate(a,b){
+  const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+  if(priorityOrder!==0) return priorityOrder;
+  const ad=(a.date||"9999-12-31")+" "+(a.time||"");
+  const bd=(b.date||"9999-12-31")+" "+(b.time||"");
+  return ad.localeCompare(bd);
+}
 function renderPrivateTodos(){
   if(!window.todoList) return;
   const showCompleted=window.todoShowCompleted?.checked ?? true;
   const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>{
     if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
-    const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
-    if(priorityOrder!==0) return priorityOrder;
-    const ad=(a.date||"9999-12-31")+" "+(a.time||"");
-    const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-    return ad.localeCompare(bd);
+    return compareTodosByPriorityThenDate(a,b);
   });
   todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
     <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
@@ -1772,7 +1785,7 @@ if(window.todoForm) todoForm.onsubmit=async e=>{
   const original=(privateTodos||[]).find(t=>t.id===id);
   const record={
     id,title:todoTitle.value.trim(),note:todoNote.value.trim(),date:todoDate.value,time:todoTime.value,
-    priority:todoPriority.value||"normal",completed:original?.completed||false,
+    priority:normalizeTodoPriority(todoPriority.value),completed:original?.completed||false,
     createdAt:original?.createdAt||firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -3041,7 +3054,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.32");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.33");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

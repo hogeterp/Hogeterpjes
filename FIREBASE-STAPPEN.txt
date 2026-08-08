@@ -1,4 +1,4 @@
-HOGETERPJES v1.3.32 – TO-DO PRIORITEIT EERST
+HOGETERPJES v1.3.33 – TO-DO PRIORITEIT DEFINITIEF GESORTEERD
 
 De Firestore- en Storage-regels zijn NIET gewijzigd.
 Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je niets opnieuw in Firebase te publiceren.
@@ -6,5 +6,7 @@ Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je niets opnieuw in Fi
 1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit Hogeterpjes op alle telefoons volledig af.
 3. Open de app opnieuw.
-4. Controleer dat v1.3.32 bovenaan staat.
+4. Controleer dat v1.3.33 bovenaan staat.
 5. Wacht tot de synchronisatie klaar is.
+
+De to-do-volgorde is nu altijd: Dringend → Hoog → Normaal → Laag. Binnen dezelfde prioriteit wordt op datum en tijd gesorteerd.
