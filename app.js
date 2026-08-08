@@ -841,7 +841,7 @@ function renderWishes(){
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
   wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
 
 function privateGiftIdeasCollection(){
@@ -893,6 +893,7 @@ function subscribePrivateTodos(){
   privateTodosUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
     privateTodos=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
     renderPrivateTodos();
+    renderHome();
   },err=>{ console.error("Privé to-do's laden mislukt",err); showSaveWarning("Je to-do's konden niet worden geladen."); });
 }
 function todoPriorityLabel(priority){ return ({high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[priority]||"🟡 Normaal"; }
@@ -1053,6 +1054,11 @@ function renderHome(){
       <div><strong>${x.count} ${x.count===1?"product":"producten"}</strong><span>${x.house.name}</span></div>
     </div>
   `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
+
+  if(window.dashboardTodos){
+    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>((a.date||"9999-12-31")+" "+(a.time||"")).localeCompare((b.date||"9999-12-31")+" "+(b.time||""))).slice(0,4);
+    dashboardTodos.innerHTML=upcoming.length ? upcoming.map(t=>`<div class="dashboard-row"><div><strong>${escapeHtml(t.title)}</strong><span>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</span></div></div>`).join("") : `<p class="muted">Geen openstaande taken.</p>`;
+  }
 
   if(window.dashboardDiarySummary && isDiaryOwner()){
     const latest=diaryEntries.slice().sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||"")))[0];
@@ -1782,12 +1788,14 @@ function openNewRecipeDialog(){
 }
 
 addRecipeBtn.onclick=openNewRecipeDialog;
-function openWishDialog(){
-  fillSelects();
-  resetWishPhoto();
-  wishPerson.value=currentPersonName();
+function openWishDialog(id=""){
+  fillSelects(); wishForm.reset(); resetWishPhoto();
+  const wish=id ? data.wishes.find(w=>w.id===id) : null;
+  wishEditId.value=wish?.id || ""; wishDialogTitle.textContent=wish ? "Wens bewerken" : "Wens toevoegen"; wishPerson.value=currentPersonName();
+  if(wish && canManageWish(wish)){ wishForm.elements.occasion.value=wish.occasion||"Verjaardag"; wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
   wishDialog.showModal();
 }
+window.openWishDialog=openWishDialog;
 addWishBtn.onclick=openWishDialog;
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
@@ -1868,29 +1876,12 @@ deleteRecipeBtn.onclick=()=>{
   saveData();
 };
 wishForm.onsubmit=e=>{
-  e.preventDefault(); const f=new FormData(wishForm);
-  const person=wishPerson.value || currentPersonName();
-  if(!person){
-    alert("Je account is nog niet aan een familielid gekoppeld.");
-    return;
-  }
-  data.wishes.unshift({
-    id:crypto.randomUUID(),
-    person,
-    occasion:f.get("occasion"),
-    title:f.get("title"),
-    price:f.get("price"),
-    link:f.get("link"),
-    note:f.get("note"),
-    photo:wishPhotoData.value,
-    createdBy:currentUser?.uid || "",
-    addedByName:currentPersonName(),
-    createdAt:new Date().toISOString()
-  });
-  wishForm.reset();
-  resetWishPhoto();
-  wishDialog.close();
-  saveData();
+  e.preventDefault(); const f=new FormData(wishForm); const person=wishPerson.value || currentPersonName();
+  if(!person){ alert("Je account is nog niet aan een familielid gekoppeld."); return; }
+  const editId=wishEditId.value; const existing=editId ? data.wishes.find(w=>w.id===editId) : null; if(existing && !canManageWish(existing)) return;
+  const record={id:existing?.id||crypto.randomUUID(),person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo:wishPhotoData.value,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  if(existing) Object.assign(existing,record); else data.wishes.unshift(record);
+  wishForm.reset(); wishEditId.value=""; resetWishPhoto(); wishDialog.close(); saveData();
 };
 
 
@@ -3041,7 +3032,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.29");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.30");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

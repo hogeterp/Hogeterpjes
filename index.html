@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.29</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.30</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.29</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.30</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -57,6 +57,13 @@
         </div>
 
         <div class="dashboard-grid">
+          <section class="card dashboard-card">
+            <div class="section-head">
+              <div><p class="eyebrow">Persoonlijk</p><h3>✅ Mijn to-do's</h3></div>
+              <button class="text-btn" data-go="todos">Open</button>
+            </div>
+            <div id="dashboardTodos"></div>
+          </section>
           <section id="dashboardDiaryCard" class="card dashboard-card dashboard-diary-card hidden">
             <div class="section-head">
               <div><p class="eyebrow">Alleen voor Rinze</p><h3>📖 Persoonlijk dagboek</h3></div>
@@ -534,7 +541,8 @@
 
   <dialog id="wishDialog" class="modal">
     <form id="wishForm" method="dialog">
-      <div class="sheet-head"><h3>Wens toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="wishEditId" type="hidden">
+      <div class="sheet-head"><h3 id="wishDialogTitle">Wens toevoegen</h3><button type="button" data-close>✕</button></div>
       <label>Voor wie?<select name="person" id="wishPerson"></select></label>
       <label>Gelegenheid<select name="occasion"><option>Verjaardag</option><option>Sinterklaas</option><option>Kerst</option><option>Overig</option></select></label>
       <label>Cadeauwens<input name="title" required></label>
