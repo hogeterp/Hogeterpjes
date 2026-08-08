@@ -903,11 +903,11 @@ function renderPrivateTodos(){
   const showCompleted=window.todoShowCompleted?.checked ?? true;
   const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>{
     if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
+    const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+    if(priorityOrder!==0) return priorityOrder;
     const ad=(a.date||"9999-12-31")+" "+(a.time||"");
     const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-    const dateOrder=ad.localeCompare(bd);
-    if(dateOrder!==0) return dateOrder;
-    return todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+    return ad.localeCompare(bd);
   });
   todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
     <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
@@ -1060,10 +1060,11 @@ function renderHome(){
 
   if(window.dashboardTodos){
     const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>{
+      const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+      if(priorityOrder!==0) return priorityOrder;
       const ad=(a.date||"9999-12-31")+" "+(a.time||"");
       const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-      const dateOrder=ad.localeCompare(bd);
-      return dateOrder!==0 ? dateOrder : todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
+      return ad.localeCompare(bd);
     }).slice(0,5);
     dashboardTodos.innerHTML=upcoming.length ? upcoming.map(t=>`<div class="dashboard-row"><div><strong>${escapeHtml(t.title)}</strong><span>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</span></div></div>`).join("") : `<p class="muted">Geen openstaande taken.</p>`;
   }
@@ -3040,7 +3041,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.31");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.32");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

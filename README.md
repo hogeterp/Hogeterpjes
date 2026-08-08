@@ -1,19 +1,19 @@
-# Hogeterpjes v1.3.31
+# Hogeterpjes v1.3.32
 
-## Nieuw / aangepast
-- **Mijn cadeau-ideeën** heet nu duidelijker **Cadeautjes voor anderen**.
-- De uitleg en knoppen bij dit privé-onderdeel zijn daarop aangepast.
-- Mijn to-do's heeft nu vier prioriteiten: **Dringend, Hoog, Normaal en Laag**.
-- De prioriteit is zichtbaar in de volledige to-do-lijst én op Home.
-- Bij taken met dezelfde datum/tijd komt een hogere prioriteit eerst.
-- Op Home worden maximaal vijf openstaande persoonlijke taken getoond.
-- Bestaande functies uit v1.3.30 blijven behouden.
+## Aangepast
+- De volgorde van persoonlijke to-do's is gecorrigeerd.
+- **Prioriteit komt nu altijd vóór datum en tijd**.
+- Volgorde: **🚨 Dringend → 🔴 Hoog → 🟡 Normaal → 🟢 Laag**.
+- Binnen dezelfde prioriteit worden taken op eerstvolgende datum en daarna tijd gesorteerd.
+- Dezelfde sortering geldt op **Home** en in de volledige pagina **Mijn to-do's**.
+- Afgeronde taken blijven onder openstaande taken staan.
+- Alle bestaande functies uit v1.3.31 blijven behouden.
 
 ## Firebase
-De Firestore- en Storage-regels zijn in v1.3.31 niet gewijzigd. Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je ze niet opnieuw te publiceren.
+De Firestore- en Storage-regels zijn niet gewijzigd. Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je niets opnieuw te publiceren.
 
 ## Uploaden
 1. Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit Hogeterpjes volledig af.
 3. Open de app opnieuw.
-4. Controleer bovenaan dat versie v1.3.31 zichtbaar is.
+4. Controleer bovenaan dat versie **v1.3.32** zichtbaar is.
