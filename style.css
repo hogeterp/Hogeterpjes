@@ -287,3 +287,6 @@ button:disabled{opacity:.58;cursor:wait}
 
 /* v1.3.28 – gekozen agenda-personen en privé to-do's */
 .todo-filter{display:flex;align-items:center;gap:9px;margin:0 2px 14px;font-weight:700}.todo-filter input{width:auto}.todo-card{display:grid;gap:10px}.todo-card.todo-done{opacity:.65}.todo-card.todo-done strong{text-decoration:line-through}.todo-check{display:flex!important;align-items:flex-start;gap:11px;margin:0!important}.todo-check input{width:auto;margin-top:4px}.todo-check span{display:grid;gap:4px}.todo-check small{color:var(--muted);font-weight:600}.todo-actions{display:flex;gap:8px}.todo-actions button{flex:1}#agendaSelectedPeopleField small{display:block;margin-top:8px;color:var(--muted)}
+
+
+/* v1.3.29 – versiebump; functionaliteit van v1.3.28 ongewijzigd */

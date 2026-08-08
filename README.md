@@ -1,16 +1,17 @@
-# Hogeterpjes v1.3.28
+# Hogeterpjes v1.3.29
 
-## Nieuw
-- Agenda-afspraken kunnen nu zichtbaar worden gemaakt voor zelf gekozen familieleden, bijvoorbeeld alleen Rinze en Christa.
-- Bij **Voor wie?** staat de nieuwe keuze **Zelf personen kiezen** met vinkjes per familielid.
-- Nieuw onderdeel **Mijn to-do's**: iedere gebruiker heeft een eigen, volledig privé takenlijst.
-- Taken kunnen worden toegevoegd, bewerkt, afgevinkt en verwijderd, met datum, tijd, omschrijving en prioriteit.
+## Deze versie
+- Gebaseerd op de complete v1.3.28 met 13 bestanden.
+- Alle functies van v1.3.28 zijn behouden, waaronder gekozen agenda-personen en privé to-do's.
+- Versienummers, cacheverwijzingen en service-workerregistratie zijn bijgewerkt naar v1.3.29.
+- Geen nieuwe functionele wijziging toegevoegd; dit is de nieuwe basisversie.
 
 ## Firebase
-De Firestore-regels zijn gewijzigd voor de nieuwe privé to-do-collectie `privateTodos`. Publiceer daarom eerst `firestore.rules` uit deze versie. Storage-regels zijn niet gewijzigd.
+De Firestore-regels uit v1.3.28 blijven nodig voor `privateTodos`. Storage-regels zijn niet gewijzigd.
 
 ## Uploaden
-1. Publiceer eerst de nieuwe `firestore.rules` in Firebase.
-2. Upload daarna alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
-3. Sluit Hogeterpjes volledig af en open de app opnieuw.
-4. Controleer bovenaan dat versie 1.3.28 zichtbaar is.
+1. Zorg dat de Firestore-regels uit deze map gepubliceerd zijn.
+2. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+3. Sluit Hogeterpjes op alle telefoons volledig af.
+4. Open de app opnieuw en controleer dat v1.3.29 bovenaan staat.
+5. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.

@@ -1,12 +1,9 @@
-HOGETERPJES v1.3.28 – GEKOZEN AGENDA-PERSONEN EN PRIVÉ TO-DO'S
+HOGETERPJES v1.3.29 – NIEUWE BASISVERSIE
 
-De Firestore-regels ZIJN gewijzigd.
+De Firestore-regels zijn inhoudelijk gelijk aan v1.3.28. Storage-regels zijn niet gewijzigd.
 
-1. Ga in Firebase naar Firestore Database → Rules.
-2. Vervang de regels door firestore.rules uit v1.3.28 en klik op Publiceren.
-3. Upload daarna alle 13 losse bestanden naar GitHub Pages.
-4. Sluit Hogeterpjes op alle telefoons volledig af.
-5. Open de app opnieuw en controleer dat v1.3.28 bovenaan staat.
-6. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
-
-Storage-regels zijn niet gewijzigd.
+1. Controleer dat firestore.rules uit deze map in Firebase is gepubliceerd.
+2. Upload daarna alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
+3. Sluit Hogeterpjes op alle telefoons volledig af.
+4. Open de app opnieuw en controleer dat v1.3.29 bovenaan staat.
+5. Wacht tot “✓ Alles is gesynchroniseerd” verschijnt.
