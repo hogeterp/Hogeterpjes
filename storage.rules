@@ -28,7 +28,10 @@ service firebase.storage {
     }
 
     match /{allPaths=**} {
-      allow read, write: if false;
+      // v1.3.35: alleen Rinze (admin) mag de bucket-lijst opvragen
+      // om het totale opslaggebruik op Home te kunnen berekenen.
+      allow list: if isAdmin();
+      allow get, create, update, delete: if false;
     }
   }
 }

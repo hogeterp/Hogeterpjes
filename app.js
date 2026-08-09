@@ -22,6 +22,7 @@ const DEFAULT_DATA = {
   weekMenus: [],
   notifications: [],
   products: [],
+  outings: [],
   stores: ["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"]
 };
 
@@ -34,6 +35,7 @@ let showPastAgenda=false;
 let signupVerificationInProgress=false;
 let data=loadData();
 data.products=Array.isArray(data.products)?data.products:[];
+data.outings=Array.isArray(data.outings)?data.outings:[];
 data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
 let currentHousehold=data.households[0]?.id || "";
 let currentWeekmenuHousehold="";
@@ -69,6 +71,9 @@ const SHARED_AGENDA_COLLECTION="sharedAgendaEvents";
 const CHANGE_LOG_COLLECTION="appChangeLog";
 const ADMIN_EMAIL="rohogeterp@gmail.com";
 const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
+const STORAGE_LIMIT_BYTES=5*1024*1024*1024;
+const STORAGE_USAGE_CACHE_KEY="hogeterpjes-storage-usage-v1";
+let storageUsageLoading=false;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
   "rohogeterp@gmail.com": "Rinze"
@@ -254,6 +259,7 @@ function subscribeToCloudData(){
           weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(Array.isArray(remote.weekMenus)?remote.weekMenus:[]),
           notifications:Array.isArray(remote.notifications)?remote.notifications:[],
           products:Array.isArray(remote.products)?remote.products:[],
+          outings:Array.isArray(remote.outings)?remote.outings:[],
           stores:Array.isArray(remote.stores)&&remote.stores.length?remote.stores:data.stores
         };
         localStorage.setItem(KEY,JSON.stringify(data));
@@ -755,6 +761,7 @@ function renderGroceries(){
 function renderProducts(){
   if(!window.productList) return;
   data.products=Array.isArray(data.products)?data.products:[];
+data.outings=Array.isArray(data.outings)?data.outings:[];
   const q=(productSearch.value||"").toLowerCase();
   const store=productStoreFilter.value||"";
   const category=productCategoryFilter.value||"";
@@ -1051,6 +1058,76 @@ window.releaseGiftWish=(eventId,wishId)=>{
   if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
 };
 
+
+function outingStatusLabel(status){
+  return status==="done"?"✅ Geweest":status==="want"?"❤️ Willen we heen":"💡 Idee";
+}
+function renderOutings(){
+  if(!window.outingList) return;
+  const q=(outingSearch?.value||"").trim().toLowerCase();
+  const category=outingCategoryFilter?.value||"";
+  const status=outingStatusFilter?.value||"";
+  const rows=(data.outings||[]).filter(o=>
+    (!category||o.category===category)&&(!status||o.status===status)&&
+    (!q||[o.title,o.place,o.note,o.category].join(" ").toLowerCase().includes(q))
+  ).sort((a,b)=>{
+    const rank={want:0,idea:1,done:2};
+    return (rank[a.status]??1)-(rank[b.status]??1) || String(a.title||"").localeCompare(String(b.title||""),"nl");
+  });
+  outingList.innerHTML=rows.length?rows.map(o=>`<article class="item-card outing-card"><div class="outing-card-head"><div><h3>${escapeHtml(o.title)}</h3><div class="meta">${escapeHtml(o.category||"Overig")}${o.place?` · 📍 ${escapeHtml(o.place)}`:""}</div></div><span class="outing-status">${outingStatusLabel(o.status)}</span></div>${o.note?`<p>${escapeHtml(o.note).replaceAll("\n","<br>")}</p>`:""}${o.link?`<a href="${escapeHtml(o.link)}" target="_blank" rel="noopener">Website bekijken</a>`:""}<div class="outing-actions"><button class="secondary-btn" type="button" onclick="openOutingDialog('${o.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deleteOuting('${o.id}')">Verwijderen</button></div></article>`).join(""):`<div class="card muted">Nog geen dagjes-uit-ideeën.</div>`;
+}
+window.openOutingDialog=(id="")=>{
+  const o=(data.outings||[]).find(x=>x.id===id);
+  outingForm.reset(); outingEditId.value=o?.id||""; outingDialogTitle.textContent=o?"Dagje uit bewerken":"Dagje uit toevoegen";
+  outingTitle.value=o?.title||""; outingCategory.value=o?.category||"Pretpark"; outingPlace.value=o?.place||""; outingStatus.value=o?.status||"idea"; outingLink.value=o?.link||""; outingNote.value=o?.note||"";
+  deleteOutingBtn.classList.toggle("hidden",!o); outingDialog.showModal();
+};
+window.deleteOuting=id=>{
+  const o=(data.outings||[]).find(x=>x.id===id); if(!o)return;
+  if(!confirm(`Dagje uit “${o.title}” verwijderen?`)) return;
+  data.outings=data.outings.filter(x=>x.id!==id); saveData();
+};
+
+function readStorageUsageCache(){
+  try{return JSON.parse(localStorage.getItem(STORAGE_USAGE_CACHE_KEY)||"null");}catch(_){return null;}
+}
+function writeStorageUsageCache(bytes,count){
+  const value={bytes,count,updatedAt:new Date().toISOString()};
+  localStorage.setItem(STORAGE_USAGE_CACHE_KEY,JSON.stringify(value)); return value;
+}
+function updateStorageUsageCard(value,error=""){
+  const card=document.getElementById("dashboardStorageCard"); if(!card)return;
+  const allowed=isAdmin(); card.classList.toggle("hidden",!allowed); if(!allowed)return;
+  if(error){ storageUsageText.textContent="Opslag kon niet worden berekend"; storageUsagePercent.textContent="—"; storageUsageRemaining.textContent="—"; storageUsageWarning.textContent=error; storageUsageWarning.classList.remove("hidden"); return; }
+  if(!value){ storageUsageText.textContent="Opslag berekenen…"; return; }
+  const bytes=Number(value.bytes||0), pct=bytes/STORAGE_LIMIT_BYTES*100;
+  storageUsageText.textContent=`${formatBytes(bytes)} van 5,00 GB`;
+  storageUsagePercent.textContent=`${pct.toLocaleString("nl-NL",{maximumFractionDigits:1})}% gebruikt`;
+  storageUsageRemaining.textContent=`${formatBytes(Math.max(0,STORAGE_LIMIT_BYTES-bytes))} beschikbaar`;
+  storageUsageBar.style.width=`${Math.min(100,pct)}%`; storageUsageBar.className=pct>100?"danger":"";
+  storageUsageWarning.classList.toggle("hidden",bytes<=STORAGE_LIMIT_BYTES);
+  storageUsageWarning.textContent=bytes>STORAGE_LIMIT_BYTES?"⚠️ Meer dan 5,00 GB gebruikt. Controleer Firebase Storage en je kosten.":"";
+  const updated=value.updatedAt?new Date(value.updatedAt):null;
+  storageUsageUpdated.textContent=updated?`Laatst berekend: ${updated.toLocaleString("nl-NL")} · ${Number(value.count||0)} bestanden`:"";
+}
+async function calculateStorageUsageRef(ref){
+  const result=await ref.listAll(); let bytes=0,count=0;
+  const metas=await Promise.all(result.items.map(item=>item.getMetadata()));
+  metas.forEach(m=>{bytes+=Number(m.size||0);count++;});
+  for(const prefix of result.prefixes){const sub=await calculateStorageUsageRef(prefix);bytes+=sub.bytes;count+=sub.count;}
+  return {bytes,count};
+}
+async function refreshStorageUsage(force=false){
+  if(!isAdmin()||!storage||storageUsageLoading)return;
+  const cached=readStorageUsageCache();
+  if(cached) updateStorageUsageCard(cached);
+  if(!force&&cached&&Date.now()-new Date(cached.updatedAt).getTime()<6*60*60*1000)return;
+  storageUsageLoading=true; if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.disabled=true;
+  try{ const usage=await calculateStorageUsageRef(storage.ref()); updateStorageUsageCard(writeStorageUsageCache(usage.bytes,usage.count)); }
+  catch(e){ console.error("Opslaggebruik berekenen mislukt",e); updateStorageUsageCard(cached,e?.message||"Controleer of de nieuwe Storage-regels zijn gepubliceerd."); }
+  finally{storageUsageLoading=false;if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.disabled=false;}
+}
+
 function renderHome(){
   statFamily.textContent=data.family.length;
   statHouseholds.textContent=data.households.length;
@@ -1124,6 +1201,7 @@ function renderHome(){
     const latest=diaryEntries.slice().sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||"")))[0];
     dashboardDiarySummary.textContent=latest ? `Laatste notitie: ${diaryDateLabel(latest.date)}` : "Open je dagboek om een notitie toe te voegen.";
   }
+  if(isAdmin()){updateStorageUsageCard(readStorageUsageCache()); setTimeout(()=>refreshStorageUsage(false),0);} else updateStorageUsageCard(null);
 }
 function fillSelects(){
   const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
@@ -1159,7 +1237,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderOutings(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -1859,6 +1937,18 @@ window.openWishDialog=openWishDialog;
 addWishBtn.onclick=openWishDialog;
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
+if(window.addOutingBtn) addOutingBtn.onclick=()=>openOutingDialog();
+const quickOuting=document.querySelector('[data-action="add-outing"]'); if(quickOuting) quickOuting.onclick=()=>setTimeout(()=>openOutingDialog(),150);
+if(window.outingSearch) outingSearch.oninput=renderOutings;
+if(window.outingCategoryFilter) outingCategoryFilter.onchange=renderOutings;
+if(window.outingStatusFilter) outingStatusFilter.onchange=renderOutings;
+if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.onclick=()=>refreshStorageUsage(true);
+if(window.outingForm) outingForm.onsubmit=e=>{
+  e.preventDefault(); data.outings=Array.isArray(data.outings)?data.outings:[]; const id=outingEditId.value; const existing=data.outings.find(x=>x.id===id);
+  const record={id:existing?.id||crypto.randomUUID(),title:outingTitle.value.trim(),category:outingCategory.value,place:outingPlace.value.trim(),status:outingStatus.value,link:outingLink.value.trim(),note:outingNote.value.trim(),createdAt:existing?.createdAt||new Date().toISOString(),createdBy:existing?.createdBy||currentPersonName(),updatedAt:new Date().toISOString(),updatedBy:currentPersonName()};
+  if(existing)Object.assign(existing,record);else data.outings.unshift(record); outingDialog.close(); saveData();
+};
+if(window.deleteOutingBtn) deleteOutingBtn.onclick=()=>{const id=outingEditId.value;if(id)deleteOuting(id);outingDialog.close();};
 
 addIngredientRowBtn.onclick=()=>{
   addIngredientRow();
@@ -3092,7 +3182,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.34");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.35");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.34">
-  <link rel="stylesheet" href="style.css?v=1.3.34">
+  <link rel="manifest" href="manifest.json?v=1.3.35">
+  <link rel="stylesheet" href="style.css?v=1.3.35">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.34</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.35</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.34</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.35</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -128,7 +128,20 @@
             <button data-go="boodschappen">🛒 Boodschap</button>
             <button data-go="verlanglijstjes" data-action="add-wish">🎁 Wens</button>
             <button data-go="weekmenu">📅 Weekmenu</button>
+            <button data-go="uitjes" data-action="add-outing">🎡 Dagje uit</button>
           </div>
+        </section>
+
+        <section id="dashboardStorageCard" class="card storage-usage-card hidden">
+          <div class="section-head">
+            <div><p class="eyebrow">Beheer</p><h3>☁️ Firebase-opslag</h3></div>
+            <button id="refreshStorageUsageBtn" class="text-btn" type="button">Vernieuwen</button>
+          </div>
+          <strong id="storageUsageText">Opslag berekenen…</strong>
+          <div class="storage-usage-meter"><span id="storageUsageBar"></span></div>
+          <div class="meta"><span id="storageUsagePercent">—</span> · <span id="storageUsageRemaining">—</span></div>
+          <p id="storageUsageWarning" class="storage-usage-warning hidden"></p>
+          <p id="storageUsageUpdated" class="muted storage-usage-updated"></p>
         </section>
       </section>
 
@@ -183,6 +196,26 @@
         </div>
         <div id="productQuickSections"></div>
         <div id="productList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="uitjes">
+        <div class="page-head">
+          <div><p class="eyebrow">Samen eropuit</p><h2>🎡 Dagjes uit</h2></div>
+          <button id="addOutingBtn" class="primary-btn">+ Idee</button>
+        </div>
+        <div class="card outing-help">Bewaar hier leuke ideeën voor een dagje uit. Iedereen binnen Hogeterpjes kan deze lijst bekijken en aanpassen.</div>
+        <div class="filters">
+          <select id="outingCategoryFilter">
+            <option value="">Alle categorieën</option>
+            <option>Pretpark</option><option>Dierentuin</option><option>Museum</option><option>Natuur</option><option>Stad</option><option>Restaurant</option><option>Activiteit</option><option>Overig</option>
+          </select>
+          <select id="outingStatusFilter">
+            <option value="">Alle statussen</option>
+            <option value="idea">💡 Idee</option><option value="want">❤️ Willen we heen</option><option value="done">✅ Geweest</option>
+          </select>
+        </div>
+        <input id="outingSearch" class="search" placeholder="Zoek uitje, plaats of notitie">
+        <div id="outingList" class="list-grid"></div>
       </section>
 
       <section class="page" data-page="verlanglijstjes">
@@ -432,6 +465,7 @@
     <button data-go="weekmenu">🍽️ Weekmenu</button>
     <button data-go="meldingen">🔔 Meldingen</button>
     <button data-go="producten">📦 Productdatabase</button>
+    <button data-go="uitjes">🎡 Dagjes uit</button>
     <button id="vaultMenuBtn" class="hidden" data-go="kluis">🔐 Kluis Rinze & Christa</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
@@ -888,6 +922,21 @@
     </form>
   </dialog>
 
+  <dialog id="outingDialog" class="modal">
+    <form id="outingForm" method="dialog">
+      <div class="sheet-head"><h3 id="outingDialogTitle">Dagje uit toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="outingEditId" type="hidden">
+      <label>Naam<input id="outingTitle" required maxlength="120" placeholder="Bijv. Efteling"></label>
+      <label>Categorie<select id="outingCategory" required><option>Pretpark</option><option>Dierentuin</option><option>Museum</option><option>Natuur</option><option>Stad</option><option>Restaurant</option><option>Activiteit</option><option>Overig</option></select></label>
+      <label>Plaats<input id="outingPlace" maxlength="120" placeholder="Optioneel"></label>
+      <label>Status<select id="outingStatus"><option value="idea">💡 Idee</option><option value="want">❤️ Willen we heen</option><option value="done">✅ Geweest</option></select></label>
+      <label>Website<input id="outingLink" type="url" placeholder="https://..."></label>
+      <label>Opmerking<textarea id="outingNote" rows="4" maxlength="800" placeholder="Bijv. leuk in de zomer, parkeren, prijs..."></textarea></label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="deleteOutingBtn" class="secondary-btn wide hidden" type="button">Verwijderen</button>
+    </form>
+  </dialog>
+
   <dialog id="signupDialog" class="modal">
     <form id="signupForm" method="dialog"><div class="sheet-head"><h3>Eigen account maken</h3><button type="button" data-close>✕</button></div>
       <p class="muted">Gebruik precies het e-mailadres dat Rinze heeft uitgenodigd. Je kiest zelf je wachtwoord.</p>
@@ -901,7 +950,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.34"></script>
-  <script src="app.js?v=1.3.34"></script>
+  <script src="firebase-config.js?v=1.3.35"></script>
+  <script src="app.js?v=1.3.35"></script>
 </body>
 </html>

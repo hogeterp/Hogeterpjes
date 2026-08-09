@@ -1,15 +1,13 @@
-HOGETERPJES v1.3.34 – FOTO BIJ MIJN TO-DO'S
-
-De Firestore- en Storage-regels zijn NIET gewijzigd.
-Als de regels van v1.3.33 al actief zijn, hoef je niets opnieuw in Firebase te publiceren.
+HOGETERPJES v1.3.35 – OPSLAGMETER + DAGJES UIT
 
 1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
-2. Sluit Hogeterpjes op alle telefoons volledig af.
-3. Open de app opnieuw.
-4. Controleer dat v1.3.34 bovenaan staat.
-5. Test bij Mijn to-do's:
-   - nieuwe taak → 📷 Foto maken
-   - nieuwe taak → 🖼️ Kies uit galerij
-   - taak wijzigen → foto vervangen/verwijderen
+2. Open Firebase Console → Storage → Rules.
+3. Vervang de regels door het meegeleverde bestand storage.rules en klik op Publiceren.
+4. De Firestore-regels zijn NIET gewijzigd; firestore.rules hoeft niet opnieuw gepubliceerd te worden.
+5. Sluit Hogeterpjes op alle telefoons volledig af en open de app opnieuw.
+6. Controleer bovenaan dat v1.3.35 staat.
+7. Log in als Rinze en controleer onderaan Home de kaart ☁️ Firebase-opslag. Druk eventueel één keer op Vernieuwen.
+8. Test 🎡 Dagjes uit via Home of via Meer.
 
-De bestaande to-do-volgorde blijft: Dringend → Hoog → Normaal → Laag. Binnen dezelfde prioriteit wordt op datum en tijd gesorteerd.
+LET OP
+De opslagmeter is alleen zichtbaar voor Rinze/admin. De nieuwe Storage-regel geeft alleen de admin toestemming om bestandslijsten op te vragen; bestaande toegang tot bestanden blijft verder hetzelfde.

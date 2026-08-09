@@ -301,3 +301,8 @@ button:disabled{opacity:.58;cursor:wait}
 
 /* v1.3.34 – foto bij persoonlijke to-do */
 .todo-photo-field{margin:13px 0}.todo-photo-preview{display:grid;gap:8px;margin-top:12px;text-align:center}.todo-photo-preview img,.todo-photo{width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:var(--primary-2)}.todo-photo{margin:2px 0 4px;object-fit:cover;max-height:240px}
+
+
+/* v1.3.35 – opslag op Home en Dagjes uit */
+.storage-usage-card{margin-top:14px}.storage-usage-meter{height:14px;background:rgba(63,111,90,.14);border-radius:999px;overflow:hidden;margin:10px 0}.storage-usage-meter span{display:block;height:100%;width:0;background:#3f6f5a;transition:width .25s}.storage-usage-meter span.danger{background:#c43d3d}.storage-usage-warning{font-weight:800;color:#b42318;margin:.7rem 0 0}.storage-usage-updated{font-size:.8rem;margin:.55rem 0 0}.dark .storage-usage-meter{background:rgba(255,255,255,.13)}
+.outing-help{margin-bottom:14px}.outing-card{display:grid;gap:9px}.outing-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.outing-card-head h3{margin:0 0 5px}.outing-status{display:inline-block;width:max-content;padding:5px 9px;border-radius:999px;background:var(--primary-2);font-size:.8rem;font-weight:800}.outing-actions{display:flex;gap:8px}.outing-actions button{flex:1}.outing-card p{margin:.2rem 0;line-height:1.45}@media(max-width:520px){.outing-card-head{flex-direction:column}}
