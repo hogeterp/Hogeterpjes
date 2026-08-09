@@ -1,14 +1,15 @@
-# Hogeterpjes v1.3.33
+# Hogeterpjes v1.3.34
 
-## Aangepast
-- To-do's worden nu overal eerst op prioriteit gesorteerd: **Dringend → Hoog → Normaal → Laag**.
-- Binnen dezelfde prioriteit wordt vervolgens op datum en tijd gesorteerd.
-- Dezelfde sortering geldt op **Home** en in **Mijn to-do's**.
-- Oude of afwijkend opgeslagen prioriteitswaarden worden automatisch herkend en genormaliseerd.
-- De cache-verwijzingen in `index.html` zijn gecorrigeerd naar v1.3.33, zodat de telefoon niet meer per ongeluk een oudere `app.js` gebruikt.
+## Nieuw
+- Bij **Mijn to-do's** kun je nu een foto toevoegen.
+- Je kunt kiezen tussen **📷 Foto maken** en **🖼️ Kies uit galerij**.
+- De foto is zichtbaar op de taak en blijft ook beschikbaar wanneer je de taak later bewerkt.
+- Een bestaande foto kan bij het wijzigen worden vervangen of verwijderd.
+- Foto's worden vóór opslaan verkleind/gecomprimeerd.
+- De bestaande sortering blijft: **Dringend → Hoog → Normaal → Laag**, daarna datum en tijd.
 
 ## Firebase
-Firestore- en Storage-regels zijn niet gewijzigd ten opzichte van v1.3.32.
+De Firestore- en Storage-regels zijn niet gewijzigd ten opzichte van v1.3.33. De taakfoto wordt in het privé to-do-document opgeslagen.
 
 ## Uploaden
-Upload alle 13 bestanden naar GitHub Pages, sluit Hogeterpjes volledig af en open opnieuw. Controleer bovenaan op **v1.3.33**.
+Upload alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden. Sluit Hogeterpjes daarna volledig af en open opnieuw. Controleer bovenaan op **v1.3.34**.

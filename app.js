@@ -925,14 +925,52 @@ function renderPrivateTodos(){
   todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
     <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
     ${t.note?`<p>${escapeHtml(t.note).replaceAll("\n","<br>")}</p>`:""}
+    ${t.photo?`<img class="todo-photo" src="${escapeHtml(t.photo)}" alt="Foto bij ${escapeHtml(t.title||"taak")}">`:""}
     <div class="todo-actions"><button class="secondary-btn" type="button" onclick="openTodoDialog('${t.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateTodo('${t.id}')">Verwijderen</button></div>
   </article>`).join(""):`<div class="card muted">Je hebt nog geen persoonlijke taken.</div>`;
 }
+let todoPhotoObjectUrl="";
+function resetTodoPhoto(){
+  todoPhotoData.value=""; todoCameraInput.value=""; todoGalleryInput.value="";
+  todoPhotoPreview.removeAttribute("src"); todoPhotoPreviewWrap.classList.add("hidden");
+  if(todoPhotoObjectUrl){URL.revokeObjectURL(todoPhotoObjectUrl);todoPhotoObjectUrl="";}
+}
+function setTodoPhoto(dataUrl){
+  todoPhotoData.value=dataUrl||"";
+  if(dataUrl){todoPhotoPreview.src=dataUrl;todoPhotoPreviewWrap.classList.remove("hidden");}
+  else resetTodoPhoto();
+}
+function processTodoPhoto(file){
+  if(!file)return;
+  if(!file.type.startsWith("image/")){alert("Kies een geldige foto of afbeelding.");return;}
+  if(file.size>12*1024*1024){alert("Kies een afbeelding kleiner dan 12 MB.");return;}
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=900,scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement("canvas");
+      canvas.width=Math.max(1,Math.round(img.width*scale));
+      canvas.height=Math.max(1,Math.round(img.height*scale));
+      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
+      setTodoPhoto(canvas.toDataURL("image/jpeg",0.68));
+    };
+    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");
+    img.src=reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+if(window.todoCameraInput) todoCameraInput.onchange=()=>processTodoPhoto(todoCameraInput.files?.[0]);
+if(window.todoGalleryInput) todoGalleryInput.onchange=()=>processTodoPhoto(todoGalleryInput.files?.[0]);
+if(window.removeTodoPhotoBtn) removeTodoPhotoBtn.onclick=resetTodoPhoto;
+
 window.openTodoDialog=(id="")=>{
-  todoForm.reset(); todoEditId.value=id; todoDialogTitle.textContent=id?"Taak wijzigen":"Taak toevoegen";
+  todoForm.reset(); resetTodoPhoto(); todoEditId.value=id; todoDialogTitle.textContent=id?"Taak wijzigen":"Taak toevoegen";
   const item=(privateTodos||[]).find(t=>t.id===id);
-  if(item){ todoTitle.value=item.title||""; todoNote.value=item.note||""; todoDate.value=item.date||""; todoTime.value=item.time||""; todoPriority.value=item.priority||"normal"; }
-  else todoPriority.value="normal";
+  if(item){
+    todoTitle.value=item.title||""; todoNote.value=item.note||""; todoDate.value=item.date||""; todoTime.value=item.time||""; todoPriority.value=item.priority||"normal";
+    setTodoPhoto(item.photo||"");
+  } else todoPriority.value="normal";
   todoDialog.showModal();
 };
 window.togglePrivateTodo=async(id,completed)=>{
@@ -1785,7 +1823,7 @@ if(window.todoForm) todoForm.onsubmit=async e=>{
   const original=(privateTodos||[]).find(t=>t.id===id);
   const record={
     id,title:todoTitle.value.trim(),note:todoNote.value.trim(),date:todoDate.value,time:todoTime.value,
-    priority:normalizeTodoPriority(todoPriority.value),completed:original?.completed||false,
+    photo:todoPhotoData.value||"",priority:normalizeTodoPriority(todoPriority.value),completed:original?.completed||false,
     createdAt:original?.createdAt||firebase.firestore.FieldValue.serverTimestamp(),
     updatedAt:firebase.firestore.FieldValue.serverTimestamp()
   };
@@ -3054,7 +3092,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.33");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.34");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

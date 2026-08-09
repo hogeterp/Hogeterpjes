@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.33">
-  <link rel="stylesheet" href="style.css?v=1.3.33">
+  <link rel="manifest" href="manifest.json?v=1.3.34">
+  <link rel="stylesheet" href="style.css?v=1.3.34">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.33</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.34</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.33</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.34</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -757,6 +757,18 @@
       <label>Omschrijving (optioneel)<textarea id="todoNote" rows="4"></textarea></label>
       <div class="agenda-time-grid"><label>Datum (optioneel)<input id="todoDate" type="date"></label><label>Tijd (optioneel)<input id="todoTime" type="time"></label></div>
       <label>Prioriteit<select id="todoPriority"><option value="urgent">🚨 Dringend</option><option value="high">🔴 Hoog</option><option value="normal" selected>🟡 Normaal</option><option value="low">🟢 Laag</option></select></label>
+      <div class="todo-photo-field">
+        <span class="field-label">Foto (optioneel)</span>
+        <div class="photo-action-row">
+          <label class="secondary-btn photo-action">📷 Foto maken<input id="todoCameraInput" type="file" accept="image/*" capture="environment"></label>
+          <label class="secondary-btn photo-action">🖼️ Kies uit galerij<input id="todoGalleryInput" type="file" accept="image/*"></label>
+        </div>
+        <input id="todoPhotoData" type="hidden">
+        <div id="todoPhotoPreviewWrap" class="todo-photo-preview hidden">
+          <img id="todoPhotoPreview" alt="Voorbeeld taakfoto">
+          <button id="removeTodoPhotoBtn" class="text-btn" type="button">Foto verwijderen</button>
+        </div>
+      </div>
       <button class="primary-btn wide" type="submit">Taak opslaan</button>
     </form>
   </dialog>
@@ -889,7 +901,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.33"></script>
-  <script src="app.js?v=1.3.33"></script>
+  <script src="firebase-config.js?v=1.3.34"></script>
+  <script src="app.js?v=1.3.34"></script>
 </body>
 </html>

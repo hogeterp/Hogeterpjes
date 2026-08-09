@@ -1,12 +1,15 @@
-HOGETERPJES v1.3.33 – TO-DO PRIORITEIT DEFINITIEF GESORTEERD
+HOGETERPJES v1.3.34 – FOTO BIJ MIJN TO-DO'S
 
 De Firestore- en Storage-regels zijn NIET gewijzigd.
-Als de regels van v1.3.28 of nieuwer al actief zijn, hoef je niets opnieuw in Firebase te publiceren.
+Als de regels van v1.3.33 al actief zijn, hoef je niets opnieuw in Firebase te publiceren.
 
 1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
 2. Sluit Hogeterpjes op alle telefoons volledig af.
 3. Open de app opnieuw.
-4. Controleer dat v1.3.33 bovenaan staat.
-5. Wacht tot de synchronisatie klaar is.
+4. Controleer dat v1.3.34 bovenaan staat.
+5. Test bij Mijn to-do's:
+   - nieuwe taak → 📷 Foto maken
+   - nieuwe taak → 🖼️ Kies uit galerij
+   - taak wijzigen → foto vervangen/verwijderen
 
-De to-do-volgorde is nu altijd: Dringend → Hoog → Normaal → Laag. Binnen dezelfde prioriteit wordt op datum en tijd gesorteerd.
+De bestaande to-do-volgorde blijft: Dringend → Hoog → Normaal → Laag. Binnen dezelfde prioriteit wordt op datum en tijd gesorteerd.

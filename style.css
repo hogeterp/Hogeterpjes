@@ -297,3 +297,7 @@ button:disabled{opacity:.58;cursor:wait}
 
 
 /* v1.3.33 – to-do prioriteit definitief eerst */
+
+
+/* v1.3.34 – foto bij persoonlijke to-do */
+.todo-photo-field{margin:13px 0}.todo-photo-preview{display:grid;gap:8px;margin-top:12px;text-align:center}.todo-photo-preview img,.todo-photo{width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:var(--primary-2)}.todo-photo{margin:2px 0 4px;object-fit:cover;max-height:240px}
