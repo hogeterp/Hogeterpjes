@@ -5,7 +5,7 @@
 - Foto's van **wensen, recepten en producten** worden voortaan in Firebase Storage opgeslagen in plaats van als grote base64-tekst in het gedeelde Firestore-document `appData/hogeterpjes`.
 - Bestaande ingebedde foto's worden na het openen van v1.3.36 automatisch naar Firebase Storage verplaatst en daarna uit het grote Firestore-document gehaald.
 - Hierdoor blijft het gedeelde Firestore-document klein en wordt de Firestore-documentlimiet niet meer geraakt door foto's.
-- De Firebase-opslagmeter en Dagjes uit uit v1.3.35 blijven behouden.
+- De Firebase-opslagmeter en Dagjes uit uit v1.3.36 blijven behouden.
 
 ## Firebase
 Voor v1.3.36 is **storage.rules gewijzigd**. Firestore-regels zijn niet gewijzigd.
