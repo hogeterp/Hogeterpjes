@@ -1,4 +1,4 @@
-HOGETERPJES v1.3.37 – FOTO-OPSLAG HERSTEL
+HOGETERPJES v1.3.38 – FOTO-OPSLAG HERSTEL
 
 1. Open Firebase Console en kies project “hogeterpjes”.
 2. Kies Storage → Rules / Regels.
@@ -7,11 +7,11 @@ HOGETERPJES v1.3.37 – FOTO-OPSLAG HERSTEL
 5. Firestore-regels zijn NIET gewijzigd; firestore.rules hoeft niet opnieuw gepubliceerd te worden.
 6. Upload daarna alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
 7. Sluit Hogeterpjes volledig af en open de app opnieuw.
-8. Controleer bovenaan dat v1.3.37 staat.
+8. Controleer bovenaan dat v1.3.38 staat.
 9. Laat de app bij de eerste start even open. Bestaande base64-foto's van wensen, recepten en producten worden automatisch naar Firebase Storage verplaatst.
 10. Test Wensen: open een bestaande wens met foto → Bewerken → opslaan.
 
 BELANGRIJK
-- In v1.3.37 staan gedeelde foto's onder shared-media/ in Firebase Storage.
+- In v1.3.38 staan gedeelde foto's onder shared-media/ in Firebase Storage.
 - Het gedeelde Firestore-document appData/hogeterpjes bevat daarna alleen kleine download-URL's in plaats van de complete foto.
 - De opslagmeter op Home blijft werken.

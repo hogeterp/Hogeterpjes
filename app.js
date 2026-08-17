@@ -75,7 +75,7 @@ const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
 const STORAGE_LIMIT_BYTES=5*1024*1024*1024;
 const STORAGE_USAGE_CACHE_KEY="hogeterpjes-storage-usage-v1";
 const DATA_BACKUP_KEY="hogeterpjes-data-backup-v1";
-const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.37";
+const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.38";
 let storageUsageLoading=false;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
@@ -153,7 +153,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.37.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.38.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -286,6 +286,37 @@ function setSyncStatus(text,isError=false){
   }
 }
 
+
+function cloudList(value){
+  if(Array.isArray(value)) return value;
+  if(value && typeof value==="object"){
+    const keys=Object.keys(value);
+    if(keys.length && keys.every(k=>/^\d+$/.test(k))){
+      return keys.sort((a,b)=>Number(a)-Number(b)).map(k=>value[k]);
+    }
+  }
+  return null;
+}
+
+async function restoreWishesDirectlyFromFirestore(){
+  if(!db || !currentUser) return false;
+  try{
+    const snap=await db.doc(SHARED_DATA_DOC).get({source:"server"});
+    if(!snap.exists) return false;
+    const wishes=cloudList(snap.get("wishes"));
+    if(Array.isArray(wishes) && wishes.length){
+      data.wishes=wishes;
+      try{ localStorage.setItem(KEY,JSON.stringify(data)); }catch(e){}
+      renderWishes();
+      renderHome();
+      return true;
+    }
+  }catch(err){
+    console.error("Wensen rechtstreeks uit Firestore herstellen mislukt",err);
+  }
+  return false;
+}
+
 function subscribeToCloudData(){
   if(!db || !currentUser) return;
   if(cloudUnsubscribe) cloudUnsubscribe();
@@ -294,57 +325,58 @@ function subscribeToCloudData(){
   cloudUnsubscribe=db.doc(SHARED_DATA_DOC).onSnapshot(async snap=>{
     try{
       if(snap.exists){
-        const remote=snap.data();
-        // v1.3.37: maak eerst een lokale veiligheidskopie voordat clouddata iets overschrijft.
+        const remote=snap.data() || {};
         try{ localStorage.setItem(DATA_BACKUP_KEY,JSON.stringify(data)); }catch(e){ console.warn("Lokale back-up mislukt",e); }
-        const localWishes=Array.isArray(data.wishes)?data.wishes:[];
-        const remoteWishes=Array.isArray(remote.wishes)?remote.wishes:null;
-        const migrationDone=localStorage.getItem(WISH_MIGRATION_KEY)==="done";
-        const rescueLocalWishes=!migrationDone && localWishes.length>0 && (!remoteWishes || remoteWishes.length===0);
+
+        const remoteWishes=cloudList(remote.wishes);
+        const remoteRecipes=cloudList(remote.recipes);
+        const remoteProducts=cloudList(remote.products);
+
         applyingRemote=true;
         data={
-          family:Array.isArray(remote.family)?remote.family:cloneDefaults().family,
-          households:Array.isArray(remote.households)?remote.households:cloneDefaults().households,
-          recipes:Array.isArray(remote.recipes)?remote.recipes:[],
-          groceries:Array.isArray(remote.groceries)?remote.groceries:[],
-          wishes:rescueLocalWishes?localWishes:(remoteWishes||[]),
-          giftEvents:Array.isArray(remote.giftEvents)?remote.giftEvents:[],
-          events:Array.isArray(data.events)?data.events:(Array.isArray(remote.events)?remote.events:[]),
-          weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(Array.isArray(remote.weekMenus)?remote.weekMenus:[]),
-          notifications:Array.isArray(remote.notifications)?remote.notifications:[],
-          products:Array.isArray(remote.products)?remote.products:[],
-          outings:Array.isArray(remote.outings)?remote.outings:[],
-          stores:Array.isArray(remote.stores)&&remote.stores.length?remote.stores:data.stores
+          family:cloudList(remote.family) || cloneDefaults().family,
+          households:cloudList(remote.households) || cloneDefaults().households,
+          recipes:remoteRecipes || [],
+          groceries:cloudList(remote.groceries) || [],
+          wishes:remoteWishes || [],
+          giftEvents:cloudList(remote.giftEvents) || [],
+          events:Array.isArray(data.events)?data.events:(cloudList(remote.events) || []),
+          weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(cloudList(remote.weekMenus) || []),
+          notifications:cloudList(remote.notifications) || [],
+          products:remoteProducts || [],
+          outings:cloudList(remote.outings) || [],
+          stores:(cloudList(remote.stores) || []).length ? cloudList(remote.stores) : data.stores
         };
+
         localStorage.setItem(KEY,JSON.stringify(data));
         renderAll();
         applyingRemote=false;
         cloudReady=true;
-        if(rescueLocalWishes){
-          localStorage.setItem(WISH_MIGRATION_KEY,"done");
-          setSyncStatus("Lokale wensen herstellen naar Firebase…");
-          setTimeout(()=>pushDataToCloud(),100);
-        }else if(!migrationDone){
-          localStorage.setItem(WISH_MIGRATION_KEY,"done");
-          setSyncStatus("Alles is gesynchroniseerd");
-        }else{
-          setSyncStatus("Alles is gesynchroniseerd");
+        setSyncStatus("Alles is gesynchroniseerd");
+
+        if(!data.wishes.length){
+          const restored=await restoreWishesDirectlyFromFirestore();
+          if(restored) setSyncStatus("✓ Wensen rechtstreeks uit Firebase hersteld");
         }
-        setTimeout(()=>migrateInlineSharedPhotos(),150);
+
+        if(data.wishes.length || data.recipes.length || data.products.length){
+          setTimeout(()=>migrateInlineSharedPhotos(),250);
+        }
       }else{
         cloudReady=true;
-        await pushDataToCloud();
+        setSyncStatus("Firebase-document ontbreekt",true);
       }
     }catch(error){
       applyingRemote=false;
-      console.error(error);
-      setSyncStatus("Gegevens laden mislukt",true);
+      console.error("Gedeelde Firebase-data verwerken mislukt",error);
+      setSyncStatus("Gedeelde gegevens konden niet worden geladen",true);
     }
   },error=>{
-    console.error(error);
-    setSyncStatus("Geen toegang tot Firestore",true);
+    console.error("Firebase-data laden mislukt",error);
+    setSyncStatus("Firebase-data kon niet worden geladen",true);
   });
 }
+
 function fmtDate(iso){ return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(iso+"T12:00:00")); }
 function ageFor(iso){
   const b=new Date(iso+"T12:00:00"), n=new Date(); let a=n.getFullYear()-b.getFullYear();
@@ -2114,7 +2146,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.37.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.38.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
