@@ -30,7 +30,7 @@ service firebase.storage {
       allow read, write: if isAdmin() && request.auth.uid == userId;
     }
 
-    // v1.3.36: gedeelde foto's staan voortaan in Storage en niet meer
+    // v1.3.37: gedeelde foto's staan voortaan in Storage en niet meer
     // als grote base64-tekst in appData/hogeterpjes.
     match /shared-media/{allPaths=**} {
       allow read: if isInvited() || isAdmin();

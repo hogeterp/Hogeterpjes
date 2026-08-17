@@ -74,6 +74,8 @@ const ADMIN_EMAIL="rohogeterp@gmail.com";
 const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
 const STORAGE_LIMIT_BYTES=5*1024*1024*1024;
 const STORAGE_USAGE_CACHE_KEY="hogeterpjes-storage-usage-v1";
+const DATA_BACKUP_KEY="hogeterpjes-data-backup-v1";
+const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.37";
 let storageUsageLoading=false;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
@@ -151,7 +153,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.36.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.37.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -293,13 +295,19 @@ function subscribeToCloudData(){
     try{
       if(snap.exists){
         const remote=snap.data();
+        // v1.3.37: maak eerst een lokale veiligheidskopie voordat clouddata iets overschrijft.
+        try{ localStorage.setItem(DATA_BACKUP_KEY,JSON.stringify(data)); }catch(e){ console.warn("Lokale back-up mislukt",e); }
+        const localWishes=Array.isArray(data.wishes)?data.wishes:[];
+        const remoteWishes=Array.isArray(remote.wishes)?remote.wishes:null;
+        const migrationDone=localStorage.getItem(WISH_MIGRATION_KEY)==="done";
+        const rescueLocalWishes=!migrationDone && localWishes.length>0 && (!remoteWishes || remoteWishes.length===0);
         applyingRemote=true;
         data={
           family:Array.isArray(remote.family)?remote.family:cloneDefaults().family,
           households:Array.isArray(remote.households)?remote.households:cloneDefaults().households,
           recipes:Array.isArray(remote.recipes)?remote.recipes:[],
           groceries:Array.isArray(remote.groceries)?remote.groceries:[],
-          wishes:Array.isArray(remote.wishes)?remote.wishes:[],
+          wishes:rescueLocalWishes?localWishes:(remoteWishes||[]),
           giftEvents:Array.isArray(remote.giftEvents)?remote.giftEvents:[],
           events:Array.isArray(data.events)?data.events:(Array.isArray(remote.events)?remote.events:[]),
           weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(Array.isArray(remote.weekMenus)?remote.weekMenus:[]),
@@ -312,7 +320,16 @@ function subscribeToCloudData(){
         renderAll();
         applyingRemote=false;
         cloudReady=true;
-        setSyncStatus("Alles is gesynchroniseerd");
+        if(rescueLocalWishes){
+          localStorage.setItem(WISH_MIGRATION_KEY,"done");
+          setSyncStatus("Lokale wensen herstellen naar Firebase…");
+          setTimeout(()=>pushDataToCloud(),100);
+        }else if(!migrationDone){
+          localStorage.setItem(WISH_MIGRATION_KEY,"done");
+          setSyncStatus("Alles is gesynchroniseerd");
+        }else{
+          setSyncStatus("Alles is gesynchroniseerd");
+        }
         setTimeout(()=>migrateInlineSharedPhotos(),150);
       }else{
         cloudReady=true;
@@ -2097,7 +2114,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.36.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.37.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
