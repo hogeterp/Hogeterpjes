@@ -62,6 +62,7 @@ let sharedCollectionsReady=false;
 let cloudReady=false;
 let applyingRemote=false;
 let saveTimer=null;
+let sharedPhotoMigrationRunning=false;
 let agendaSaveInProgress=false;
 const agendaDeleteInProgress=new Set();
 const SHARED_DATA_DOC="appData/hogeterpjes";
@@ -111,6 +112,51 @@ function loadData(){
     return saved ? JSON.parse(saved) : cloneDefaults();
   }catch(e){ return cloneDefaults(); }
 }
+function isInlineImage(value){
+  return typeof value==="string" && value.startsWith("data:image/");
+}
+
+async function uploadSharedImage(value,kind,id){
+  if(!isInlineImage(value)) return value||"";
+  if(!storage || !currentUser) throw new Error("Firebase Storage is niet beschikbaar");
+  const response=await fetch(value);
+  const blob=await response.blob();
+  const path=`shared-media/${kind}/${id}/${Date.now()}-${crypto.randomUUID()}.jpg`;
+  const ref=storage.ref(path);
+  await ref.put(blob,{contentType:blob.type||"image/jpeg",customMetadata:{ownerUid:currentUser.uid,kind}});
+  return await ref.getDownloadURL();
+}
+
+async function migrateInlineSharedPhotos(){
+  if(sharedPhotoMigrationRunning || !storage || !currentUser || !cloudReady) return;
+  const groups=[["wishes","wishes"],["recipes","recipes"],["products","products"]];
+  const pending=[];
+  for(const [field,kind] of groups){
+    for(const item of (Array.isArray(data[field])?data[field]:[])){
+      if(isInlineImage(item?.photo)) pending.push([item,kind]);
+    }
+  }
+  if(!pending.length) return;
+  sharedPhotoMigrationRunning=true;
+  try{
+    setSyncStatus(`Foto's naar Firebase Storage verplaatsen…`);
+    for(const [item,kind] of pending){
+      item.photo=await uploadSharedImage(item.photo,kind,item.id||crypto.randomUUID());
+    }
+    localStorage.setItem(KEY,JSON.stringify(data));
+    renderAll();
+    sharedPhotoMigrationRunning=false;
+    await pushDataToCloud();
+    setSyncStatus("✓ Foto's verplaatst en gegevens opgeslagen");
+  }catch(error){
+    console.error("Fotomigratie mislukt",error);
+    setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.36.");
+  }finally{
+    sharedPhotoMigrationRunning=false;
+  }
+}
+
 function saveData(){
   localStorage.setItem(KEY,JSON.stringify(data));
   renderAll();
@@ -121,7 +167,7 @@ function saveData(){
 }
 
 async function pushDataToCloud(){
-  if(!db || !currentUser || !cloudReady) return;
+  if(!db || !currentUser || !cloudReady || sharedPhotoMigrationRunning) return;
   try{
     setSyncStatus("Wijzigingen opslaan…");
     const {events,weekMenus,...sharedData}=data;
@@ -267,6 +313,7 @@ function subscribeToCloudData(){
         applyingRemote=false;
         cloudReady=true;
         setSyncStatus("Alles is gesynchroniseerd");
+        setTimeout(()=>migrateInlineSharedPhotos(),150);
       }else{
         cloudReady=true;
         await pushDataToCloud();
@@ -1957,7 +2004,7 @@ addIngredientRowBtn.onclick=()=>{
   newest?.querySelector(".ingredient-name")?.focus();
 };
 
-recipeForm.onsubmit=e=>{
+recipeForm.onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(recipeForm);
   const ingredients=collectIngredientRows();
@@ -1966,12 +2013,24 @@ recipeForm.onsubmit=e=>{
 
   const editId=recipeEditId.value;
   const existing=editId ? data.recipes.find(r=>r.id===editId) : null;
+  const id=existing?.id || crypto.randomUUID();
   const now=new Date().toISOString();
+  let photo=recipePhotoData.value;
+  try{
+    if(isInlineImage(photo)){
+      setSyncStatus("Receptfoto uploaden…");
+      photo=await uploadSharedImage(photo,"recipes",id);
+    }
+  }catch(error){
+    console.error(error);
+    showSaveWarning("De receptfoto kon niet naar Firebase Storage worden geüpload. Probeer opnieuw.");
+    return;
+  }
   const recipe={
-    id:existing?.id || crypto.randomUUID(),
+    id,
     name:String(f.get("name")||"").trim(),
     servings:Number(f.get("servings")),
-    photo:recipePhotoData.value,
+    photo,
     ingredients,
     steps:String(f.get("steps")||"").split("\n").map(x=>x.trim()).filter(Boolean),
     author:f.get("author"),
@@ -1981,11 +2040,7 @@ recipeForm.onsubmit=e=>{
     updatedBy:currentPersonName()
   };
 
-  if(existing){
-    Object.assign(existing,recipe);
-  }else{
-    data.recipes.unshift(recipe);
-  }
+  if(existing) Object.assign(existing,recipe); else data.recipes.unshift(recipe);
 
   recipeForm.reset();
   recipeEditId.value="";
@@ -2025,11 +2080,27 @@ deleteRecipeBtn.onclick=()=>{
   resetIngredientEditor();
   saveData();
 };
-wishForm.onsubmit=e=>{
-  e.preventDefault(); const f=new FormData(wishForm); const person=wishPerson.value || currentPersonName();
+wishForm.onsubmit=async e=>{
+  e.preventDefault();
+  const f=new FormData(wishForm);
+  const person=wishPerson.value || currentPersonName();
   if(!person){ alert("Je account is nog niet aan een familielid gekoppeld."); return; }
-  const editId=wishEditId.value; const existing=editId ? data.wishes.find(w=>w.id===editId) : null; if(existing && !canManageWish(existing)) return;
-  const record={id:existing?.id||crypto.randomUUID(),person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo:wishPhotoData.value,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const editId=wishEditId.value;
+  const existing=editId ? data.wishes.find(w=>w.id===editId) : null;
+  if(existing && !canManageWish(existing)) return;
+  const id=existing?.id||crypto.randomUUID();
+  let photo=wishPhotoData.value;
+  try{
+    if(isInlineImage(photo)){
+      setSyncStatus("Wensfoto uploaden…");
+      photo=await uploadSharedImage(photo,"wishes",id);
+    }
+  }catch(error){
+    console.error(error);
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.36.");
+    return;
+  }
+  const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.wishes.unshift(record);
   wishForm.reset(); wishEditId.value=""; resetWishPhoto(); wishDialog.close(); saveData();
 };
@@ -2163,12 +2234,24 @@ function openProductDialog(id=""){
 }
 addProductBtn.onclick=()=>openProductDialog("");
 window.editProduct=id=>openProductDialog(id);
-productForm.onsubmit=e=>{
+productForm.onsubmit=async e=>{
   e.preventDefault();
   const id=productEditId.value;
   const existing=(data.products||[]).find(p=>p.id===id);
+  const productId=id||crypto.randomUUID();
+  let productPhoto=productPhotoData.value||"";
+  try{
+    if(isInlineImage(productPhoto)){
+      setSyncStatus("Productfoto uploaden…");
+      productPhoto=await uploadSharedImage(productPhoto,"products",productId);
+    }
+  }catch(error){
+    console.error(error);
+    showSaveWarning("De productfoto kon niet naar Firebase Storage worden geüpload. Probeer opnieuw.");
+    return;
+  }
   const record={
-    id:id||crypto.randomUUID(),
+    id:productId,
     name:productName.value.trim(),
     brand:productBrand.value.trim(),
     amount:productAmount.value.trim(),
@@ -2181,7 +2264,7 @@ productForm.onsubmit=e=>{
     favorite:productFavorite.checked,
     stock:Number(productStock.value||0),
     minStock:Number(productMinStock.value||0),
-    photo:productPhotoData.value||"",
+    photo:productPhoto,
     timesUsed:existing?.timesUsed||0,
     lastUsedAt:existing?.lastUsedAt||"",
     updatedBy:currentPersonName(),
@@ -3182,7 +3265,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.35");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.36");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

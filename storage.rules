@@ -7,6 +7,9 @@ service firebase.storage {
     function isAdmin() {
       return signedIn() && request.auth.token.email == 'rohogeterp@gmail.com';
     }
+    function isInvited() {
+      return signedIn() && request.auth.token.email in firestore.get(/databases/(default)/documents/appAdmin/settings).data.allowedEmails;
+    }
     function profileName() {
       return firestore.get(/databases/(default)/documents/profielen/$(request.auth.uid)).data.displayName;
     }
@@ -27,9 +30,18 @@ service firebase.storage {
       allow read, write: if isAdmin() && request.auth.uid == userId;
     }
 
+    // v1.3.36: gedeelde foto's staan voortaan in Storage en niet meer
+    // als grote base64-tekst in appData/hogeterpjes.
+    match /shared-media/{allPaths=**} {
+      allow read: if isInvited() || isAdmin();
+      allow create: if (isInvited() || isAdmin())
+        && request.resource.size <= 10 * 1024 * 1024;
+      allow update, delete: if isInvited() || isAdmin();
+    }
+
     match /{allPaths=**} {
-      // v1.3.35: alleen Rinze (admin) mag de bucket-lijst opvragen
-      // om het totale opslaggebruik op Home te kunnen berekenen.
+      // Alleen Rinze (admin) mag de bucket-lijst opvragen
+      // om het totale opslaggebruik op Home te berekenen.
       allow list: if isAdmin();
       allow get, create, update, delete: if false;
     }

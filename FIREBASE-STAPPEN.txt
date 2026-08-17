@@ -1,13 +1,17 @@
-HOGETERPJES v1.3.35 – OPSLAGMETER + DAGJES UIT
+HOGETERPJES v1.3.36 – FOTO-OPSLAG HERSTEL
 
-1. Upload alle 13 losse bestanden naar GitHub Pages en vervang de bestaande bestanden.
-2. Open Firebase Console → Storage → Rules.
-3. Vervang de regels door het meegeleverde bestand storage.rules en klik op Publiceren.
-4. De Firestore-regels zijn NIET gewijzigd; firestore.rules hoeft niet opnieuw gepubliceerd te worden.
-5. Sluit Hogeterpjes op alle telefoons volledig af en open de app opnieuw.
-6. Controleer bovenaan dat v1.3.35 staat.
-7. Log in als Rinze en controleer onderaan Home de kaart ☁️ Firebase-opslag. Druk eventueel één keer op Vernieuwen.
-8. Test 🎡 Dagjes uit via Home of via Meer.
+1. Open Firebase Console en kies project “hogeterpjes”.
+2. Kies Storage → Rules / Regels.
+3. Vervang de regels door de inhoud van het meegeleverde bestand storage.rules.
+4. Klik op Publish / Publiceren.
+5. Firestore-regels zijn NIET gewijzigd; firestore.rules hoeft niet opnieuw gepubliceerd te worden.
+6. Upload daarna alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
+7. Sluit Hogeterpjes volledig af en open de app opnieuw.
+8. Controleer bovenaan dat v1.3.36 staat.
+9. Laat de app bij de eerste start even open. Bestaande base64-foto's van wensen, recepten en producten worden automatisch naar Firebase Storage verplaatst.
+10. Test Wensen: open een bestaande wens met foto → Bewerken → opslaan.
 
-LET OP
-De opslagmeter is alleen zichtbaar voor Rinze/admin. De nieuwe Storage-regel geeft alleen de admin toestemming om bestandslijsten op te vragen; bestaande toegang tot bestanden blijft verder hetzelfde.
+BELANGRIJK
+- In v1.3.36 staan gedeelde foto's onder shared-media/ in Firebase Storage.
+- Het gedeelde Firestore-document appData/hogeterpjes bevat daarna alleen kleine download-URL's in plaats van de complete foto.
+- De opslagmeter op Home blijft werken.
