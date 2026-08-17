@@ -1,20 +1,14 @@
-# Hogeterpjes v1.3.38
+# Hogeterpjes v1.3.39
 
-## Opgelost
-- Wensen met foto's kunnen weer worden bewerkt, verwijderd en opgeslagen.
-- Foto's van **wensen, recepten en producten** worden voortaan in Firebase Storage opgeslagen in plaats van als grote base64-tekst in het gedeelde Firestore-document `appData/hogeterpjes`.
-- Bestaande ingebedde foto's worden na het openen van v1.3.38 automatisch naar Firebase Storage verplaatst en daarna uit het grote Firestore-document gehaald.
-- Hierdoor blijft het gedeelde Firestore-document klein en wordt de Firestore-documentlimiet niet meer geraakt door foto's.
-- De Firebase-opslagmeter en Dagjes uit uit v1.3.38 blijven behouden.
+Herstelversie voor Firebase-toegang.
 
-## Firebase
-Voor v1.3.38 is **storage.rules gewijzigd**. Firestore-regels zijn niet gewijzigd.
-Publiceer dus de meegeleverde `storage.rules` in Firebase Storage voordat je foto's toevoegt of bestaande foto's laat migreren.
+## Belangrijkste reparaties
+- Firestore-regels controleren de beheerder eerst.
+- `isInvited()` is veilig als `allowedEmails` nog niet in `appAdmin/settings` staat.
+- Bestaande wensen in `appData/hogeterpjes.wishes` blijven onaangetast en kunnen weer worden geladen.
+- Persoonlijke to-do's hebben een extra lees-fallback zonder sortering.
+- Service-worker en cacheversie staan volledig op v1.3.39.
 
-## Uploaden
-1. Publiceer eerst `storage.rules` via Firebase Console → Storage → Rules.
-2. Upload daarna alle 13 bestanden naar GitHub Pages en vervang de bestaande bestanden.
-3. Sluit Hogeterpjes volledig af en open opnieuw.
-4. Controleer bovenaan dat **v1.3.38** staat.
-5. Laat de app na de eerste start even open; bestaande wens-/recept-/productfoto's worden automatisch naar Storage verplaatst.
-6. Test daarna een bestaande wens met foto: bewerken → opslaan en eventueel verwijderen.
+## Na upload
+Publiceer de meegeleverde `firestore.rules` in Firebase.
+`storage.rules` is in deze versie niet gewijzigd.

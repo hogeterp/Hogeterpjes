@@ -11,7 +11,10 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/appAdmin/settings).data;
     }
     function isInvited() {
-      return signedIn() && request.auth.token.email in settings().allowedEmails;
+      return signedIn() && (
+        isAdmin() ||
+        ('allowedEmails' in settings() && request.auth.token.email in settings().allowedEmails)
+      );
     }
     function profileName() {
       return get(/databases/$(database)/documents/profielen/$(request.auth.uid)).data.displayName;
@@ -23,27 +26,27 @@ service cloud.firestore {
     }
 
     match /appAdmin/settings {
-      allow read: if isInvited() || isAdmin();
+      allow read: if isAdmin() || isInvited();
       allow create, update, delete: if isAdmin();
     }
     match /appData/hogeterpjes {
-      allow read, write: if isInvited() || isAdmin();
+      allow read, write: if isAdmin() || isInvited();
     }
 
     match /sharedWeekMenus/{mealId} {
-      allow read, create, update, delete: if isInvited() || isAdmin();
+      allow read, create, update, delete: if isAdmin() || isInvited();
     }
     match /sharedAgendaEvents/{eventId} {
-      allow read, create, update, delete: if isInvited() || isAdmin();
+      allow read, create, update, delete: if isAdmin() || isInvited();
     }
     match /appChangeLog/{changeId} {
       allow read: if isAdmin();
-      allow create: if isInvited() || isAdmin();
+      allow create: if isAdmin() || isInvited();
       allow update, delete: if false;
     }
     match /profielen/{userId} {
-      allow read: if signedIn() && ((request.auth.uid == userId && (isInvited() || isAdmin())) || isAdmin());
-      allow write: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
+      allow read: if signedIn() && ((request.auth.uid == userId && (isAdmin() || isInvited())) || isAdmin());
+      allow write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
     }
     match /vaults/rinze-christa {
       allow read: if isRinzeOrChrista();
@@ -59,15 +62,15 @@ service cloud.firestore {
       }
     }
     match /privateGiftIdeas/{userId} {
-      allow read, write: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
+      allow read, write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
       match /ideas/{ideaId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
+        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
       }
     }
     match /privateTodos/{userId} {
-      allow read, write: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
+      allow read, write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
       match /items/{todoId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isInvited() || isAdmin());
+        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
       }
     }
     match /{document=**} {

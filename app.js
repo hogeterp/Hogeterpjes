@@ -75,7 +75,7 @@ const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
 const STORAGE_LIMIT_BYTES=5*1024*1024*1024;
 const STORAGE_USAGE_CACHE_KEY="hogeterpjes-storage-usage-v1";
 const DATA_BACKUP_KEY="hogeterpjes-data-backup-v1";
-const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.38";
+const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.39";
 let storageUsageLoading=false;
 let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
 const KNOWN_USERS = {
@@ -153,7 +153,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.38.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.39.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -993,11 +993,31 @@ function subscribePrivateTodos(){
   privateTodos=[];
   const collection=privateTodosCollection();
   if(!collection){ renderPrivateTodos(); return; }
-  privateTodosUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
+
+  const applySnapshot=(snap)=>{
     privateTodos=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
     renderPrivateTodos();
     renderHome();
-  },err=>{ console.error("Privé to-do's laden mislukt",err); showSaveWarning("Je to-do's konden niet worden geladen."); });
+  };
+
+  privateTodosUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(
+    applySnapshot,
+    err=>{
+      console.warn("Geordende to-do-query mislukt; opnieuw zonder sortering.",err);
+      try{
+        privateTodosUnsubscribe=collection.onSnapshot(
+          applySnapshot,
+          err2=>{
+            console.error("Privé to-do's laden mislukt",err2);
+            showSaveWarning("Je to-do's konden niet worden geladen.");
+          }
+        );
+      }catch(err2){
+        console.error("To-do fallback kon niet starten",err2);
+        showSaveWarning("Je to-do's konden niet worden geladen.");
+      }
+    }
+  );
 }
 function normalizeTodoPriority(priority){
   const value=String(priority||"normal").trim().toLowerCase();
@@ -2146,7 +2166,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.38.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.39.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
@@ -3314,7 +3334,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.36");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.39");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
