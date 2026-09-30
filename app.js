@@ -156,7 +156,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.40.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.41.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -994,8 +994,9 @@ function privateTodosCollection(){
 }
 function subscribePrivateTodos(){
   if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
-  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
-  coupleIdeas={campings:[],books:[]};
+  // To-do's en de privé ideeën hebben elk hun eigen listener.
+  // Stop hier alleen de to-do-listener; anders kan het laden van to-do's
+  // onbedoeld de camping- en boekenlijst uitschakelen.
   privateTodos=[];
   const collection=privateTodosCollection();
   if(!collection){ renderPrivateTodos(); return; }
@@ -2172,7 +2173,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.40.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.41.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
@@ -2929,7 +2930,7 @@ function subscribeCoupleIdeas(){
     const value=snap.exists?(snap.data()||{}):{};
     coupleIdeas={campings:Array.isArray(value.campings)?value.campings:[],books:Array.isArray(value.books)?value.books:[]};
     renderCoupleIdeas();
-  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.40."); });
+  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.41."); });
 }
 async function saveCoupleIdeas(){
   if(!db||!currentUser||!isVaultPerson()) throw new Error("Geen toegang");
@@ -3367,11 +3368,11 @@ function initFirebase(){
 
 if(window.addCampingBtn) addCampingBtn.onclick=()=>openCampingDialog();
 if(window.campingSearch) campingSearch.oninput=renderCoupleIdeas;
-if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.40.");}};
+if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.41.");}};
 if(window.deleteCampingBtn) deleteCampingBtn.onclick=async()=>{const id=campingEditId.value;if(!id||!confirm("Deze camping verwijderen?"))return;coupleIdeas.campings=coupleIdeas.campings.filter(x=>x.id!==id);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping verwijderen mislukt.");}};
 if(window.addBookBtn) addBookBtn.onclick=()=>openBookDialog();
 if(window.showReadBooks) showReadBooks.onchange=renderCoupleIdeas;
-if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.40.");}};
+if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.41.");}};
 if(window.deleteBookBtn) deleteBookBtn.onclick=async()=>{const id=bookEditId.value;if(!id||!confirm("Dit boek verwijderen?"))return;coupleIdeas.books=coupleIdeas.books.filter(x=>x.id!==id);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek verwijderen mislukt.");}};
 
 bindNav();
@@ -3390,7 +3391,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.40");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.41");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -48,7 +48,7 @@ service cloud.firestore {
       allow read: if signedIn() && ((request.auth.uid == userId && (isAdmin() || isInvited())) || isAdmin());
       allow write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
     }
-    // v1.3.40: camping- en boekenideeën zijn uitsluitend voor Rinze en Christa.
+    // v1.3.41: camping- en boekenideeën zijn uitsluitend voor Rinze en Christa.
     match /privateCoupleIdeas/rinze-christa {
       allow read, create, update, delete: if isRinzeOrChrista();
     }
@@ -72,10 +72,13 @@ service cloud.firestore {
         allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
       }
     }
+    // v1.3.41: persoonlijke to-do's zijn uitsluitend toegankelijk voor de eigenaar.
+    // Deze toegang is bewust niet afhankelijk van appAdmin/settings, zodat een
+    // storing of ontbrekend allowedEmails-veld de eigen to-do's niet blokkeert.
     match /privateTodos/{userId} {
-      allow read, write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
+      allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
       match /items/{todoId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
+        allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
       }
     }
     match /{document=**} {

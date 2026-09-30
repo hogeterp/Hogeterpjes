@@ -1,3 +1,9 @@
+# v1.3.41
+- Persoonlijke to-do Firestore-regels vereenvoudigd naar eigenaar-op-UID; niet meer afhankelijk van `allowedEmails`.
+- `subscribePrivateTodos()` stopt niet langer de listener van de privé camping- en boekenideeën.
+- Versie/cacheverwijzingen bijgewerkt naar v1.3.41.
+- Privéregels voor Rinze & Christa uit v1.3.40 behouden.
+
 # Changelog
 
 ## v1.3.40
