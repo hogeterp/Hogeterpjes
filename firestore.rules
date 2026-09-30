@@ -48,6 +48,11 @@ service cloud.firestore {
       allow read: if signedIn() && ((request.auth.uid == userId && (isAdmin() || isInvited())) || isAdmin());
       allow write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
     }
+    // v1.3.40: camping- en boekenideeën zijn uitsluitend voor Rinze en Christa.
+    match /privateCoupleIdeas/rinze-christa {
+      allow read, create, update, delete: if isRinzeOrChrista();
+    }
+
     match /vaults/rinze-christa {
       allow read: if isRinzeOrChrista();
       allow create, update, delete: if isAdmin();

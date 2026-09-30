@@ -56,6 +56,9 @@ let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
 let privateTodos=[];
 let privateTodosUnsubscribe=null;
+let coupleIdeasUnsubscribe=null;
+let coupleIdeas={campings:[],books:[]};
+const COUPLE_IDEAS_DOC="privateCoupleIdeas/rinze-christa";
 let weekMenusUnsubscribe=null;
 let sharedAgendaUnsubscribe=null;
 let sharedCollectionsReady=false;
@@ -153,7 +156,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.39.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.40.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -725,6 +728,7 @@ function fillAgendaHouseholds(){
 
 function navigate(page){
   if(page==="dagboek" && !isDiaryOwner()){ alert("Het dagboek is alleen beschikbaar voor Rinze."); return; }
+  if(page==="samen-ideeen" && !isVaultPerson()){ alert("Deze ideeën zijn alleen beschikbaar voor Rinze en Christa."); return; }
   if(page==="meer"){ document.querySelector("#moreDialog").showModal(); return; }
   document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
   document.querySelectorAll(".bottom-nav button").forEach(x=>x.classList.toggle("active",x.dataset.nav===page));
@@ -990,6 +994,8 @@ function privateTodosCollection(){
 }
 function subscribePrivateTodos(){
   if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
+  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
+  coupleIdeas={campings:[],books:[]};
   privateTodos=[];
   const collection=privateTodosCollection();
   if(!collection){ renderPrivateTodos(); return; }
@@ -1353,7 +1359,7 @@ function renderProfile(){
   profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
 }
 function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderOutings(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
+  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderOutings(); renderCoupleIdeas(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
 
 function parseNumberValue(value){
   const raw=String(value||"").trim().replace(",",".");
@@ -2166,7 +2172,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.39.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.40.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
@@ -2780,6 +2786,8 @@ logoutBtn.onclick=async()=>{
   if(diaryUnsubscribe){ diaryUnsubscribe(); diaryUnsubscribe=null; }
   if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
   if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
+  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
+  coupleIdeas={campings:[],books:[]};
   diaryEntries=[];
   privateGiftIdeas=[];
   privateTodos=[];
@@ -2818,7 +2826,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
@@ -2911,6 +2919,43 @@ let vaultConfig=null;
 let currentVaultCategory="";
 let currentVaultSpecial="";
 let selectedVaultUploadFile=null;
+
+
+function coupleStatusLabel(status){ return status==="visited"?"✅ Geweest":status==="favorite"?"❤️ Favoriet":"💡 Idee"; }
+function subscribeCoupleIdeas(){
+  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
+  if(!db||!currentUser||!isVaultPerson()){ coupleIdeas={campings:[],books:[]}; renderCoupleIdeas(); return; }
+  coupleIdeasUnsubscribe=db.doc(COUPLE_IDEAS_DOC).onSnapshot(snap=>{
+    const value=snap.exists?(snap.data()||{}):{};
+    coupleIdeas={campings:Array.isArray(value.campings)?value.campings:[],books:Array.isArray(value.books)?value.books:[]};
+    renderCoupleIdeas();
+  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.40."); });
+}
+async function saveCoupleIdeas(){
+  if(!db||!currentUser||!isVaultPerson()) throw new Error("Geen toegang");
+  await db.doc(COUPLE_IDEAS_DOC).set({campings:coupleIdeas.campings||[],books:coupleIdeas.books||[],updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:currentPersonName()},{merge:true});
+}
+function renderCoupleIdeas(){
+  const visible=isVaultPerson();
+  if(window.coupleIdeasMenuBtn) coupleIdeasMenuBtn.classList.toggle("hidden",!visible);
+  if(!window.campingList||!window.bookList) return;
+  if(!visible){ campingList.innerHTML=""; bookList.innerHTML=""; return; }
+  const q=(window.campingSearch?.value||"").trim().toLowerCase();
+  const camps=(coupleIdeas.campings||[]).filter(c=>[c.name,c.country,c.place,c.note].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.country||"").localeCompare(b.country||"","nl")||(a.name||"").localeCompare(b.name||"","nl"));
+  let last=""; campingList.innerHTML=camps.length?camps.map(c=>{const country=c.country||"Overig";const head=country!==last?(last=country,`<h4 class="couple-country">${escapeHtml(country)}</h4>`):"";return `${head}<article class="couple-item"><div class="couple-item-head"><div><h4>${escapeHtml(c.name)}</h4><div class="meta">${c.place?`📍 ${escapeHtml(c.place)}`:""}</div></div><span class="couple-status">${coupleStatusLabel(c.status)}</span></div>${c.note?`<p>${escapeHtml(c.note).replaceAll("\n","<br>")}</p>`:""}${c.link?`<a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Website bekijken</a>`:""}<div class="couple-actions"><button class="secondary-btn" type="button" onclick="openCampingDialog('${c.id}')">Bewerken</button></div></article>`}).join(""):'<div class="muted">Nog geen campingideeën.</div>';
+  const showRead=window.showReadBooks?.checked!==false;
+  const books=(coupleIdeas.books||[]).filter(b=>showRead||!b.read).sort((a,b)=>Number(a.read)-Number(b.read)||(a.title||"").localeCompare(b.title||"","nl"));
+  bookList.innerHTML=books.length?books.map(b=>`<article class="couple-item ${b.read?"book-read":""}"><div class="couple-item-head"><div><h4>${escapeHtml(b.title)}</h4>${b.author?`<div class="meta">${escapeHtml(b.author)}</div>`:""}</div><span class="couple-status">${b.read?"✅ Gelezen":"📖 Nog lezen"}</span></div>${b.note?`<p>${escapeHtml(b.note).replaceAll("\n","<br>")}</p>`:""}<label class="read-toggle"><input type="checkbox" ${b.read?"checked":""} onchange="toggleBookRead('${b.id}',this.checked)"> Gelezen</label><div class="couple-actions"><button class="secondary-btn" type="button" onclick="openBookDialog('${b.id}')">Bewerken</button></div></article>`).join(""):'<div class="muted">Nog geen boeken op de leeslijst.</div>';
+}
+function openCampingDialog(id=""){
+  if(!isVaultPerson()) return; const c=(coupleIdeas.campings||[]).find(x=>x.id===id);
+  campingForm.reset(); campingEditId.value=c?.id||""; campingDialogTitle.textContent=c?"Camping bewerken":"Camping toevoegen"; campingName.value=c?.name||""; campingCountry.value=c?.country||""; campingPlace.value=c?.place||""; campingLink.value=c?.link||""; campingStatus.value=c?.status||"idea"; campingNote.value=c?.note||""; deleteCampingBtn.classList.toggle("hidden",!c); campingDialog.showModal();
+}
+function openBookDialog(id=""){
+  if(!isVaultPerson()) return; const b=(coupleIdeas.books||[]).find(x=>x.id===id);
+  bookForm.reset(); bookEditId.value=b?.id||""; bookDialogTitle.textContent=b?"Boek bewerken":"Boek toevoegen"; bookTitle.value=b?.title||""; bookAuthor.value=b?.author||""; bookNote.value=b?.note||""; bookRead.checked=!!b?.read; deleteBookBtn.classList.toggle("hidden",!b); bookDialog.showModal();
+}
+async function toggleBookRead(id,read){ const b=(coupleIdeas.books||[]).find(x=>x.id===id); if(!b)return; const old=b.read; b.read=!!read; renderCoupleIdeas(); try{await saveCoupleIdeas();}catch(e){b.read=old;renderCoupleIdeas();showSaveWarning("Gelezen-status kon niet worden opgeslagen.");} }
 
 function normalizeEmail(value){ return String(value||"").trim().toLowerCase(); }
 function isVaultPerson(){
@@ -3033,6 +3078,7 @@ function renderVault(){
   if(!window.vaultMenuBtn) return;
   const visible=isVaultPerson();
   vaultMenuBtn.classList.toggle("hidden",!visible);
+  if(window.coupleIdeasMenuBtn) coupleIdeasMenuBtn.classList.toggle("hidden",!visible);
   if(!visible){ if(document.querySelector('.page.active')?.dataset.page==="kluis") navigate("home"); return; }
   fillVaultCategories();
   const access=hasVaultAccess();
@@ -3318,6 +3364,16 @@ function initFirebase(){
   }
 }
 
+
+if(window.addCampingBtn) addCampingBtn.onclick=()=>openCampingDialog();
+if(window.campingSearch) campingSearch.oninput=renderCoupleIdeas;
+if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.40.");}};
+if(window.deleteCampingBtn) deleteCampingBtn.onclick=async()=>{const id=campingEditId.value;if(!id||!confirm("Deze camping verwijderen?"))return;coupleIdeas.campings=coupleIdeas.campings.filter(x=>x.id!==id);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping verwijderen mislukt.");}};
+if(window.addBookBtn) addBookBtn.onclick=()=>openBookDialog();
+if(window.showReadBooks) showReadBooks.onchange=renderCoupleIdeas;
+if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.40.");}};
+if(window.deleteBookBtn) deleteBookBtn.onclick=async()=>{const id=bookEditId.value;if(!id||!confirm("Dit boek verwijderen?"))return;coupleIdeas.books=coupleIdeas.books.filter(x=>x.id!==id);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek verwijderen mislukt.");}};
+
 bindNav();
 
 try{
@@ -3334,7 +3390,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.39");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.40");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

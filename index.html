@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.37">
-  <link rel="stylesheet" href="style.css?v=1.3.37">
+  <link rel="manifest" href="manifest.json?v=1.3.40">
+  <link rel="stylesheet" href="style.css?v=1.3.40">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.39</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.40</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.39</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.40</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -216,6 +216,25 @@
         </div>
         <input id="outingSearch" class="search" placeholder="Zoek uitje, plaats of notitie">
         <div id="outingList" class="list-grid"></div>
+      </section>
+
+      <section class="page" data-page="samen-ideeen">
+        <div class="page-head">
+          <div><p class="eyebrow">Alleen Rinze & Christa</p><h2>💚 Onze ideeën</h2></div>
+        </div>
+        <div class="card couple-ideas-help"><strong>🔒 Privé voor Rinze & Christa</strong><p>Bewaar samen campings per land en boeken die jullie nog willen lezen. Gelezen boeken blijven gewoon in de lijst staan.</p></div>
+        <div class="couple-ideas-grid">
+          <section class="card">
+            <div class="section-head"><div><p class="eyebrow">Vakantie</p><h3>🏕️ Campingideeën</h3></div><button id="addCampingBtn" class="primary-btn" type="button">+ Camping</button></div>
+            <input id="campingSearch" class="search" placeholder="Zoek camping, land of plaats">
+            <div id="campingList" class="couple-list"></div>
+          </section>
+          <section class="card">
+            <div class="section-head"><div><p class="eyebrow">Leeslijst</p><h3>📚 Boeken</h3></div><button id="addBookBtn" class="primary-btn" type="button">+ Boek</button></div>
+            <label class="todo-filter"><input id="showReadBooks" type="checkbox" checked> Toon ook gelezen boeken</label>
+            <div id="bookList" class="couple-list"></div>
+          </section>
+        </div>
       </section>
 
       <section class="page" data-page="verlanglijstjes">
@@ -466,6 +485,7 @@
     <button data-go="meldingen">🔔 Meldingen</button>
     <button data-go="producten">📦 Productdatabase</button>
     <button data-go="uitjes">🎡 Dagjes uit</button>
+    <button id="coupleIdeasMenuBtn" class="hidden" data-go="samen-ideeen">💚 Ideeën Rinze & Christa</button>
     <button id="vaultMenuBtn" class="hidden" data-go="kluis">🔐 Kluis Rinze & Christa</button>
     <button id="adminMenuBtn" class="admin-only" data-go="beheer">👑 Beheer</button>
     <button data-go="instellingen">⚙️ Instellingen</button>
@@ -937,6 +957,34 @@
     </form>
   </dialog>
 
+  <dialog id="campingDialog" class="modal">
+    <form id="campingForm" method="dialog">
+      <div class="sheet-head"><h3 id="campingDialogTitle">Camping toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="campingEditId" type="hidden">
+      <label>Naam<input id="campingName" required maxlength="120" placeholder="Naam camping"></label>
+      <label>Land<input id="campingCountry" required maxlength="80" placeholder="Bijv. Frankrijk"></label>
+      <label>Plaats / streek<input id="campingPlace" maxlength="120" placeholder="Optioneel"></label>
+      <label>Website<input id="campingLink" type="url" placeholder="https://..."></label>
+      <label>Status<select id="campingStatus"><option value="idea">💡 Idee</option><option value="favorite">❤️ Favoriet</option><option value="visited">✅ Geweest</option></select></label>
+      <label>Opmerking<textarea id="campingNote" rows="4" maxlength="1000" placeholder="Wat spreekt jullie aan?"></textarea></label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="deleteCampingBtn" class="secondary-btn wide hidden" type="button">Verwijderen</button>
+    </form>
+  </dialog>
+
+  <dialog id="bookDialog" class="modal">
+    <form id="bookForm" method="dialog">
+      <div class="sheet-head"><h3 id="bookDialogTitle">Boek toevoegen</h3><button type="button" data-close>✕</button></div>
+      <input id="bookEditId" type="hidden">
+      <label>Titel<input id="bookTitle" required maxlength="160" placeholder="Boektitel"></label>
+      <label>Auteur<input id="bookAuthor" maxlength="120" placeholder="Optioneel"></label>
+      <label>Opmerking<textarea id="bookNote" rows="3" maxlength="800" placeholder="Waarom lijkt dit boek leuk?"></textarea></label>
+      <label class="check-row-simple"><input id="bookRead" type="checkbox"> Gelezen</label>
+      <button class="primary-btn wide" type="submit">Opslaan</button>
+      <button id="deleteBookBtn" class="secondary-btn wide hidden" type="button">Verwijderen</button>
+    </form>
+  </dialog>
+
   <dialog id="signupDialog" class="modal">
     <form id="signupForm" method="dialog"><div class="sheet-head"><h3>Eigen account maken</h3><button type="button" data-close>✕</button></div>
       <p class="muted">Gebruik precies het e-mailadres dat Rinze heeft uitgenodigd. Je kiest zelf je wachtwoord.</p>
@@ -950,7 +998,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.37"></script>
-  <script src="app.js?v=1.3.37"></script>
+  <script src="firebase-config.js?v=1.3.40"></script>
+  <script src="app.js?v=1.3.40"></script>
 </body>
 </html>

@@ -1,5 +1,16 @@
-# Hogeterpjes v1.3.39
+# Hogeterpjes v1.3.40
 
+## Nieuw in v1.3.40
+- Nieuwe privé-pagina **Ideeën Rinze & Christa**.
+- Campingideeën worden per land gegroepeerd en kunnen naam, plaats/streek, website, status en notitie bevatten.
+- Nieuwe gezamenlijke boekenlijst voor Rinze en Christa. Een boek kan als **gelezen** worden aangevinkt en blijft daarna zichtbaar.
+- Deze gegevens staan in een apart Firestore-document `privateCoupleIdeas/rinze-christa` en zijn via Firestore-regels alleen toegankelijk voor Rinze en Christa.
+- Menu en pagina zijn voor andere gebruikers verborgen/geblokkeerd.
+
+## Belangrijk na uploaden
+Publiceer de meegeleverde **firestore.rules** in Firebase. Anders werkt de nieuwe privé-pagina niet.
+
+## Vorige versie
 Herstelversie voor Firebase-toegang.
 
 ## Belangrijkste reparaties
