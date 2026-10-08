@@ -156,7 +156,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.41.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.43.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -259,7 +259,7 @@ function subscribeSharedCollections(){
   const markReady=()=>{ if(weekLoaded&&agendaLoaded){ sharedCollectionsReady=true; setSyncStatus("✓ Alles is gesynchroniseerd"); } };
   weekMenusUnsubscribe=db.collection(WEEK_MENUS_COLLECTION).onSnapshot(async snap=>{
     const rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
-    if(snap.empty && Array.isArray(data.weekMenus) && data.weekMenus.length){
+    if(snap.empty && !weekLoaded && Array.isArray(data.weekMenus) && data.weekMenus.length){
       const batch=db.batch(); data.weekMenus.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
       await batch.commit();
     }else{
@@ -1589,10 +1589,9 @@ weekMealForm.onsubmit=async e=>{
     m.id!==editId
   );
 
-  if(sameDay){
-    data.weekMenus=data.weekMenus.filter(m=>m.id!==sameDay.id);
-  }
-
+  // v1.3.43: verplaatsen is een update van hetzelfde Firestore-document.
+  // Sla eerst veilig op; verwijder pas daarna een eventueel gerecht op de doeldag.
+  // Bewaar het bestaande ID, zodat een dagwissel geen nieuw document vereist.
   const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
   const record={
     id:existing?.id || stableWeekMenuId,
@@ -1604,22 +1603,34 @@ weekMealForm.onsubmit=async e=>{
     note:String(f.get("note")||"").trim(),
     updatedBy:currentPersonName(),
     updatedAt:new Date().toISOString(),
-    attendees: existing?.attendees || (householdById(currentWeekmenuHousehold)?.members || []).map(name=>({type:"family",name}))
+    attendees:existing?.attendees || (householdById(currentWeekmenuHousehold)?.members || []).map(name=>({type:"family",name}))
   };
-
   const beforeValue=existing?{...existing}:null;
-  if(existing){ Object.assign(existing,record); }else{ data.weekMenus.push(record); }
-  renderWeekmenu();
+  const saveButton=weekMealForm.querySelector('[type="submit"]');
+  if(saveButton) saveButton.disabled=true;
   try{
-    if(sameDay) await deleteWeekMenuRecord(sameDay);
+    // Eerst opslaan. Bij een netwerkfout blijven alle oude maaltijden intact.
     await saveWeekMenuRecord(record,beforeValue);
+    if(sameDay){
+      try{
+        await deleteWeekMenuRecord(sameDay);
+      }catch(deleteError){
+        // Het nieuwe gerecht is opgeslagen; laat een oude maaltijd nooit
+        // onzichtbaar verdwijnen door lokaal te doen alsof verwijderen lukte.
+        console.error("Bestaand gerecht op doeldag verwijderen mislukt",deleteError);
+        showSaveWarning("Het gerecht is verplaatst, maar het oude gerecht op de doeldag kon niet worden verwijderd. Controleer het weekmenu.");
+      }
+    }
+    // De realtime Firestore-listener verwerkt de definitieve gegevens.
+    // Geen lokale arraymutaties die een onbedoelde her-migratie veroorzaken.
     addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
     saveData();
     weekMealDialog.close();
   }catch(error){
-    console.error(error); showSaveWarning("Het weekmenu is niet opgeslagen. Probeer opnieuw en sluit de app nog niet af.");
-    if(existing&&beforeValue) Object.assign(existing,beforeValue); else data.weekMenus=data.weekMenus.filter(x=>x.id!==record.id);
-    renderWeekmenu();
+    console.error(error);
+    showSaveWarning("Het weekmenu is niet opgeslagen. Het bestaande gerecht is behouden; probeer opnieuw.");
+  }finally{
+    if(saveButton) saveButton.disabled=false;
   }
 };
 
@@ -2173,7 +2184,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.41.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.43.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
@@ -2930,7 +2941,7 @@ function subscribeCoupleIdeas(){
     const value=snap.exists?(snap.data()||{}):{};
     coupleIdeas={campings:Array.isArray(value.campings)?value.campings:[],books:Array.isArray(value.books)?value.books:[]};
     renderCoupleIdeas();
-  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.41."); });
+  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.43."); });
 }
 async function saveCoupleIdeas(){
   if(!db||!currentUser||!isVaultPerson()) throw new Error("Geen toegang");
@@ -3368,11 +3379,11 @@ function initFirebase(){
 
 if(window.addCampingBtn) addCampingBtn.onclick=()=>openCampingDialog();
 if(window.campingSearch) campingSearch.oninput=renderCoupleIdeas;
-if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.41.");}};
+if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.43.");}};
 if(window.deleteCampingBtn) deleteCampingBtn.onclick=async()=>{const id=campingEditId.value;if(!id||!confirm("Deze camping verwijderen?"))return;coupleIdeas.campings=coupleIdeas.campings.filter(x=>x.id!==id);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping verwijderen mislukt.");}};
 if(window.addBookBtn) addBookBtn.onclick=()=>openBookDialog();
 if(window.showReadBooks) showReadBooks.onchange=renderCoupleIdeas;
-if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.41.");}};
+if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.43.");}};
 if(window.deleteBookBtn) deleteBookBtn.onclick=async()=>{const id=bookEditId.value;if(!id||!confirm("Dit boek verwijderen?"))return;coupleIdeas.books=coupleIdeas.books.filter(x=>x.id!==id);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek verwijderen mislukt.");}};
 
 bindNav();
@@ -3391,7 +3402,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.41");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.43");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

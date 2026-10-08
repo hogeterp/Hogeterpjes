@@ -309,3 +309,18 @@ button:disabled{opacity:.58;cursor:wait}
 
 /* v1.3.40 – privé ideeën voor Rinze & Christa */
 .couple-ideas-help{margin-bottom:14px}.couple-ideas-help p{margin:.4rem 0 0}.couple-ideas-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.couple-list{display:grid;gap:10px;margin-top:10px}.couple-country{margin:14px 0 7px;color:var(--primary);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em}.couple-item{border:1px solid var(--border);border-radius:15px;padding:12px;background:var(--bg);display:grid;gap:7px}.couple-item-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.couple-item h4{margin:0}.couple-item p{margin:0;line-height:1.4}.couple-actions{display:flex;gap:7px}.couple-actions button{flex:1}.book-read{opacity:.72}.book-read h4{text-decoration:line-through}.read-toggle{display:flex;align-items:center;gap:8px;font-weight:800}.read-toggle input{width:auto}.couple-status{font-size:.8rem;font-weight:800;background:var(--primary-2);padding:5px 8px;border-radius:999px;white-space:nowrap}@media(max-width:700px){.couple-ideas-grid{grid-template-columns:1fr}}
+
+/* v1.3.42: zeven dagen van vrijdag t/m donderdag in een compact weekoverzicht */
+.weekmenu-grid{display:grid;grid-template-columns:1fr;gap:7px}
+.weekmenu-day{padding:11px 13px;margin-bottom:0;border-radius:15px}
+.weekmenu-day-head{align-items:center}
+.weekmenu-day-head h3{margin:0 0 5px;font-size:1rem}
+.weekmenu-day-head span{font-size:.78rem}
+.weekmenu-empty,.weekmenu-meal{min-height:42px;padding:9px 11px}
+.weekmenu-meal{gap:3px}
+.weekmenu-meal small{font-size:.76rem}
+.weekmenu-day .eaters-block{margin-top:7px;padding-top:6px}
+.weekmenu-day .eaters-title{margin-bottom:3px;font-size:.84rem}
+.weekmenu-day .chips{margin-top:3px}
+.weekmenu-day .chip{font-size:.7rem;padding:3px 7px}
+@media(max-width:650px){.weekmenu-grid{grid-template-columns:1fr}}

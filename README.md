@@ -1,3 +1,9 @@
+# Hogeterpjes v1.3.43
+
+- Compact weekmenu met zeven dagen tegelijk in volgorde vrijdag t/m donderdag.
+- Bij verplaatsen wordt hetzelfde Firestore-document eerst opgeslagen; bestaande maaltijden worden niet vooraf verwijderd.
+- Overige functionaliteit en Firestore-/Storage-regels uit v1.3.41 behouden.
+
 # Hogeterpjes v1.3.41
 
 ## Nieuw in v1.3.41
@@ -32,3 +38,8 @@ Herstelversie voor Firebase-toegang.
 ## Na upload
 Publiceer de meegeleverde `firestore.rules` in Firebase.
 `storage.rules` is in deze versie niet gewijzigd.
+
+## Correctie v1.3.43
+De per ongeluk meegeleverde `firebase-messaging-sw.js` van het andere project andere app is verwijderd. Hogeterpjes gebruikt de bestaande `service-worker.js` voor PWA-caching; meldingen in de app blijven bestaan. De Firebase-regels zijn niet gewijzigd.
+
+Controleer na publicatie het verplaatsen van een maaltijd in het weekmenu.
