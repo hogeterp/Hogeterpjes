@@ -156,7 +156,7 @@ async function migrateInlineSharedPhotos(){
   }catch(error){
     console.error("Fotomigratie mislukt",error);
     setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.43.");
+    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.44.");
   }finally{
     sharedPhotoMigrationRunning=false;
   }
@@ -1589,7 +1589,7 @@ weekMealForm.onsubmit=async e=>{
     m.id!==editId
   );
 
-  // v1.3.43: verplaatsen is een update van hetzelfde Firestore-document.
+  // v1.3.44: verplaatsen is een update van hetzelfde Firestore-document.
   // Sla eerst veilig op; verwijder pas daarna een eventueel gerecht op de doeldag.
   // Bewaar het bestaande ID, zodat een dagwissel geen nieuw document vereist.
   const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
@@ -2184,7 +2184,7 @@ wishForm.onsubmit=async e=>{
     }
   }catch(error){
     console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.43.");
+    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.44.");
     return;
   }
   const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
@@ -2941,7 +2941,7 @@ function subscribeCoupleIdeas(){
     const value=snap.exists?(snap.data()||{}):{};
     coupleIdeas={campings:Array.isArray(value.campings)?value.campings:[],books:Array.isArray(value.books)?value.books:[]};
     renderCoupleIdeas();
-  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.43."); });
+  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.44."); });
 }
 async function saveCoupleIdeas(){
   if(!db||!currentUser||!isVaultPerson()) throw new Error("Geen toegang");
@@ -3049,7 +3049,8 @@ function vaultRows(){
   const q=(vaultSearch.value||"").trim().toLowerCase();
   let rows=vaultFiles.slice();
   if(currentVaultSpecial==="trash") rows=rows.filter(f=>f.deletedAt);
-  else rows=rows.filter(f=>!f.deletedAt);
+  else if(currentVaultSpecial==="archive") rows=rows.filter(f=>!f.deletedAt&&f.archivedAt);
+  else rows=rows.filter(f=>!f.deletedAt&&!f.archivedAt);
   if(currentVaultCategory) rows=rows.filter(f=>f.category===currentVaultCategory);
   if(currentVaultSpecial==="favorites") rows=rows.filter(f=>f.favorite);
   if(currentVaultSpecial==="recent") rows=rows.slice().sort((a,b)=>Number(b.createdAt?.seconds||0)-Number(a.createdAt?.seconds||0)).slice(0,20);
@@ -3064,7 +3065,7 @@ function vaultRows(){
 }
 function renderVaultFolders(){
   const folderCards=VAULT_CATEGORIES.map(c=>{
-    const files=vaultFiles.filter(f=>!f.deletedAt&&(f.category||"Overig")===c.name);
+    const files=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&(f.category||"Overig")===c.name);
     const bytes=files.reduce((sum,f)=>sum+(Number(f.size)||0),0);
     return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${c.name.replaceAll("'","\\'")}')">
       <span class="vault-folder-icon">${c.icon}</span><strong>${escapeHtml(c.name)}</strong>
@@ -3072,13 +3073,15 @@ function renderVaultFolders(){
       <em>${escapeHtml(c.hint)}</em>
     </button>`;
   }).join("");
-  const activeFiles=vaultFiles.filter(f=>!f.deletedAt);
+  const activeFiles=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt);
+  const archiveCount=vaultFiles.filter(f=>!f.deletedAt&&f.archivedAt).length;
   const favoriteCount=activeFiles.filter(f=>f.favorite).length;
   const trashCount=vaultFiles.filter(f=>f.deletedAt).length;
   vaultFolderGrid.innerHTML=`
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('favorites')"><span class="vault-folder-icon">⭐</span><strong>Favorieten</strong><small>${favoriteCount} ${favoriteCount===1?"bestand":"bestanden"}</small><em>Snel terugvinden</em></button>
     <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('recent')"><span class="vault-folder-icon">🕒</span><strong>Recent</strong><small>Laatste 20 bestanden</small><em>Nieuw toegevoegd</em></button>
     ${folderCards}
+    <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('archive')"><span class="vault-folder-icon">🗄️</span><strong>Archief</strong><small>${archiveCount} ${archiveCount===1?"bestand":"bestanden"}</small><em>Oude polissen en andere bewaarde documenten</em></button>
     <button class="vault-folder-card vault-trash-card" type="button" onclick="openVaultSpecial('trash')"><span class="vault-folder-icon">🗑️</span><strong>Prullenbak</strong><small>${trashCount} ${trashCount===1?"bestand":"bestanden"}</small><em>Herstellen of definitief verwijderen</em></button>`;
 }
 function formatVaultDate(value){
@@ -3121,19 +3124,20 @@ function renderVault(){
     vaultList.innerHTML="";
     return;
   }
-  const title=currentVaultCategory?`${categoryInfo(currentVaultCategory).icon} ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":"🔎 Zoekresultaten";
+  const title=currentVaultCategory?`${categoryInfo(currentVaultCategory).icon} ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":currentVaultSpecial==="archive"?"🗄️ Archief":"🔎 Zoekresultaten";
   vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${vaultRows().length} gevonden</span>`;
   const rows=vaultRows();
   vaultList.innerHTML=rows.length?rows.map(f=>{
     const isTrash=!!f.deletedAt;
     const imagePreview=String(f.contentType||"").startsWith("image/")&&!isTrash
       ? `<div class="vault-thumb-wrap"><div class="vault-thumb-placeholder">🖼️</div><img class="vault-thumb" data-vault-thumb="${f.id}" alt=""></div>`:"";
+    const isArchived=!!f.archivedAt;
     const actions=isTrash
       ? `<button class="secondary-btn" onclick="restoreVaultFile('${f.id}')">Herstellen</button><button class="secondary-btn danger-mini" onclick="purgeVaultFile('${f.id}')">Definitief verwijderen</button>`
-      : `<button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Naar prullenbak</button>`;
+      : `<button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button><button class="secondary-btn" onclick="${isArchived?"restoreArchivedVaultFile":"archiveVaultFile"}('${f.id}')">${isArchived?"Terugzetten":"Archiveren"}</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Naar prullenbak</button>`;
     return `<article class="item-card vault-file-card ${isTrash?"is-trash":""}">
       ${imagePreview}
-      <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite&&!isTrash?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)?` · ${isTrash?"verwijderd ":""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)}`:""}</div></div>${isTrash?"":`<button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button>`}</div>
+      <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite&&!isTrash?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")}${isArchived?" · 🗄️ Gearchiveerd":""} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)?` · ${isTrash?"verwijderd ":""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)}`:""}</div></div>${isTrash?"":`<button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button>`}</div>
       ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
       <div class="vault-file-actions">${actions}</div>
     </article>`;
@@ -3148,6 +3152,19 @@ async function getVaultDownloadUrl(file){ if(!storage||!file?.storagePath) throw
 window.openVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);window.open(url,"_blank","noopener");}catch(e){alert("Bestand openen mislukt: "+e.message);} };
 window.downloadVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=f.originalName||"bestand";a.click();}catch(e){alert("Downloaden mislukt: "+e.message);} };
 window.toggleVaultFavorite=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({favorite:!f.favorite,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert("Favoriet wijzigen mislukt: "+e.message);} };
+window.archiveVaultFile=async id=>{
+  const f=vaultFiles.find(x=>x.id===id);
+  if(!f||f.deletedAt||f.archivedAt) return;
+  if(!confirm(`“${f.title||f.originalName}” naar het archief verplaatsen? Het bestand blijft bewaard.`)) return;
+  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({archivedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
+  catch(e){alert("Archiveren mislukt: "+e.message);}
+};
+window.restoreArchivedVaultFile=async id=>{
+  const f=vaultFiles.find(x=>x.id===id);
+  if(!f||!f.archivedAt) return;
+  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({archivedAt:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
+  catch(e){alert("Terugzetten mislukt: "+e.message);}
+};
 window.deleteVaultFile=async id=>{
   const f=vaultFiles.find(x=>x.id===id);
   if(!f||!confirm(`“${f.title||f.originalName}” naar de prullenbak verplaatsen?`)) return;
@@ -3379,11 +3396,11 @@ function initFirebase(){
 
 if(window.addCampingBtn) addCampingBtn.onclick=()=>openCampingDialog();
 if(window.campingSearch) campingSearch.oninput=renderCoupleIdeas;
-if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.43.");}};
+if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.44.");}};
 if(window.deleteCampingBtn) deleteCampingBtn.onclick=async()=>{const id=campingEditId.value;if(!id||!confirm("Deze camping verwijderen?"))return;coupleIdeas.campings=coupleIdeas.campings.filter(x=>x.id!==id);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping verwijderen mislukt.");}};
 if(window.addBookBtn) addBookBtn.onclick=()=>openBookDialog();
 if(window.showReadBooks) showReadBooks.onchange=renderCoupleIdeas;
-if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.43.");}};
+if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.44.");}};
 if(window.deleteBookBtn) deleteBookBtn.onclick=async()=>{const id=bookEditId.value;if(!id||!confirm("Dit boek verwijderen?"))return;coupleIdeas.books=coupleIdeas.books.filter(x=>x.id!==id);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek verwijderen mislukt.");}};
 
 bindNav();
@@ -3402,7 +3419,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.43");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.44");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

@@ -1,3 +1,9 @@
+## v1.3.44 – Archief in Gezinskluis
+- Oude documenten kunnen handmatig naar het archief worden verplaatst, zonder ze te verwijderen.
+- Archief heeft een eigen tegel; gearchiveerde bestanden zijn uit de gewone mappen verborgen.
+- Openen, downloaden, terugzetten en naar prullenbak verplaatsen blijven mogelijk.
+- Bestaande bestanden en Firebase-regels blijven behouden; geen datamigratie nodig.
+
 # Hogeterpjes v1.3.43
 
 - Compact weekmenu met zeven dagen tegelijk in volgorde vrijdag t/m donderdag.
