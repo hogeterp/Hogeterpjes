@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.45">
-  <link rel="stylesheet" href="style.css?v=1.3.45">
+  <link rel="manifest" href="manifest.json?v=1.3.46">
+  <link rel="stylesheet" href="style.css?v=1.3.46">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.45</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.46</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.45</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.46</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -513,10 +513,11 @@
       <label>Map<select id="vaultCategory" required></select></label>
       <label>Omschrijving (optioneel)<textarea id="vaultDescription" rows="3" maxlength="500"></textarea></label>
       <div class="vault-file-choices">
-        <label class="photo-upload secondary-btn wide">📎 Kies bestand<input id="vaultFileInput" type="file"></label>
+        <label class="photo-upload secondary-btn wide">📎 Kies bestanden<input id="vaultFileInput" type="file" multiple></label>
         <label class="photo-upload secondary-btn wide">📷 Maak foto<input id="vaultCameraInput" type="file" accept="image/*" capture="environment"></label>
       </div>
       <p id="vaultChosenFile" class="muted">Nog geen bestand gekozen.</p>
+      <p id="vaultReplaceNotice" class="muted" role="status"></p>
       <label class="check-row-simple"><input id="vaultFavorite" type="checkbox"> ⭐ Meteen als favoriet markeren</label>
       <p id="vaultUploadMessage" class="login-message"></p>
       <button id="vaultUploadSubmit" class="primary-btn wide" type="submit">Uploaden naar kluis</button>
@@ -998,7 +999,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.45"></script>
-  <script src="app.js?v=1.3.45"></script>
+  <script src="firebase-config.js?v=1.3.46"></script>
+  <script src="app.js?v=1.3.46"></script>
 </body>
 </html>

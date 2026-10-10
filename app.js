@@ -3221,7 +3221,7 @@ function openVaultUpload(category="",replaceId=""){
     const old=vaultFiles.find(f=>f.id===replaceId);
     if(old){vaultTitle.value=old.title||old.originalName||"";vaultDescription.value=old.description||"";vaultCategory.value=old.category||"Documenten";}
   }
-  vaultReplaceNotice.textContent=replaceId?"Nieuwe versie: de vorige polis wordt na succesvol uploaden automatisch gearchiveerd.":"";
+  document.getElementById("vaultReplaceNotice").textContent=replaceId?"Nieuwe versie: de vorige polis wordt na succesvol uploaden automatisch gearchiveerd.":"";
   vaultUploadDialog.showModal();
 }
 if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>openVaultUpload(currentVaultCategory||"Documenten");

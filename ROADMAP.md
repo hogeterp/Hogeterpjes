@@ -1,3 +1,9 @@
+## v1.3.46 – Reparatie Gezinskluis upload
+- Knop + Bestand opent het uploadvenster weer (ontbrekend meldingsveld hersteld).
+- Meerdere bestanden in één keer selecteren ingeschakeld.
+- Nieuwe polisversie en automatisch archiveren uit v1.3.45 behouden.
+- Bestaande gegevens en Firebase-regels blijven ongewijzigd.
+
 ## v1.3.45 – Gezinskluis: Univé en meerdere bestanden
 - Verzekeringen → Univé → Algemeen, Reisverzekering, Aansprakelijkheidsverzekering, Woonverzekering.
 - Meerdere bestanden tegelijk selecteren en uploaden; per bestand eigen naam.
