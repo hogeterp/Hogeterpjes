@@ -1,3 +1,10 @@
+## v1.3.45 – Gezinskluis: Univé en meerdere bestanden
+- Verzekeringen → Univé → Algemeen, Reisverzekering, Aansprakelijkheidsverzekering, Woonverzekering.
+- Meerdere bestanden tegelijk selecteren en uploaden; per bestand eigen naam.
+- Via Nieuwe versie een vervangende polis uploaden; na succesvol opslaan wordt de oude automatisch gearchiveerd.
+- Bestaande documenten blijven ongewijzigd en in hun bestaande mappen.
+- Firestore- en Storage-regels ongewijzigd.
+
 ## v1.3.44 – Archief in Gezinskluis
 - Oude documenten kunnen handmatig naar het archief worden verplaatst, zonder ze te verwijderen.
 - Archief heeft een eigen tegel; gearchiveerde bestanden zijn uit de gewone mappen verborgen.
