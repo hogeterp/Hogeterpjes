@@ -1,4 +1,10 @@
-## v1.3.46 – Reparatie Gezinskluis upload
+## v1.3.47 – Gezinskluis: tellers en tekstweergave
+- Maptellers tellen actieve bestanden in alle onderliggende mappen mee.
+- Lange mapnamen en bestandsnamen breken netjes af op mobiele schermen.
+- Bij mappen met alleen submappen staat een passende toelichting in plaats van een lege-bestandenmelding.
+- Bestaande functies, documenten en Firebase-regels blijven ongewijzigd.
+
+## v1.3.47 – Reparatie Gezinskluis upload
 - Knop + Bestand opent het uploadvenster weer (ontbrekend meldingsveld hersteld).
 - Meerdere bestanden in één keer selecteren ingeschakeld.
 - Nieuwe polisversie en automatisch archiveren uit v1.3.45 behouden.

@@ -2935,6 +2935,7 @@ let vaultReplaceId="";
 const VAULT_SUBFOLDERS={"Verzekeringen":["Verzekeringen/Univé"],"Verzekeringen/Univé":["Verzekeringen/Univé/Algemeen","Verzekeringen/Univé/Reisverzekering","Verzekeringen/Univé/Aansprakelijkheidsverzekering","Verzekeringen/Univé/Woonverzekering"]};
 function vaultFolderLabel(path){return path.split("/").at(-1);}
 function vaultFolderParent(path){return path.includes("/")?path.slice(0,path.lastIndexOf("/")):"";}
+function vaultActiveFilesInTree(path){return vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&((f.category||"Overig")===path||String(f.category||"").startsWith(path+"/")));}
 
 
 function coupleStatusLabel(status){ return status==="visited"?"✅ Geweest":status==="favorite"?"❤️ Favoriet":"💡 Idee"; }
@@ -3069,7 +3070,7 @@ function vaultRows(){
 }
 function renderVaultFolders(){
   const folderCards=VAULT_CATEGORIES.map(c=>{
-    const files=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&(f.category||"Overig")===c.name);
+    const files=vaultActiveFilesInTree(c.name);
     const bytes=files.reduce((sum,f)=>sum+(Number(f.size)||0),0);
     return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${c.name.replaceAll("'","\\'")}')">
       <span class="vault-folder-icon">${c.icon}</span><strong>${escapeHtml(c.name)}</strong>
@@ -3131,13 +3132,15 @@ function renderVault(){
   }
   if(children.length){
     vaultFolderGrid.innerHTML=children.map(path=>{
-      const count=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&(f.category===path||String(f.category||"").startsWith(path+"/"))).length;
+      const count=vaultActiveFilesInTree(path).length;
       return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${path}')"><span class="vault-folder-icon">📂</span><strong>${escapeHtml(vaultFolderLabel(path))}</strong><small>${count} ${count===1?"bestand":"bestanden"}</small></button>`;
     }).join("");
   }
   const title=currentVaultCategory?`📂 ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":currentVaultSpecial==="archive"?"🗄️ Archief":"🔎 Zoekresultaten";
-  vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${vaultRows().length} gevonden</span>`;
   const rows=vaultRows();
+  const treeCount=currentVaultCategory?vaultActiveFilesInTree(currentVaultCategory).length:rows.length;
+  const countLabel=currentVaultCategory&&children.length?`${treeCount} ${treeCount===1?"bestand":"bestanden"} incl. submappen`:`${rows.length} gevonden`;
+  vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${countLabel}</span>`;
   vaultList.innerHTML=rows.length?rows.map(f=>{
     const isTrash=!!f.deletedAt;
     const imagePreview=String(f.contentType||"").startsWith("image/")&&!isTrash
@@ -3152,7 +3155,7 @@ function renderVault(){
       ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
       <div class="vault-file-actions">${actions}</div>
     </article>`;
-  }).join(""):'<div class="card muted">Nog geen bestanden gevonden.</div>';
+  }).join(""):(children.length?'<div class="card muted">De bestanden staan in de submappen hierboven.</div>':'<div class="card muted">Nog geen bestanden gevonden.</div>');
   hydrateVaultThumbnails(rows);
 }
 window.openVaultCategory=name=>{currentVaultCategory=name;currentVaultSpecial="";vaultSearch.value="";renderVault();};

@@ -324,3 +324,15 @@ button:disabled{opacity:.58;cursor:wait}
 .weekmenu-day .chips{margin-top:3px}
 .weekmenu-day .chip{font-size:.7rem;padding:3px 7px}
 @media(max-width:650px){.weekmenu-grid{grid-template-columns:1fr}}
+
+/* v1.3.47 – leesbare kluismappen en lange documentnamen op mobiel */
+.vault-folder-grid{min-width:0}
+.vault-folder-card{min-width:0;max-width:100%;overflow:hidden}
+.vault-folder-card strong,.vault-folder-card small,.vault-folder-card em{max-width:100%;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+.vault-view-title{min-width:0;align-items:flex-start}
+.vault-view-title strong{min-width:0;flex:1 1 auto;overflow-wrap:anywhere;word-break:normal}
+.vault-view-title span{flex:0 0 auto;max-width:38%;text-align:right;overflow-wrap:anywhere}
+.vault-file-head{min-width:0}
+.vault-file-head>div:first-child{min-width:0;flex:1 1 auto}
+.vault-file-head h3,.vault-file-card .meta,.vault-file-card p{overflow-wrap:anywhere;word-break:normal;white-space:normal}
+.vault-file-head>.mini-btn{flex:0 0 auto}
