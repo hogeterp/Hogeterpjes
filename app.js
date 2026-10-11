@@ -2932,7 +2932,24 @@ let currentVaultCategory="";
 let currentVaultSpecial="";
 let selectedVaultUploadFiles=[];
 let vaultReplaceId="";
-const VAULT_SUBFOLDERS={"Verzekeringen":["Verzekeringen/Univé"],"Verzekeringen/Univé":["Verzekeringen/Univé/Algemeen","Verzekeringen/Univé/Reisverzekering","Verzekeringen/Univé/Aansprakelijkheidsverzekering","Verzekeringen/Univé/Woonverzekering"]};
+let vaultAppendGroup="";
+const VAULT_SUBFOLDERS={"Verzekeringen":["Verzekeringen/Univé","Verzekeringen/a.s.r."],"Verzekeringen/Univé":["Verzekeringen/Univé/Algemeen","Verzekeringen/Univé/Reisverzekering","Verzekeringen/Univé/Aansprakelijkheidsverzekering","Verzekeringen/Univé/Woonverzekering"],"Verzekeringen/a.s.r.":["Verzekeringen/a.s.r./Algemeen","Verzekeringen/a.s.r./Overlijdensrisicoverzekering","Verzekeringen/a.s.r./Spaarhypotheekverzekering"]};
+let vaultFolders={};let vaultFoldersUnsubscribe=null;
+const vaultBasePaths=()=>[...VAULT_CATEGORIES.map(c=>c.name),...Object.values(VAULT_SUBFOLDERS).flat()];
+function vaultAllPaths(){return [...new Set([...vaultBasePaths(),...Object.keys(vaultFolders).filter(p=>!vaultFolders[p]?.deleted)])].sort((a,b)=>a.localeCompare(b,'nl'));}
+function vaultChildren(path){return vaultAllPaths().filter(p=>vaultFolderParent(p)===path&&p!==path);}
+function vaultFolderRef(path){return db.collection('vaults').doc(VAULT_ID).collection('folders').doc(encodeURIComponent(path));}
+function vaultPathSafe(path){return path&&!path.split('/').some(s=>!s.trim()||s==='.'||s==='..')&&path.length<=350;}
+function vaultFolderActions(path){return `<span class="vault-folder-actions"><button class="vault-small-btn" type="button" data-vault-action="note" data-vault-path="${encodeURIComponent(path)}">✎ Opmerking</button><button class="vault-small-btn" type="button" data-vault-action="menu" data-vault-path="${encodeURIComponent(path)}">⋯</button></span>`;}
+function vaultFolderCard(path,root=false){const c=categoryInfo(path);const count=vaultActiveFilesInTree(path).length;const bytes=vaultActiveFilesInTree(path).reduce((n,f)=>n+(Number(f.size)||0),0);return `<div class="vault-folder-container"><button class="vault-folder-card" type="button" data-vault-open="${encodeURIComponent(path)}"><span class="vault-folder-icon">${root?c.icon:'📂'}</span><strong>${escapeHtml(vaultFolderLabel(path))}</strong><small>${count} ${count===1?'bestand':'bestanden'}${root?' · '+formatBytes(bytes):''}</small>${root?`<em>${escapeHtml(c.hint)}</em>`:''}</button>${vaultFolderActions(path)}</div>`;}
+function vaultAsk(text,initial=''){const result=prompt(text,initial);return result===null?null:result.trim();}
+async function vaultAddFolder(parent=''){if(!hasVaultAccess())return;const name=vaultAsk('Naam van de nieuwe map:');if(name===null)return;if(!name||name.includes('/')||name.length>100){alert('Gebruik een naam van 1 tot 100 tekens, zonder /.');return;}const path=parent?parent+'/'+name:name;if(!vaultPathSafe(path)||vaultAllPaths().some(p=>p.toLocaleLowerCase('nl')===path.toLocaleLowerCase('nl'))){alert('Deze map bestaat al of de naam is ongeldig.');return;}if(!confirm(`Map “${path}” toevoegen?`))return;try{await vaultFolderRef(path).set({path,note:'',createdBy:currentPersonName(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert('Map toevoegen mislukt: '+e.message);}}
+async function vaultNote(path){const existing=vaultFolders[path]?.note||'';const note=vaultAsk(`Opmerking bij “${path}” (maximaal 2000 tekens):`,existing);if(note===null||note===existing)return;if(note.length>2000){alert('Maximaal 2000 tekens.');return;}if(!confirm('Opmerking opslaan?'))return;try{await vaultFolderRef(path).set({path,note,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){alert('Opmerking opslaan mislukt: '+e.message);}}
+async function vaultRename(path){if(vaultBasePaths().includes(path)){alert('Deze standaardmap kan niet worden hernoemd. Je eigen mappen kun je wel wijzigen.');return;}const name=vaultAsk('Nieuwe naam voor de map:',vaultFolderLabel(path));if(name===null||name===vaultFolderLabel(path))return;if(!name||name.includes('/')||name.length>100){alert('Ongeldige mapnaam.');return;}const target=(vaultFolderParent(path)?vaultFolderParent(path)+'/':'')+name;const moving=vaultAllPaths().filter(p=>p===path||p.startsWith(path+'/'));if(vaultAllPaths().some(p=>p.toLowerCase()===target.toLowerCase()&&!moving.includes(p))){alert('Deze map bestaat al.');return;}if(!confirm(`Map “${path}” en eventuele inhoud verplaatsen naar “${target}”?`))return;try{const affected=vaultFiles.filter(f=>String(f.category||'')===path||String(f.category||'').startsWith(path+'/'));const batch=db.batch();for(const f of affected)batch.update(db.collection('vaults').doc(VAULT_ID).collection('files').doc(f.id),{category:target+f.category.slice(path.length)});for(const old of moving){const next=target+old.slice(path.length);batch.set(vaultFolderRef(next),{...vaultFolders[old],path:next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});if(!vaultBasePaths().includes(old))batch.delete(vaultFolderRef(old));else batch.set(vaultFolderRef(old),{path:old,deleted:true},{merge:true});}await batch.commit();if(currentVaultCategory===path||currentVaultCategory.startsWith(path+'/'))currentVaultCategory=target+currentVaultCategory.slice(path.length);renderVault();}catch(e){alert('Hernoemen mislukt: '+e.message);}}
+async function vaultDeleteFolder(path){if(vaultBasePaths().includes(path)){alert('Standaardmappen zijn beschermd tegen verwijderen. Eigen mappen kun je wel verwijderen.');return;}if(vaultChildren(path).length||vaultFiles.some(f=>f.category===path||String(f.category||'').startsWith(path+'/'))){alert('Deze map bevat bestanden (ook archief/prullenbak) of submappen. Maak hem eerst helemaal leeg.');return;}if(!confirm(`Weet je zeker dat je map “${path}” wilt verwijderen?`))return;const typed=vaultAsk(`Typ exact de mapnaam “${vaultFolderLabel(path)}” om definitief te verwijderen:`);if(typed!==vaultFolderLabel(path)){if(typed!==null)alert('Mapnaam komt niet overeen.');return;}try{await vaultFolderRef(path).set({path,deleted:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});if(currentVaultCategory===path)currentVaultCategory=vaultFolderParent(path);renderVault();}catch(e){alert('Map verwijderen mislukt: '+e.message);}}
+async function vaultFolderMenu(path){const option=vaultAsk(`Map: ${path}\n1 = Submap toevoegen\n2 = Hernoemen\n3 = Verwijderen`);if(option==='1')await vaultAddFolder(path);else if(option==='2')await vaultRename(path);else if(option==='3')await vaultDeleteFolder(path);}
+document.addEventListener('click',e=>{const btn=e.target.closest('[data-vault-action],[data-vault-open]');if(!btn)return;if(btn.dataset.vaultOpen){openVaultCategory(decodeURIComponent(btn.dataset.vaultOpen));return;}const path=decodeURIComponent(btn.dataset.vaultPath);if(btn.dataset.vaultAction==='note')vaultNote(path);else vaultFolderMenu(path);});
+
 function vaultFolderLabel(path){return path.split("/").at(-1);}
 function vaultFolderParent(path){return path.includes("/")?path.slice(0,path.lastIndexOf("/")):"";}
 function vaultActiveFilesInTree(path){return vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&((f.category||"Overig")===path||String(f.category||"").startsWith(path+"/")));}
@@ -3020,6 +3037,8 @@ async function initVaultForCurrentUser(){
   try{
     await ensureVaultConfig();
     const configRef=db.collection("vaults").doc(VAULT_ID);
+    if(vaultFoldersUnsubscribe) vaultFoldersUnsubscribe();
+    vaultFoldersUnsubscribe=configRef.collection('folders').onSnapshot(q=>{vaultFolders={};q.docs.forEach(d=>{const f=d.data();if(f.path)vaultFolders[f.path]=f;});renderVault();},err=>console.error('Kluis mappen laden mislukt',err));
     if(vaultFilesUnsubscribe) vaultFilesUnsubscribe();
     vaultFilesUnsubscribe=configRef.collection("files").orderBy("createdAt","desc").onSnapshot(q=>{
       vaultFiles=q.docs.map(d=>({id:d.id,...d.data()}));
@@ -3045,11 +3064,13 @@ async function initVaultForCurrentUser(){
 }
 function hasVaultAccess(){ return !!(currentUser&&isVaultPerson()); }
 function fillVaultCategories(){
-  if(!window.vaultCategory) return;
+  if(!window.vaultCategory)return;
   const selected=vaultCategory.value;
-  vaultCategory.innerHTML=VAULT_CATEGORIES.map(c=>`<option value="${escapeHtml(c.name)}">${escapeHtml(c.name)}</option>`).join("")+Object.entries(VAULT_SUBFOLDERS).flatMap(([parent,children])=>children.map(path=>`<option value="${escapeHtml(path)}">${"　".repeat(path.split("/").length-1)}↳ ${escapeHtml(path)}</option>`)).join("");
-  if([...VAULT_CATEGORIES.map(c=>c.name),...Object.values(VAULT_SUBFOLDERS).flat()].includes(selected)) vaultCategory.value=selected;
+  const paths=vaultAllPaths();
+  vaultCategory.innerHTML=paths.map(path=>`<option value="${escapeHtml(path)}">${'　'.repeat(path.split('/').length-1)}${escapeHtml(path)}</option>`).join('');
+  if(paths.includes(selected))vaultCategory.value=selected;
 }
+
 function vaultRows(){
   const q=(vaultSearch.value||"").trim().toLowerCase();
   let rows=vaultFiles.slice();
@@ -3069,15 +3090,7 @@ function vaultRows(){
   return rows;
 }
 function renderVaultFolders(){
-  const folderCards=VAULT_CATEGORIES.map(c=>{
-    const files=vaultActiveFilesInTree(c.name);
-    const bytes=files.reduce((sum,f)=>sum+(Number(f.size)||0),0);
-    return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${c.name.replaceAll("'","\\'")}')">
-      <span class="vault-folder-icon">${c.icon}</span><strong>${escapeHtml(c.name)}</strong>
-      <small>${files.length} ${files.length===1?"bestand":"bestanden"} · ${formatBytes(bytes)}</small>
-      <em>${escapeHtml(c.hint)}</em>
-    </button>`;
-  }).join("");
+  const folderCards=vaultChildren('').map(path=>vaultFolderCard(path,true)).join('');
   const activeFiles=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt);
   const archiveCount=vaultFiles.filter(f=>!f.deletedAt&&f.archivedAt).length;
   const favoriteCount=activeFiles.filter(f=>f.favorite).length;
@@ -3120,28 +3133,33 @@ function renderVault(){
   vaultStorageWarning.textContent=pct>=100?"De ingestelde limiet van 5,00 GB is bereikt. Verwijder eerst bestanden.":"Let op: de kluis is bijna vol.";
 
   const inFolder=!!currentVaultCategory||!!currentVaultSpecial||!!(vaultSearch.value||"").trim();
-  const children=VAULT_SUBFOLDERS[currentVaultCategory]||[];
+  const children=vaultChildren(currentVaultCategory);
   vaultFolderGrid.classList.toggle("hidden",inFolder&&!children.length);
   vaultHomeBtn.classList.toggle("hidden",!inFolder);
   vaultViewTitle.classList.toggle("hidden",!inFolder);
   if(!inFolder){
     vaultViewTitle.textContent="";
     renderVaultFolders();
+    if(window.vaultAddFolderBtn)vaultAddFolderBtn.classList.remove('hidden');
+    if(window.vaultFolderNoteBtn)vaultFolderNoteBtn.classList.add('hidden');
     vaultList.innerHTML="";
     return;
   }
   if(children.length){
-    vaultFolderGrid.innerHTML=children.map(path=>{
-      const count=vaultActiveFilesInTree(path).length;
-      return `<button class="vault-folder-card" type="button" onclick="openVaultCategory('${path}')"><span class="vault-folder-icon">📂</span><strong>${escapeHtml(vaultFolderLabel(path))}</strong><small>${count} ${count===1?"bestand":"bestanden"}</small></button>`;
-    }).join("");
+    vaultFolderGrid.innerHTML=children.map(path=>vaultFolderCard(path)).join('');
   }
   const title=currentVaultCategory?`📂 ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":currentVaultSpecial==="archive"?"🗄️ Archief":"🔎 Zoekresultaten";
   const rows=vaultRows();
   const treeCount=currentVaultCategory?vaultActiveFilesInTree(currentVaultCategory).length:rows.length;
   const countLabel=currentVaultCategory&&children.length?`${treeCount} ${treeCount===1?"bestand":"bestanden"} incl. submappen`:`${rows.length} gevonden`;
   vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${countLabel}</span>`;
-  vaultList.innerHTML=rows.length?rows.map(f=>{
+  if(window.vaultAddFolderBtn){vaultAddFolderBtn.classList.toggle('hidden',!!currentVaultSpecial||!!vaultSearch.value.trim());}
+  if(window.vaultFolderNoteBtn){vaultFolderNoteBtn.classList.toggle('hidden',!currentVaultCategory);vaultFolderNoteBtn.textContent=vaultFolders[currentVaultCategory]?.note?'✎ Opmerking ●':'✎ Opmerking';}
+  const seenGroups=new Set();
+  const displayRows=rows.filter(f=>{const key=f.photoGroupId;if(!key)return true;if(seenGroups.has(key))return false;seenGroups.add(key);return true;});
+  vaultList.innerHTML=displayRows.length?displayRows.map(f=>{
+    const group=f.photoGroupId?vaultFiles.filter(x=>x.photoGroupId===f.photoGroupId&&!x.deletedAt&&!x.archivedAt):[];
+    const gallery=group.length?`<div class="vault-gallery">${group.map(x=>`<div><button type="button" onclick="openVaultFile('${x.id}')"><img data-vault-gallery="${x.id}" alt="Foto"></button><button class="vault-small-btn" type="button" onclick="removeVaultPhoto('${x.id}')">Foto verwijderen</button></div>`).join('')}</div><button class="secondary-btn" type="button" onclick="addVaultPhotos('${f.photoGroupId}')">+ Foto’s toevoegen</button>`:String(f.contentType||'').startsWith('image/')&&!f.deletedAt&&!f.archivedAt?`<button class="secondary-btn" type="button" onclick="addVaultPhotos('${f.id}')">+ Foto’s toevoegen</button>`:'';
     const isTrash=!!f.deletedAt;
     const imagePreview=String(f.contentType||"").startsWith("image/")&&!isTrash
       ? `<div class="vault-thumb-wrap"><div class="vault-thumb-placeholder">🖼️</div><img class="vault-thumb" data-vault-thumb="${f.id}" alt=""></div>`:"";
@@ -3150,13 +3168,14 @@ function renderVault(){
       ? `<button class="secondary-btn" onclick="restoreVaultFile('${f.id}')">Herstellen</button><button class="secondary-btn danger-mini" onclick="purgeVaultFile('${f.id}')">Definitief verwijderen</button>`
       : `<button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button>${!isArchived?`<button class="secondary-btn" onclick="newVaultVersion('${f.id}')">Nieuwe versie</button>`:""}<button class="secondary-btn" onclick="${isArchived?"restoreArchivedVaultFile":"archiveVaultFile"}('${f.id}')">${isArchived?"Terugzetten":"Archiveren"}</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Naar prullenbak</button>`;
     return `<article class="item-card vault-file-card ${isTrash?"is-trash":""}">
-      ${imagePreview}
+      ${group.length?"":imagePreview}
+      ${gallery}
       <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite&&!isTrash?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")}${isArchived?" · 🗄️ Gearchiveerd":""} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)?` · ${isTrash?"verwijderd ":""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)}`:""}</div></div>${isTrash?"":`<button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button>`}</div>
       ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
       <div class="vault-file-actions">${actions}</div>
     </article>`;
   }).join(""):(children.length?'<div class="card muted">De bestanden staan in de submappen hierboven.</div>':'<div class="card muted">Nog geen bestanden gevonden.</div>');
-  hydrateVaultThumbnails(rows);
+  hydrateVaultThumbnails(rows);hydrateVaultGallery(rows);
 }
 window.openVaultCategory=name=>{currentVaultCategory=name;currentVaultSpecial="";vaultSearch.value="";renderVault();};
 window.openVaultSpecial=type=>{currentVaultCategory="";currentVaultSpecial=type;vaultSearch.value="";renderVault();};
@@ -3206,6 +3225,9 @@ async function hydrateVaultThumbnails(rows){
 }
 
 
+window.addVaultPhotos=id=>{const f=vaultFiles.find(x=>(x.photoGroupId||x.id)===id);if(f)openVaultUpload(f.category||'Documenten','',id);};
+window.removeVaultPhoto=async id=>{const f=vaultFiles.find(x=>x.id===id);if(!f||!confirm(`Foto “${f.originalName}” naar de prullenbak verplaatsen?`))return;try{await db.collection('vaults').doc(VAULT_ID).collection('files').doc(id).update({deletedAt:firebase.firestore.FieldValue.serverTimestamp(),deletedBy:currentPersonName()});}catch(e){alert('Foto verwijderen mislukt: '+e.message);}};
+async function hydrateVaultGallery(rows){const ids=new Set(rows.map(f=>f.photoGroupId).filter(Boolean));const pictures=vaultFiles.filter(f=>ids.has(f.photoGroupId)&&!f.deletedAt&&!f.archivedAt);await Promise.all(pictures.map(async f=>{const img=document.querySelector(`[data-vault-gallery="${CSS.escape(f.id)}"]`);if(img)try{img.src=await getVaultDownloadUrl(f);}catch(_){}}));}
 function setSelectedVaultFiles(files){
   selectedVaultUploadFiles=Array.from(files||[]);
   const count=selectedVaultUploadFiles.length;
@@ -3215,18 +3237,22 @@ function setSelectedVaultFiles(files){
   if(count>1){vaultTitle.placeholder="Leeg laten: bestandsnamen gebruiken";vaultTitle.required=false;}
   else vaultTitle.placeholder="";
 }
-function openVaultUpload(category="",replaceId=""){
+function openVaultUpload(category="",replaceId="",appendGroup=""){
+  vaultAppendGroup=appendGroup;
   vaultUploadForm.reset();vaultReplaceId=replaceId;setSelectedVaultFiles([]);
   vaultFileInput.value="";vaultCameraInput.value="";
   vaultUploadMessage.textContent="";fillVaultCategories();
   if(category) vaultCategory.value=category;
+  if(appendGroup){const old=vaultFiles.find(f=>(f.photoGroupId||f.id)===appendGroup);if(old){vaultTitle.value=old.title||"";vaultCategory.value=old.category||"Documenten";}vaultPhotoGroup.checked=true;}
   if(replaceId){
     const old=vaultFiles.find(f=>f.id===replaceId);
     if(old){vaultTitle.value=old.title||old.originalName||"";vaultDescription.value=old.description||"";vaultCategory.value=old.category||"Documenten";}
   }
-  document.getElementById("vaultReplaceNotice").textContent=replaceId?"Nieuwe versie: de vorige polis wordt na succesvol uploaden automatisch gearchiveerd.":"";
+  document.getElementById("vaultReplaceNotice").textContent=appendGroup?"Extra foto’s toevoegen aan dit document.":replaceId?"Nieuwe versie: de vorige polis wordt na succesvol uploaden automatisch gearchiveerd.":"";
   vaultUploadDialog.showModal();
 }
+if(window.vaultAddFolderBtn)vaultAddFolderBtn.onclick=()=>vaultAddFolder(currentVaultCategory);
+if(window.vaultFolderNoteBtn)vaultFolderNoteBtn.onclick=()=>vaultNote(currentVaultCategory);
 if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>openVaultUpload(currentVaultCategory||"Documenten");
 window.newVaultVersion=id=>{const old=vaultFiles.find(f=>f.id===id);if(old&&!old.deletedAt&&!old.archivedAt)openVaultUpload(old.category||"Documenten",id);};
 if(window.vaultFileInput) vaultFileInput.onchange=()=>{if(vaultFileInput.files?.length){vaultCameraInput.value="";setSelectedVaultFiles(vaultFileInput.files);}};
@@ -3238,6 +3264,7 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   e.preventDefault();
   const files=selectedVaultUploadFiles;
   if(!files.length){vaultUploadMessage.textContent="Kies eerst één of meer bestanden of maak een foto.";return;}
+  if(vaultAppendGroup&&files.some(f=>!f.type.startsWith("image/"))){vaultUploadMessage.textContent="Kies alleen foto’s.";return;}
   if(vaultReplaceId&&files.length!==1){vaultUploadMessage.textContent="Kies één bestand voor een nieuwe versie.";return;}
   const used=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
   if(files.some(f=>f.size>VAULT_MAX_FILE_BYTES)){vaultUploadMessage.textContent="Elk bestand mag maximaal 100 MB zijn.";return;}
@@ -3245,13 +3272,15 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   vaultUploadSubmit.disabled=true;
   let completed=0;let failed=0;
   const folder=vaultCategory.value;
+  const grouped=!!vaultAppendGroup||(!!vaultPhotoGroup.checked&&files.every(f=>f.type.startsWith('image/')));
+  const groupId=vaultAppendGroup||(grouped?db.collection('vaults').doc(VAULT_ID).collection('files').doc().id:'');
   for(const file of files){
     const ref=db.collection("vaults").doc(VAULT_ID).collection("files").doc();
     const storagePath=`vaults/${VAULT_ID}/${ref.id}/${safeFileName(file.name)}`;
     vaultUploadMessage.textContent=`Uploaden ${completed+failed+1} van ${files.length}: ${file.name}`;
     try{
       await storage.ref(storagePath).put(file,{contentType:file.type||"application/octet-stream",customMetadata:{vaultId:VAULT_ID,documentId:ref.id}});
-      await ref.set({title:files.length===1?(vaultTitle.value.trim()||file.name):file.name.replace(/\.[^.]+$/," ").trim(),description:vaultDescription.value.trim(),category:folder,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,deletedAt:null,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),...(vaultReplaceId?{previousVersionId:vaultReplaceId}:{})});
+      await ref.set({...(grouped?{photoGroupId:groupId}:{}),title:grouped?(vaultTitle.value.trim()||"Fotoalbum"):files.length===1?(vaultTitle.value.trim()||file.name):file.name.replace(/\.[^.]+$/," ").trim(),description:vaultDescription.value.trim(),category:folder,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,deletedAt:null,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),...(vaultReplaceId?{previousVersionId:vaultReplaceId}:{})});
       completed++;
       if(vaultReplaceId){
         try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(vaultReplaceId).update({archivedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
@@ -3265,7 +3294,8 @@ if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
   }
   vaultUploadSubmit.disabled=false;
   if(failed){vaultUploadMessage.textContent=`${completed} bestand(en) opgeslagen, ${failed} mislukt. Probeer de mislukte bestanden opnieuw.`;return;}
-  vaultUploadDialog.close();currentVaultCategory=folder;currentVaultSpecial="";renderVault();
+  if(vaultAppendGroup){const original=vaultFiles.find(f=>f.id===vaultAppendGroup&&!f.photoGroupId);if(original)try{await db.collection('vaults').doc(VAULT_ID).collection('files').doc(original.id).update({photoGroupId:vaultAppendGroup});}catch(e){alert('Foto’s opgeslagen, maar koppelen van de oorspronkelijke foto is mislukt: '+e.message);}}
+  vaultAppendGroup="";vaultUploadDialog.close();currentVaultCategory=folder;currentVaultSpecial="";renderVault();
 };
 
 

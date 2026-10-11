@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.47">
-  <link rel="stylesheet" href="style.css?v=1.3.47">
+  <link rel="manifest" href="manifest.json?v=1.3.48">
+  <link rel="stylesheet" href="style.css?v=1.3.48">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.47</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.48</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.47</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.48</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -357,7 +357,7 @@
       <section class="page" data-page="kluis">
         <div class="page-head">
           <div><p class="eyebrow">Alleen voor Rinze & Christa</p><h2>🔐 Gezinskluis</h2></div>
-          <button id="vaultUploadBtn" class="primary-btn">+ Bestand</button>
+          <div class="vault-head-buttons"><button id="vaultAddFolderBtn" class="secondary-btn" type="button">+ Map</button><button id="vaultUploadBtn" class="primary-btn">+ Bestand</button></div>
         </div>
         <div id="vaultAccessMessage" class="card vault-access hidden"></div>
         <div id="vaultContent">
@@ -378,7 +378,7 @@
             </select>
             <button id="vaultHomeBtn" class="secondary-btn hidden" type="button">← Mappen</button>
           </div>
-          <div id="vaultViewTitle" class="vault-view-title hidden"></div>
+          <div id="vaultViewTitle" class="vault-view-title hidden"></div><button id="vaultFolderNoteBtn" class="vault-small-btn hidden" type="button">✎ Opmerking</button>
           <div id="vaultFolderGrid" class="vault-folder-grid"></div>
           <div id="vaultList" class="list-grid"></div>
         </div>
@@ -518,6 +518,7 @@
       </div>
       <p id="vaultChosenFile" class="muted">Nog geen bestand gekozen.</p>
       <p id="vaultReplaceNotice" class="muted" role="status"></p>
+      <label class="check-row-simple"><input id="vaultPhotoGroup" type="checkbox"> Meerdere foto’s samen als één document bewaren</label>
       <label class="check-row-simple"><input id="vaultFavorite" type="checkbox"> ⭐ Meteen als favoriet markeren</label>
       <p id="vaultUploadMessage" class="login-message"></p>
       <button id="vaultUploadSubmit" class="primary-btn wide" type="submit">Uploaden naar kluis</button>
@@ -999,7 +1000,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.47"></script>
-  <script src="app.js?v=1.3.47"></script>
+  <script src="firebase-config.js?v=1.3.48"></script>
+  <script src="app.js?v=1.3.48"></script>
 </body>
 </html>

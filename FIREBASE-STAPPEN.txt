@@ -1,16 +1,6 @@
-Hogeterpjes v1.3.39 – Firebase stappen
-
-BELANGRIJK:
-1. Upload alle 13 bestanden van v1.3.39 naar GitHub en vervang de oude bestanden.
-2. Firestore Rules ZIJN in deze versie gewijzigd.
-   Ga naar Firebase Console → Firestore Database → Rules.
-   Vervang de regels door de meegeleverde firestore.rules en klik op Publiceren.
-3. Storage Rules zijn in v1.3.39 NIET gewijzigd.
-   Laat je huidige Storage Rules dus staan.
-
-Waarom Firestore Rules zijn aangepast:
-- De beheerder (Rinze) wordt nu eerst gecontroleerd voordat de uitnodigingslijst wordt gelezen.
-- Daardoor kunnen wensen, to-do's en andere Firebase-gegevens niet meer worden geblokkeerd als allowedEmails ontbreekt of nog moet worden aangevuld.
-- De app kan daarna allowedEmails automatisch vanuit de bestaande accounts aanvullen.
-
-Er wordt geen bestaande Firestore-data verwijderd of gemigreerd door deze wijziging.
+Hogeterpjes v1.3.48 – installatie
+1. Upload alle 16 bestanden uit deze ZIP naar de GitHub Pages repository (vervang bestaande bestanden).
+2. Publiceer de meegeleverde firestore.rules via Firebase Console > Firestore Database > Rules > Publiceren. Nieuw: vaults/rinze-christa/folders/{folderId}.
+3. Storage Rules zijn niet aangepast; bestaande storage.rules behouden.
+4. Test in Gezinskluis: nieuwe map, notitie, hernoemen, verwijderbeveiliging en fotoalbum.
+5. Bestaande Firebase documenten worden niet verwijderd of gemigreerd.

@@ -59,6 +59,9 @@ service cloud.firestore {
       match /files/{fileId} {
         allow read, create, update, delete: if isRinzeOrChrista();
       }
+      match /folders/{folderId} {
+        allow read, create, update, delete: if isRinzeOrChrista();
+      }
     }
     match /diaries/{userId} {
       allow read, write: if isAdmin() && request.auth.uid == userId;

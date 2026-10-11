@@ -1,3 +1,11 @@
+## v1.3.48 – Gezinskluis
+- Eigen mappen en submappen aanmaken, hernoemen en veilig verwijderen.
+- Verwijderen alleen als map geen documenten (ook archief/prullenbak) en submappen bevat; bevestigen en mapnaam intypen.
+- Opmerkingenknop per map, alleen voor Rinze en Christa.
+- a.s.r. met Algemeen, Overlijdensrisicoverzekering en Spaarhypotheekverzekering.
+- Fotoalbums met meerdere foto's, later foto's toevoegen en afzonderlijk naar prullenbak verplaatsen.
+- BELANGRIJK: publiceer nieuwe firestore.rules voor folders-collectie.
+
 ## v1.3.47 – Gezinskluis: tellers en tekstweergave
 - Maptellers tellen actieve bestanden in alle onderliggende mappen mee.
 - Lange mapnamen en bestandsnamen breken netjes af op mobiele schermen.
