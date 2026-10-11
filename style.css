@@ -1,200 +1,341 @@
-:root{--g:#126b3a;--g2:#e9f6ee;--bg:#f4f7f5;--card:#fff;--line:#dbe4df;--text:#17251d;--muted:#66736c;--red:#bd332c;font-family:Arial,Helvetica,sans-serif;color:var(--text);background:var(--bg)}*{box-sizing:border-box}body{margin:0;background:var(--bg);padding-bottom:76px}button,input,select,textarea{font:inherit}button{border:0;border-radius:10px;background:var(--g);color:#fff;padding:11px 13px;font-weight:700;cursor:pointer}button.secondary{background:#66736c}button.link{background:transparent;color:var(--g);padding:4px 0}input,select,textarea{width:100%;border:1px solid #cbd8d1;border-radius:10px;padding:11px;background:#fff}label{display:block;font-size:.86rem;font-weight:700;margin:10px 0 5px}.hidden{display:none!important}.topbar{height:68px;display:flex;align-items:center;gap:9px;padding:8px 12px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}.topbar img{width:48px;height:48px;border-radius:12px}.topbar div{display:flex;flex-direction:column;flex:1;min-width:0}.topbar strong{font-size:.95rem}.topbar small{font-size:.72rem;color:var(--muted)}.topbar>span{font-size:.68rem;background:var(--g);color:#fff;padding:4px 7px;border-radius:999px}#app{max-width:760px;margin:auto;padding:10px}.card,.auth,.tile,.date-card,.court-card,.standing,.admin-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.04)}.auth{max-width:420px;margin:18px auto}.login-logo{display:block;width:116px;height:116px;margin:0 auto 10px;border-radius:26px}.auth h1,.auth>p{text-align:center}.auth form button{width:100%;margin-top:14px}.links{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:12px}.message,.notice{padding:10px;border-radius:9px;background:var(--g2);margin-top:10px;font-size:.86rem}.message.error{background:#fde7e5;color:#8a211b}.hero{background:linear-gradient(145deg,#fff,#edf7f1);border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:10px}.hero h1{font-size:1.25rem;margin:0 0 4px}.hero p{margin:0}.pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}.pill{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 8px;font-size:.75rem;font-weight:700}.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.tile{text-align:left;color:var(--text);min-height:95px}.tile strong{display:block;margin-top:8px}.tile small{display:block;margin-top:3px;color:var(--muted);font-weight:400}.date-head{display:flex;justify-content:space-between;gap:8px}.status{font-size:.75rem;font-weight:700;background:#eef1ef;border-radius:999px;padding:5px 8px;height:max-content}.row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border-top:1px solid #edf1ef;padding:9px 0}.green{background:#dff2e6;color:#145b33}.amber{background:#fff2d8;color:#805600}.court-card h3{color:var(--g);margin:0 0 7px}.match{text-align:center;font-weight:700;line-height:1.65}.standing{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:8px}.rank{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--g2);font-weight:800}.points{font-weight:800}.bottom{position:fixed;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,1fr);background:#fff;border-top:1px solid var(--line);padding:5px 5px calc(5px + env(safe-area-inset-bottom));z-index:20}.bottom button{background:transparent;color:var(--muted);padding:6px 2px;font-size:1.05rem}.bottom button small{display:block;font-size:.64rem}.bottom button.active{background:var(--g2);color:var(--g)}.adminbar{display:flex;justify-content:space-between;align-items:center;gap:8px;background:#eff6f2;border:1px solid #c7dfd1;border-radius:12px;padding:10px;margin-bottom:10px}.admintabs{display:flex;overflow:auto;gap:6px;margin-bottom:8px}.admintabs button{white-space:nowrap;background:#fff;color:var(--text);border:1px solid var(--line);font-size:.78rem}.admintabs button.active{background:var(--g2);color:var(--g);border-color:var(--g)}.readonly{background:#f7f9f8;border:1px solid var(--line);border-radius:10px;padding:10px}.formgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.dialog{padding:16px}dialog{border:0;border-radius:16px;width:min(92vw,480px);padding:0}dialog::backdrop{background:rgba(0,0,0,.45)}@media(max-width:520px){.formgrid{grid-template-columns:1fr}.topbar strong{font-size:.88rem}.topbar small{font-size:.66rem}}@media(max-width:360px){.tiles{grid-template-columns:1fr}.topbar>span{display:none}}
-
-/* v0.3 */
-.admin-actions{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.admin-actions button{flex:1 1 180px}.seed-box{border:1px dashed #9fb9aa;border-radius:12px;padding:12px;background:#f8fbf9;margin-top:12px}.seed-box input[type=file]{background:#fff}.seed-status{margin-top:8px;font-size:.86rem;color:var(--muted)}.playdate-list{display:grid;gap:7px;margin-top:12px}.playdate-item{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:11px;padding:9px 10px}.playdate-item input{width:22px;height:22px}.playdate-item .off{color:var(--muted)}.count-badge{font-size:.78rem;font-weight:700;background:var(--g2);color:var(--g);padding:5px 8px;border-radius:999px}.privacy-note{font-size:.8rem;color:#6b4d00;background:#fff6d8;border:1px solid #ead59b;border-radius:10px;padding:9px;margin-top:9px}.import-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:10px}.import-summary div{background:#f7f9f8;border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center}.import-summary b{display:block;font-size:1.2rem;color:var(--g)}
-@media(max-width:520px){.admintabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible;gap:6px}.admintabs button{white-space:normal;padding:9px 4px;font-size:.72rem;min-width:0}.import-summary{grid-template-columns:1fr 1fr 1fr}.playdate-item{grid-template-columns:auto minmax(0,1fr)}.playdate-item .count-badge{grid-column:2}}
-
-/* v0.4 */
-.save-explain{background:#eef7f1;border:1px solid #c5dfcf;border-radius:11px;padding:10px 11px;margin:11px 0;font-size:.86rem;line-height:1.4}.plan-card{padding:12px}.planner-person{border-top:1px solid #edf1ef;padding:10px 0 7px}.planner-person strong{display:block;margin-bottom:7px}.choice-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}.choice-row button{background:#f5f7f6;color:var(--text);border:1px solid var(--line);padding:8px 5px;font-size:.78rem}.choice-row button.selected[data-status="speelt"]{background:#dff2e6;color:#145b33;border-color:#72b48d}.choice-row button.selected[data-status="reserve"]{background:#fff2d8;color:#805600;border-color:#d7b462}.choice-row button.selected[data-status="afwezig"]{background:#fde7e5;color:#8a211b;border-color:#d79a94}.plan-hint{background:#f7f9f8;border-radius:9px;padding:8px 9px;margin:4px 0 8px;font-size:.82rem}.save-plan{width:100%;margin-top:2px}.plan-msg{font-size:.8rem;margin-top:6px}.plan-msg.ok{color:#145b33}.plan-msg.error{color:#8a211b}.status.closed{background:#fde7e5;color:#8a211b}
-@media(max-width:360px){.choice-row{grid-template-columns:1fr}.choice-row button{padding:7px}}
-
-/* v0.6 */
-.welcome{display:flex;justify-content:space-between;align-items:end;gap:10px;padding:2px 2px 10px}.welcome h2{margin:0}.welcome span{font-size:.8rem;color:var(--muted)}.eyebrow{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;font-weight:800;color:var(--g);margin-bottom:5px}.next-hero h1{margin:.1rem 0 .35rem}.deadline{background:#fff;border:1px solid var(--line);border-radius:11px;padding:10px;margin-top:10px;line-height:1.35}.home-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}.home-stats .stat-btn{background:#fff;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:9px;text-align:center;min-height:76px}.home-stats .stat-btn:active{transform:scale(.98)}.home-stats b{display:block;font-size:1.2rem;color:var(--g)}.home-stats span{display:block;font-size:.68rem;color:var(--muted)}.my-status{margin-top:9px;font-size:.9rem}.result-line{display:grid;grid-template-columns:1fr auto 1fr;gap:7px;align-items:center;padding:7px 0;border-top:1px solid #edf1ef}.result-line b:last-child{text-align:right}.result-line span{font-weight:800;color:var(--g)}.player-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:9px}.player-stats>div{border:1px solid var(--line);border-radius:11px;padding:10px}.player-stats strong,.player-stats span{display:block}.player-stats span{font-size:.8rem;margin-top:5px}.help h3{margin-top:1.35rem;margin-bottom:.35rem}.help p{line-height:1.48}.help-nav{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0}.help-nav a{text-decoration:none;background:var(--g2);color:var(--g);border-radius:999px;padding:6px 9px;font-size:.75rem;font-weight:700}.section-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.section-head h2{margin-top:0}.season-settings{display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px}.person-card{display:flex;justify-content:space-between;gap:10px;align-items:center;border-top:1px solid #edf1ef;padding:10px 0}.person-card div{min-width:0}.person-card small{display:block;color:var(--muted);margin-top:3px;overflow-wrap:anywhere}.mini-check{display:flex;gap:6px;align-items:center;margin:0;font-size:.75rem;white-space:nowrap}.mini-check input{width:18px;height:18px}.simple-row{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #edf1ef;padding:9px 0}.slot-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.player-slot{background:#f7f9f8;color:var(--text);border:1px solid var(--line);min-height:56px}.player-slot.picked{outline:3px solid #87b89b}.player-slot small{display:block;font-size:.66rem;color:#8a211b;margin-top:3px}.rule-callout{background:#fff6d8;border:1px solid #ead59b;border-radius:11px;padding:10px;line-height:1.4;margin-bottom:12px}.result-admin{display:flex;justify-content:space-between;gap:8px;align-items:center;border-top:1px solid #edf1ef;padding:9px 0}.result-admin>div{flex:1}.result-admin small{display:block;color:var(--muted);margin-top:4px}.danger{background:#b23b35}.payment-card{border:1px solid var(--line);border-radius:12px;padding:11px;margin-top:10px}.payment-card h3{margin:0}.pay-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border-top:1px solid #edf1ef;padding:8px 0}.pay-row button{padding:7px 9px;font-size:.75rem}.pay-row button.paid{background:#dff2e6;color:#145b33}.status.green{background:#dff2e6;color:#145b33}
-@media(max-width:520px){.home-stats{grid-template-columns:repeat(3,1fr)}.home-stats span{font-size:.62rem}.player-stats,.season-settings{grid-template-columns:1fr}.section-head{flex-direction:column}.section-head button{width:100%}.person-card{align-items:flex-start;flex-direction:column}.mini-check{align-self:flex-start}.slot-grid{grid-template-columns:1fr 1fr}}
-.lineup-tools{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:16px 0}.manual-pick,.whatsapp-box,.payment-summary{margin:16px 0;padding:16px;border:1px solid #d7e4dc;border-radius:16px;background:#f7fbf8}.manual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin:12px 0}.whatsapp-box textarea{width:100%;box-sizing:border-box;margin:8px 0 12px}.sets-entry{display:grid;gap:10px;margin:12px 0}.set-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.set-row input[type=number]{width:78px}.payment-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}.payment-card progress{width:100%;height:16px}.wa-remind{margin:8px 0 14px}
-
-/* v0.8 */
-.test-banner{background:#fff6d8;border:1px solid #e2c76e;border-radius:12px;padding:10px;margin-bottom:10px;display:flex;gap:8px;align-items:center;justify-content:space-between}.compact-setting{border:1px solid var(--line);border-radius:11px;padding:10px;margin:12px 0}.compact-setting .link{padding:4px 7px}.compact-setting select{width:auto;margin:8px 5px 0 0}.edit-panel{background:#f7fbf8;border:1px solid #d7e4dc;border-radius:12px;padding:12px;margin:12px 0}.court-title{display:flex;justify-content:space-between;align-items:center}.court-title h3{margin:0}.court-mode select{width:auto;margin:5px 0 10px}
-
-.stat-detail{margin-top:9px}.external-sub{display:grid;grid-template-columns:2fr 1fr auto;gap:7px;margin-top:8px;align-items:end}.external-sub input,.external-sub select{margin:0}.sub-row{border-top:1px solid #edf1ef;padding:10px 0}.sub-row>select{margin:7px 0}.notice{background:#f3f8f5;border:1px solid var(--line);border-radius:11px;padding:10px;margin:10px 0}@media(max-width:700px){.external-sub{grid-template-columns:1fr}.external-sub button{width:100%}}
-
-/* v0.13: duidelijke uitleg bij spelerskeuze */
-.choice-deadline{margin:.55rem 0 .8rem;padding:.65rem .75rem;border-radius:10px;background:#f4f7f4;font-size:.9rem;line-height:1.35}
-.choice-deadline.closed-note{background:#f5f5f5}
-.date-head .status{max-width:68%;text-align:right;line-height:1.2}
-
-
-/* v0.14 */
-.couple-grid{display:grid;gap:9px;margin:8px 0 16px}.couple-card{background:#f7fbf8;border:1px solid var(--line);border-radius:12px;padding:11px}.couple-card span{display:inline-block;background:var(--g2);color:var(--g);font-size:.72rem;font-weight:800;border-radius:999px;padding:4px 8px;margin-bottom:7px}.couple-card b{display:block;font-size:.92rem;line-height:1.45}.reserve-list{display:grid;gap:6px}.reserve-list>div{background:#f7f9f8;border:1px solid var(--line);border-radius:10px;padding:9px 11px;font-weight:700}.muted-note{color:var(--muted);font-size:.84rem}.dialog-actions{display:flex;gap:8px;margin-top:12px}.dialog-actions button{flex:1}#waPreviewText{min-height:260px;resize:vertical}.save-plan:not(:disabled){background:var(--g)}
-
-/* v0.15 */
-.pending-sub{background:#fff4dc!important;border:1px solid #e6c777!important;color:#725000}.pending-sub span,.pending-text{display:block;color:#9a6500;font-size:.78rem;margin-top:4px}.home-sub{margin-top:10px;padding:10px;border-radius:11px;background:#e9f6ee;border:1px solid #bcd9c8}.home-sub b,.home-sub span{display:block}.home-sub span{font-size:.8rem;margin-top:4px}.sub-propose{width:100%;margin-top:7px;background:#fff;color:var(--g);border:1px solid #78b28d}.sub-choice{display:flex;align-items:center;gap:9px;padding:10px;border:1px solid var(--line);border-radius:10px;margin:6px 0;background:#fff}.sub-choice input{width:20px;height:20px}.sub-choice span{font-weight:700}.pending-approval{border-color:#e6c777;background:#fffaf0}.approval-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:11px 0;border-top:1px solid #eee3c4}.approval-row span{display:block;margin-top:4px;font-size:.84rem}.approval-actions{display:flex;gap:6px}.approval-actions button{font-size:.78rem;padding:8px 10px}.simple-row b small{font-weight:400}
-@media(max-width:520px){.approval-row{grid-template-columns:1fr}.approval-actions button{flex:1}.approval-actions{display:flex}}
-
-/* v0.17 */
-.load-check{background:#f6f8f6;border:1px solid #d8e1da;border-radius:14px;padding:16px;margin:10px 0;display:grid;gap:8px}
-.load-check>div{padding:7px 0;border-top:1px solid #e5e9e6}.load-check>div:first-of-type{margin-top:5px}
-
-/* v0.20 */
-.season-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:12px 0}.season-summary>div{background:#f5f8f6;border-radius:11px;padding:10px}.season-summary small,.season-summary b{display:block}.season-summary small{color:var(--muted);font-size:.72rem}.admin-table{width:100%;border-collapse:collapse;font-size:.78rem}.admin-table th,.admin-table td{padding:7px 8px;border:1px solid #dfe7e2;text-align:left;white-space:nowrap}.admin-table th{background:#e9f6ee}.table-scroll,.future-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.future-table{min-width:max-content}.future-table .sticky-couple{position:sticky;left:0;z-index:4;background:#dff2e6!important;min-width:78px}.future-table .sticky-player{position:sticky;left:78px;z-index:3;background:#fff;min-width:170px}.future-table thead .sticky-couple,.future-table thead .sticky-player{background:#e9f6ee!important;z-index:6}.couple-no{text-align:center!important;font-weight:800}.choice-code{display:inline-flex;width:24px;height:24px;border-radius:999px;align-items:center;justify-content:center;font-size:.72rem;font-weight:900;margin:2px}.choice-code.play{background:#dff2e6;color:#126b3a}.choice-code.reserve{background:#fff0c9;color:#8b6200}.choice-code.absent{background:#fde2df;color:#9b2d25}.choice-code.empty{background:#e9ecea;color:#68736c}.choice-legend{font-size:.72rem;margin:8px 0;display:flex;align-items:center;gap:4px;flex-wrap:wrap}.compact-court{padding:12px}.compact-match{text-align:center;padding:10px 4px;line-height:1.65}.compact-match>div{font-weight:800;padding:8px;border-radius:10px;background:#f7faf8}.compact-match>b{display:block;color:var(--g);font-size:.75rem;padding:3px}.compact-player{display:inline-flex;align-items:center;gap:5px;background:transparent;color:var(--text);padding:2px 4px;border:0;font:inherit;font-weight:800}.compact-player.picked{background:#dff2e6;outline:2px solid #87b89b;border-radius:5px}.export-actions{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.export-actions button{flex:1}.admin-actions{flex-wrap:wrap}
-@media(max-width:600px){.season-summary{grid-template-columns:1fr 1fr}.admin-table{font-size:.72rem}.admin-table th,.admin-table td{padding:6px}.compact-match{font-size:.9rem}}
-
-/* v0.22 */
-.future-player-row:nth-child(even) .sticky-player{background:#fbfcfb}.future-player-row .sticky-couple{color:#126b3a;font-weight:900}.court-edit{background:#f4f8f5;border:1px solid #d7e4dc;border-radius:10px;padding:10px;margin:8px 0}.court-edit p{margin:0 0 8px}.court-edit select{width:100%;margin:4px 0}.strength-badge{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;padding:0 5px;border-radius:999px;background:#e9ecea;color:#5d6962;font-size:.68rem;font-weight:900;white-space:nowrap}.compact-player{cursor:pointer}.compact-player span{font-weight:800}
-
-/* v0.22 seizoenwizard */
-.danger-outline{background:#fff;color:#9b2d25;border:1px solid #d8aaa5}.danger-outline:hover{background:#fff5f4}
-.new-season-card{margin-bottom:90px}.wizard-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:14px}.wizard-steps span{padding:7px 4px;border-radius:8px;background:#eef2ef;text-align:center;font-size:.68rem;font-weight:800;color:#66726b}.wizard-steps span.active{background:#dff2e6;color:#126b3a}.wizard-actions{display:flex;justify-content:space-between;gap:8px;margin-top:14px}.wizard-actions button{flex:1}.role-list,.couple-assign-list{border:1px solid var(--line);border-radius:12px;overflow:hidden}.role-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 10px;border-top:1px solid var(--line)}.role-row:first-child{border-top:0}.role-row small{display:block;color:var(--muted);margin-top:2px}.role-row select{max-width:170px}.new-person-box{margin-top:14px;padding:12px;background:#f7faf8;border-radius:12px}.confirm-warning{background:#fff6d8;border:1px solid #ead59b;border-radius:11px;padding:10px;line-height:1.4;margin:10px 0}.archive-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}.archive-row:first-of-type{border-top:0}.archive-row small{display:block;color:var(--muted);margin-top:2px}.archive-row span{text-align:right}
-@media(max-width:600px){.future-table .sticky-couple{min-width:70px}.future-table .sticky-player{left:70px;min-width:150px}.wizard-steps span{font-size:.6rem}.role-row{align-items:flex-start;flex-direction:column}.role-row select{max-width:none;width:100%}.new-season-card{margin-bottom:80px}}
-
-/* v0.23 */
-.home-lineup{margin-top:10px}.home-lineup h3{margin-top:0}.home-court{border-top:1px solid var(--line);padding:10px 0}.home-court>div{display:grid;grid-template-columns:1fr auto 1fr;gap:7px;align-items:center;margin-top:5px}.home-court>div span:last-child{text-align:right}.home-court strong{font-size:.72rem;color:var(--g);text-transform:uppercase}
-.future-table .sticky-player{left:0!important;min-width:170px!important;max-width:190px;background:#fff;z-index:4}.future-table thead .sticky-player{background:#e9f6ee!important;z-index:6}.compact-person{display:grid;grid-template-columns:22px minmax(0,1fr);gap:5px;align-items:center}.couple-mini{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:999px;background:#dff2e6;color:#126b3a;font-weight:900;font-size:.68rem}.future-table th:not(.sticky-player),.future-table td:not(.sticky-player){min-width:44px;text-align:center;padding-left:4px;padding-right:4px}
-.edit-mini{width:auto!important;padding:6px 9px!important;font-size:.72rem!important;white-space:nowrap}.person-edit-dialog{min-width:min(86vw,430px)}.export-wrap{margin:10px 0}.compact-action{width:auto!important;padding:8px 12px!important}.export-choices{display:flex;gap:7px;margin-top:7px}.export-choices button{padding:7px 10px;font-size:.76rem}
-.ns-saturdays{margin-top:14px;padding:12px;background:#f7faf8;border:1px solid var(--line);border-radius:12px}.ns-sat-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}.ns-sat-item{display:flex;align-items:center;gap:7px;padding:7px 8px;background:#fff;border:1px solid var(--line);border-radius:9px;font-size:.78rem}.ns-sat-item input{width:18px;height:18px}.ns-count{display:block;margin-top:9px;color:var(--g)}
-.court-teams{display:grid!important;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:8px}.court-teams>div{display:flex;flex-direction:column;gap:5px;align-items:center}.court-teams>b{font-size:.8rem;border-radius:999px;background:#eaf3ed;padding:6px}.team-label{display:inline-block;color:var(--g);font-weight:900;background:#e9f6ee;border-radius:999px;padding:3px 8px}.compact-player{justify-content:center}
-.result-match-card{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:9px;align-items:center;background:#f7faf8;border:1px solid var(--line);border-radius:12px;padding:12px;margin:12px 0}.result-match-card>div{display:flex;flex-direction:column;gap:4px;text-align:center}.result-match-card>div b{font-size:.9rem}.result-match-card>div span,.result-match-card>div small{font-size:.7rem;color:var(--muted)}.result-match-card>strong{color:var(--g)}.set-buttons{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}.set-buttons button{width:auto;padding:7px 10px;font-size:.75rem}.unfinished-box{display:flex;align-items:center;gap:8px;margin:10px 0}.unfinished-box input{width:20px;height:20px}
-@media(max-width:520px){.person-card{flex-direction:row!important;align-items:center!important}.person-card>div{flex:1}.edit-mini{align-self:center}.ns-sat-grid{grid-template-columns:1fr}.future-table .sticky-player{min-width:160px!important;max-width:175px}.court-teams{grid-template-columns:1fr auto 1fr}.result-match-card{grid-template-columns:1fr auto 1fr}}
-
-/* v0.26 uitslagen */
-.result-set-row{display:grid;grid-template-columns:58px minmax(52px,1fr) auto minmax(52px,1fr) minmax(116px,auto);gap:6px;align-items:center;margin:8px 0}.last-game-inline{display:grid;grid-template-columns:minmax(48px,1fr) auto minmax(48px,1fr);gap:5px;align-items:center;padding-left:4px;border-left:1px solid var(--line)}.last-game-inline small{display:none}.last-game-inline select{margin:0;padding:7px 5px;min-width:0}.last-game-help{font-size:.76rem;color:var(--muted);margin:4px 0 10px 64px}.test-result-box{margin-top:12px}.test-result-box .notice{margin-bottom:12px}
-@media(max-width:390px){.result-set-row{grid-template-columns:52px minmax(46px,1fr) auto minmax(46px,1fr) minmax(104px,auto);gap:4px}.last-game-inline{grid-template-columns:minmax(43px,1fr) auto minmax(43px,1fr);gap:3px;padding-left:3px}.last-game-inline select{padding:7px 3px}.last-game-help{margin-left:56px}}
-
-/* v0.27 uitslagen */
-.rules-details{margin:8px 0 14px}.rules-details summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#eef6f1;border:1px solid #cfe0d6;border-radius:10px;padding:8px 11px;font-weight:700;color:var(--g)}.rules-details .rule-callout{margin:8px 0 0}.result-date-head{display:flex;align-items:end;justify-content:space-between;gap:10px}.result-date-head label{margin-bottom:4px}.compact-action{width:auto;padding:7px 10px;font-size:.78rem;margin:0 0 4px}.manual-correction-title{margin:12px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--line)}.manual-team-row{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:10px;align-items:center;padding:8px 0}.manual-team-row div{display:flex;flex-direction:column;gap:3px}.manual-team-row small{font-size:.78rem}.manual-team-row input{width:100%;box-sizing:border-box;margin:0}.manual-correction p{margin:8px 0 0}
-
-/* v0.27 uitslagen */
-.rules-details{margin:8px 0 14px}.rules-details summary{display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:#eef6f1;border:1px solid #cfe0d6;border-radius:10px;padding:8px 11px;font-weight:700;color:var(--g)}.rules-details .rule-callout{margin:8px 0 0}.result-date-head{display:flex;align-items:end;justify-content:space-between;gap:10px}.result-date-head label{margin-bottom:4px}.compact-action{width:auto;padding:7px 10px;font-size:.78rem;margin:0 0 4px}.manual-correction-title{margin:12px 0 8px;padding-bottom:8px;border-bottom:1px solid var(--line)}.manual-team-row{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:10px;align-items:center;padding:8px 0}.manual-team-row div{display:flex;flex-direction:column;gap:3px}.manual-team-row small{font-size:.78rem}.manual-team-row input{width:100%;box-sizing:border-box;margin:0}.manual-correction p{margin:8px 0 0}
-
-/* v0.29 zaterdag en uitslagenarchief */
-.sat-tabs{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px}.sat-tabs button{background:#fff;color:var(--text);border:1px solid var(--line)}.sat-tabs button.active{background:var(--g2);color:var(--g);border-color:var(--g)}.court-card .result-entry-btn{width:100%;margin-top:10px}.court-result{margin-top:10px;padding-top:9px;border-top:1px solid #edf1ef;display:flex;flex-direction:column;gap:3px}.court-result small,.court-result span{color:var(--muted);font-size:.78rem}.court-result.muted{font-weight:400}.day-total{display:flex;justify-content:space-between;align-items:center}.archive-day h3{margin-top:0;color:var(--g)}.home-result{padding:9px 0;border-top:1px solid #edf1ef}.home-result>b,.home-result>div,.home-result>span,.home-result>small{display:block}.home-result>div{margin-top:4px}.home-result>span{font-weight:800;color:var(--g);margin-top:3px}.home-result>small{color:var(--muted);margin-top:2px}
-
-/* v0.30 compact en veilig Mijn koppel */
-.couple-top{padding:12px 14px}.couple-identity h2{margin:0 0 2px}.couple-identity p{margin:0 0 8px;font-size:.9rem}.compact-summary{margin-top:7px;padding:7px 9px}.compact-season-stats{padding:7px 9px}.couple-wa{width:100%;margin-top:8px}.compact-plan{padding:11px 12px}.compact-plan .date-head{align-items:center;margin-bottom:5px}.compact-plan .date-head>b{font-size:.98rem}.compact-choice{display:grid;grid-template-columns:74px minmax(0,1fr);gap:7px;align-items:center;padding:3px 0}.compact-choice>strong{font-size:.88rem}.compact-choice .choice-row{gap:5px}.compact-choice .choice-row button{padding:7px 3px;font-size:.72rem}.compact-choice .choice-row button:disabled{opacity:1;cursor:default}.compact-choice .choice-row button:not(.selected):disabled{color:#7a847f;background:#f5f7f6}.compact-plan .plan-hint{margin:6px 0;padding:7px 9px}.compact-plan .edit-plan{width:100%;margin-top:7px;padding:9px 11px}.compact-plan .choice-deadline{margin:4px 0 5px}.compact-plan .message{margin-top:6px}.compact-plan .wa-sub,.compact-plan .sub-propose{margin-top:6px;width:100%}.export-choices{flex-wrap:wrap}
-@media(max-width:390px){.compact-choice{grid-template-columns:62px minmax(0,1fr)}.compact-choice .choice-row button{font-size:.66rem;padding:7px 2px}.compact-plan .date-head .status{font-size:.68rem;padding:4px 6px}}
-/* v0.31: compacte baanindeling op mobiel */
-.compact-match{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap;white-space:nowrap;font-weight:700}
-.compact-match strong{color:#176f43;flex:0 0 auto}
-@media(max-width:430px){.compact-match{font-size:16px;gap:7px}.court-card{padding-top:18px;padding-bottom:16px}}
-/* v0.31: compacte baanindeling op mobiel */
-.compact-match{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:nowrap;white-space:nowrap;font-weight:700}
-.compact-match strong{color:#176f43;flex:0 0 auto}
-@media(max-width:430px){.compact-match{font-size:16px;gap:7px}.court-card{padding-top:18px;padding-bottom:16px}}
-
-
-/* v0.32: compacte seizoenmatrix, stand en gecentreerde baanregels */
-.home-court>div{grid-template-columns:minmax(0,max-content) 18px minmax(0,max-content);justify-content:center;column-gap:8px}
-.home-court>div span:first-child,.home-court>div span:last-child{text-align:left}
-.home-court>div strong{text-align:center}
-.whatsapp-hub{margin-top:10px;margin-bottom:12px;padding:12px}
-.whatsapp-hub h3{margin:0 0 5px}.whatsapp-hub p{margin:0 0 9px;color:var(--muted)}
-.wa-hub-actions{display:flex;gap:7px;flex-wrap:wrap}.wa-hub-actions button,.whatsapp-hub #lineupShare button{width:auto;padding:8px 10px;font-size:.76rem}
-.whatsapp-hub #lineupShare{margin-top:7px}
-.future-table{font-size:.68rem;line-height:1}
-.future-table th,.future-table td{padding:2px 3px!important;height:25px;box-sizing:border-box}
-.future-table .sticky-player{min-width:112px!important;max-width:128px!important}
-.future-table th:not(.sticky-player),.future-table td:not(.sticky-player){min-width:37px!important;padding-left:2px!important;padding-right:2px!important}
-.future-table .compact-person{grid-template-columns:18px minmax(0,1fr);gap:3px;line-height:1;white-space:nowrap}
-.future-table .couple-mini{width:17px;height:17px;font-size:.58rem}
-.future-table .choice-code{width:18px;height:18px;font-size:.58rem;margin:0}
-.future-player-row{height:25px}
-@media(max-width:430px){.future-table{font-size:.64rem}.future-table th,.future-table td{height:23px}.future-player-row{height:23px}.future-table .sticky-player{min-width:106px!important;max-width:118px!important}.future-table .choice-code{width:17px;height:17px}.choice-legend{margin:5px 0;font-size:.66rem}.choice-legend .choice-code{width:18px;height:18px}.home-court>div{column-gap:6px}.home-court{padding:8px 0}}
-\n\n/* v0.33: vaste middenkolom voor wedstrijdstreepje */
-.home-court>div,.match.compact-match{display:grid!important;grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr)!important;align-items:center;column-gap:6px!important;width:100%;white-space:nowrap}
-.home-court>div span:first-child,.match.compact-match:not(.court-teams)>span:first-child{text-align:right}
-.home-court>div span:last-child,.match.compact-match:not(.court-teams)>span:last-child{text-align:left}
-.home-court>div strong,.match.compact-match>strong{grid-column:2;text-align:center;color:var(--g);margin:0}
-.match.compact-match:not(.court-teams){justify-content:stretch}
-.match.compact-match:not(.court-teams){font-weight:700}
-.whatsapp-hub{margin-top:16px}
-.compact-setting{margin-top:10px}
-@media(max-width:430px){.home-court>div,.match.compact-match{grid-template-columns:minmax(0,1fr) 16px minmax(0,1fr)!important;column-gap:4px!important}}
-
-/* v0.34: direct overzicht voor beheerder */
-.admin-readiness{margin-top:9px;padding:10px;border:1px solid var(--line);border-radius:11px;background:#fff;display:grid;gap:4px}.admin-readiness>b{color:var(--g)}.admin-readiness span{display:block;font-size:.82rem}.admin-readiness.ready{background:#edf8f1}.admin-readiness.attention{background:#fffaf0}.lineup-status-card h3{margin:0 0 9px}.lineup-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}.lineup-status-grid>div{border:1px solid var(--line);border-radius:10px;padding:8px;text-align:center;background:#f8faf9}.lineup-status-grid b,.lineup-status-grid span{display:block}.lineup-status-grid b{font-size:1.2rem;color:var(--g)}.lineup-status-grid span{font-size:.68rem;color:var(--muted);margin-top:2px}.sub-status-list{display:grid;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}.sub-status-list span{font-size:.8rem}.sub-status-list.warning{color:#8a211b}.sub-status-list.pending{color:#805600}@media(max-width:520px){.lineup-status-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-
-
-/* v0.37: transparante automatische indeling */
-.history-details{margin-top:10px;padding:12px}.history-details summary{cursor:pointer;font-weight:900;color:var(--g)}.history-details>p{margin:8px 0;color:var(--muted)}.history-list{display:grid;gap:7px;margin-top:8px}.history-person{display:grid;grid-template-columns:minmax(82px,120px) 1fr;gap:2px 10px;padding:7px 0;border-top:1px solid var(--line);font-size:.78rem}.history-person>b{grid-row:1 / span 2;color:var(--text)}.history-person span{display:block;color:var(--muted)}.history-person span strong{color:var(--text)}.why-court{display:grid;gap:3px;padding:8px 0;border-top:1px solid var(--line)}.why-court:first-child{border-top:0}.why-court span{font-size:.78rem;color:var(--muted)}#lineupWhy>p{margin:8px 0 0;color:var(--muted)}@media(max-width:430px){.history-person{grid-template-columns:1fr;gap:3px}.history-person>b{grid-row:auto}.history-details{padding:10px}}
-
-.finale-setting{margin-top:14px;padding:14px;border:1px solid #cfe3d6;border-radius:14px;background:#f4fbf6}.finale-setting label{display:flex;gap:8px;align-items:center}.finale-setting small{display:block;margin-top:6px;line-height:1.4}
-/* v1.1 account approval actions */
-.row-actions{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end}
-.row-actions button{margin:0}
-.account-state{display:block;margin-top:5px;font-size:.75rem;font-weight:700;color:var(--muted)}
-.account-state.active{color:#14733d}.account-state.pending{color:#8a5b00}.account-state.rejected{color:#a52d27}
-
-/* v1.2: opvallende melding voor openstaande accountaanvragen op Home */
-.home-pending-account{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;margin:0 0 14px;padding:14px 16px;border:1px solid #d8c36a;border-radius:16px;background:#fff9dc;color:#2a2a22;text-align:left;box-shadow:0 1px 2px rgba(0,0,0,.05)}
-.home-pending-account b{font-size:1.05rem}
-.home-pending-account span{font-size:.92rem}
-
-/* v1.8: invaller zichtbaar in toekomstige spelerskeuzes */
-.choice-code-wrap{display:inline-flex;align-items:center;justify-content:center;gap:3px;white-space:nowrap}
-.choice-code.substitute{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
-
-
-/* v1.9: vervanger gezocht zichtbaar op Home voor alle spelers */
-.home-sub-search{display:grid;gap:7px;margin:12px 0;padding:13px 14px;border:1px solid #e2b7b3;border-radius:14px;background:#fff1ef;color:#5f201b}
-.home-sub-search>b{font-size:1rem}.home-sub-search span{display:block;line-height:1.35}.home-sub-search strong{color:#3f1713}
-
-
-/* v1.13: aanklikbare overzichtsvakken */
-.lineup-stat-btn{background:#fff;color:var(--text);border:1px solid var(--line);padding:12px 8px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:88px}
-.lineup-stat-btn b{font-size:1.55rem;color:var(--g)}
-.lineup-stat-btn span{font-size:.78rem;color:var(--muted);font-weight:600;text-align:center}
-.lineup-stat-btn:active,.stat-btn:active{transform:translateY(1px)}
-.compact-admin-detail{margin-top:10px;padding:10px 12px;background:#f8fbf9;border:1px solid var(--line);border-radius:10px}
-.compact-admin-detail h4{margin:0 0 8px}
-
-/* v1.14: duidelijke actieve toestand voor aanklikbare overzichtsvakken */
-.stat-btn.detail-open,.lineup-stat-btn.detail-open{outline:2px solid var(--g);outline-offset:1px;background:var(--g2)}
-
-
-/* v1.17: privé-opmerking compact op één regel */
-.private-note-label{display:block;margin-top:6px;font-size:.78rem;font-weight:700;color:var(--g);line-height:1.15}
-.private-note-label>span{font-weight:400;color:var(--muted)}
-.private-note{display:block;width:100%;height:38px;min-height:38px;margin-top:5px;padding:7px 9px;font-size:.78rem;line-height:1.2;background:#fffdf4;border:1px solid #dfd5a6;border-radius:10px}
-.private-note-msg{display:block;min-height:14px;margin-top:3px;font-size:.68rem;font-weight:400;color:var(--muted)}
-.private-note-msg.saved{color:#14733d}.private-note-msg.pending{color:#8a5b00}.private-note-msg.error{color:#a52d27}
-
-
-/* v1.18: privé-opmerking over de volle breedte onder de spelersregels */
-.private-note-wide{display:grid;grid-template-columns:210px minmax(0,1fr);column-gap:10px;align-items:center;margin:8px 0 3px}
-.private-note-title{font-style:normal;font-weight:700;color:var(--g);line-height:1.15}
-.private-note-title em{font-style:normal;font-weight:400;color:var(--muted)}
-.private-note-wide .private-note{margin:0;width:100%;height:38px;min-height:38px}
-.private-note-wide .private-note-msg{grid-column:2;margin-top:3px}
-@media(max-width:520px){
-  .private-note-wide{grid-template-columns:1fr;margin-top:8px}
-  .private-note-wide .private-note{margin-top:5px}
-  .private-note-wide .private-note-msg{grid-column:1}
+:root{
+  --bg:#f4f6f3;--surface:#fff;--text:#183026;--muted:#718078;
+  --primary:#3f6f5a;--primary-2:#dfece5;--accent:#f3b74b;--border:#dfe6e1;
+  --shadow:0 8px 30px rgba(31,66,50,.08);--radius:22px;
 }
-@media(min-width:390px) and (max-width:520px){
-  .private-note-wide{grid-template-columns:150px minmax(0,1fr);column-gap:8px}
-  .private-note-wide .private-note{margin-top:0}
-  .private-note-wide .private-note-msg{grid-column:2}
+*{box-sizing:border-box}html{background:var(--bg)}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--text)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+body.dark{--bg:#15211c;--surface:#1e2d26;--text:#edf5f0;--muted:#aabbb2;--primary:#84b59e;--primary-2:#294337;--border:#31473c;--shadow:none}
+.app-shell{max-width:780px;margin:auto;min-height:100vh;padding-bottom:92px}
+.topbar{position:sticky;top:0;z-index:10;display:flex;justify-content:space-between;align-items:center;padding:18px 18px 12px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(14px)}
+.topbar h1,.page-head h2,.hero h2{margin:0}.eyebrow{margin:0 0 4px;color:var(--primary);font-weight:800;text-transform:uppercase;font-size:.72rem;letter-spacing:.12em}
+.icon-btn{border:0;background:var(--surface);width:44px;height:44px;border-radius:50%;box-shadow:var(--shadow)}
+main{padding:8px 16px}.page{display:none}.page.active{display:block}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.hero{display:flex;justify-content:space-between;gap:16px;align-items:center;background:linear-gradient(145deg,var(--surface),var(--primary-2))}
+.hero p:last-child{margin-bottom:0;color:var(--muted)}.hero-badge{font-size:3rem}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}.stat{text-align:left;border:1px solid var(--border)}.stat strong{font-size:1.8rem;display:block}.stat span{color:var(--muted)}
+.section-head,.page-head,.sheet-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.section-head h3,.page-head h2,.sheet-head h3{margin:0}.page-head{margin:8px 2px 16px}
+.primary-btn,.secondary-btn{border:0;border-radius:14px;padding:11px 15px;font-weight:800}.primary-btn{background:var(--primary);color:white}.secondary-btn{background:var(--primary-2);color:var(--text)}.wide{width:100%;margin-top:8px}
+.quick-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.quick-grid button{padding:15px;border:0;border-radius:16px;background:var(--primary-2);color:var(--text);font-weight:800}
+.birthday-box{display:flex;align-items:center;gap:14px}.birthday-icon{font-size:2.1rem}.muted{color:var(--muted)}
+.list-grid{display:grid;gap:12px}.item-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:15px;box-shadow:var(--shadow)}.item-card h3{margin:0 0 6px}.meta{font-size:.9rem;color:var(--muted)}.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.chip{background:var(--primary-2);border-radius:999px;padding:5px 9px;font-size:.78rem;font-weight:700}
+.search,.filters select{width:100%;padding:13px 14px;border-radius:15px;border:1px solid var(--border);background:var(--surface);color:var(--text);margin-bottom:14px}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.bottom-nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:min(780px,100%);display:grid;grid-template-columns:repeat(5,1fr);padding:8px 6px calc(8px + env(safe-area-inset-bottom));background:color-mix(in srgb,var(--surface) 94%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--border);z-index:20}
+.bottom-nav button{border:0;background:transparent;color:var(--muted);font-size:.72rem;font-weight:700;display:grid;gap:3px;justify-items:center}.bottom-nav button span{font-size:1.3rem}.bottom-nav button.active{color:var(--primary)}
+dialog{color:var(--text);background:var(--surface);border:0}.modal{width:min(620px,94vw);max-height:88vh;border-radius:24px;padding:20px;box-shadow:0 25px 80px rgba(0,0,0,.25)}dialog::backdrop{background:rgba(0,0,0,.44);backdrop-filter:blur(3px)}
+.sheet{width:min(760px,100%);margin:auto 0 0;border-radius:24px 24px 0 0;padding:20px}.sheet>button{width:100%;text-align:left;border:0;background:transparent;padding:15px;font-size:1.05rem}
+.sheet-head button{border:0;background:var(--primary-2);border-radius:50%;width:38px;height:38px;color:var(--text)}
+form label{display:grid;gap:6px;margin:13px 0;font-weight:700}form input,form select,form textarea{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}form small{font-weight:400;color:var(--muted)}
+.checklist{padding:8px 16px}.check-row{display:flex;align-items:center;gap:10px;padding:13px 0;border-bottom:1px solid var(--border)}.check-row:last-child{border-bottom:0}.check-row.done span{text-decoration:line-through;color:var(--muted)}.check-row button{margin-left:auto;border:0;background:transparent}
+.settings p{color:var(--muted)}.status-pill{display:inline-block;padding:7px 11px;border-radius:999px;background:var(--primary-2);font-weight:800}.danger-zone{border-color:#d7aaa5}
+.recipe-photo{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:16px;margin:10px 0}.recipe-actions{display:flex;gap:8px;margin-top:12px}.recipe-actions button{flex:1}.portion-control{display:flex;align-items:center;justify-content:center;gap:12px;background:var(--primary-2);border-radius:999px;padding:8px;margin:14px 0}.portion-control button{border:0;background:var(--primary);color:#fff;width:38px;height:38px;border-radius:50%;font-weight:900}
+.ingredient-list{list-style:none;padding:0}.ingredient-list li{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}.steps{padding-left:22px}.steps li{margin-bottom:12px}
+@media(min-width:680px){.stats-grid{grid-template-columns:repeat(4,1fr)}.list-grid{grid-template-columns:1fr 1fr}}
+
+
+.top-actions{display:flex;gap:8px;align-items:center}
+.avatar-btn{border:0;background:var(--primary);color:#fff;width:44px;height:44px;border-radius:50%;font-weight:900}
+.login-screen{position:fixed;inset:0;z-index:100;background:linear-gradient(145deg,#eef6f1,#fff8fb);display:grid;place-items:center;padding:20px}
+.login-screen.hidden{display:none}
+.login-card{width:min(430px,100%);background:var(--surface);border:1px solid var(--border);border-radius:28px;box-shadow:0 25px 80px rgba(26,54,42,.18);padding:26px}
+.login-card h1{font-size:2.3rem;margin:.2rem 0}.login-logo{font-size:3.2rem}.login-intro{color:var(--muted);line-height:1.5}
+.login-message{min-height:1.4em;color:#b33434;font-weight:700;text-align:center}
+.profile-card{text-align:center}.profile-avatar{width:92px;height:92px;border-radius:50%;display:grid;place-items:center;margin:0 auto 14px;background:var(--primary);color:white;font-size:2.2rem;font-weight:900}
+
+.title-with-version{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.title-with-version h1{margin-right:0}
+.app-version{font-size:10px;font-weight:700;color:var(--muted);letter-spacing:.03em;white-space:nowrap}
+.login-card .app-version{font-size:10px}
+
+.login-help{font-size:.86rem;color:var(--muted);text-align:center;margin:.8rem 0 0}
+.sync-status{margin:.65rem 0 0;font-size:.85rem}
+.status-pill.online{background:#dff5e7;color:#23683d}
+.status-pill.error{background:#fde4e4;color:#9b2f2f}
+.brand-logo{display:block;object-fit:cover;border-radius:24px}.login-brand-logo{width:150px;height:150px;margin:0 auto 14px}.small-logo{width:58px;height:58px;border-radius:16px}.top-brand{display:flex;align-items:center;gap:12px}.top-brand h1{margin:0}.top-brand .app-version{display:inline-block;margin-top:3px}.login-links{display:flex;flex-direction:column;gap:4px;margin-top:10px}.text-btn{border:0;background:none;color:var(--primary);font:inherit;font-weight:700;padding:8px}.admin-only{display:none!important}.admin-only.visible{display:block!important}.account-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}.account-row:last-child{border-bottom:0}.account-row strong,.account-row span{display:block}.account-actions{display:flex;gap:6px}.mini-btn{border:0;border-radius:10px;padding:8px 10px;font-weight:700}.status-invite{font-size:.84rem;color:var(--muted)}
+
+.family-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.family-card-head h3{margin:0 0 6px}
+.photo-upload{display:block;text-align:center;cursor:pointer}
+.photo-upload input{display:none}
+.profile-photo-help{font-size:.8rem;margin:.4rem 0 1rem}
+.profile-avatar.has-photo{background-size:cover;background-position:center;color:transparent}
+
+.wish-privacy-note{margin-bottom:14px;padding:14px 16px;font-size:.93rem}
+.wish-card-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.wish-card-head h3{margin:0 0 6px}
+.danger-mini{white-space:nowrap}
+.hidden{display:none!important}
+
+.recipe-photo-field{display:block;margin-bottom:16px}
+.field-label{display:block;font-weight:700;margin-bottom:8px}
+.photo-action-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.photo-action{display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer}
+.photo-action input{display:none}
+.recipe-photo-preview{margin-top:12px;text-align:center}
+.recipe-photo-preview img{display:block;width:100%;max-height:260px;object-fit:cover;border-radius:18px;margin-bottom:8px}
+@media(max-width:520px){.photo-action-row{grid-template-columns:1fr}}
+
+.wish-photo-field{display:block;margin-bottom:16px}
+.wish-photo{display:block;width:100%;max-height:280px;object-fit:cover;border-radius:16px;margin:12px 0}
+
+.agenda-info{margin-bottom:14px;padding:14px 16px}
+.agenda-info p{margin:6px 0 0}
+.agenda-filters{margin-bottom:14px}
+.agenda-time-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.agenda-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.agenda-card-head h3{margin:6px 0}
+.agenda-scope{display:inline-block;font-size:.82rem;font-weight:800;padding:5px 9px;border-radius:999px;background:var(--soft)}
+.agenda-card p{margin:.6rem 0 0}
+@media(max-width:520px){.agenda-time-grid{grid-template-columns:1fr}}
+
+
+.weekmenu-toolbar{display:grid;gap:14px;margin-bottom:14px}
+.weekmenu-toolbar label{margin:0}
+.week-switcher{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;text-align:center}
+.week-switcher div{display:flex;flex-direction:column;gap:3px}
+.week-switcher small{color:var(--muted)}
+.weekmenu-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.weekmenu-privacy{margin-bottom:14px;font-size:.92rem}
+.weekmenu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.weekmenu-day{padding:14px}
+.weekmenu-day.has-meal{border:2px solid var(--accent)}
+.weekmenu-day-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.weekmenu-day-head h3{margin:3px 0 10px}
+.weekmenu-day-head span{font-size:.82rem;color:var(--muted)}
+.weekmenu-empty,.weekmenu-meal{width:100%;min-height:82px;border:1px dashed var(--line);border-radius:14px;background:var(--soft);padding:12px;text-align:left}
+.weekmenu-empty{text-align:center;color:var(--muted);font-weight:800}
+.weekmenu-meal{display:flex;flex-direction:column;gap:6px;border-style:solid}
+.weekmenu-meal strong{font-size:1rem}
+.weekmenu-meal span{font-size:.9rem}
+.weekmenu-meal small{color:var(--muted)}
+@media(max-width:650px){
+  .weekmenu-grid{grid-template-columns:1fr}
+  .weekmenu-actions{grid-template-columns:1fr}
+  .week-switcher{grid-template-columns:1fr 1fr}
+  .week-switcher div{grid-column:1 / -1;grid-row:1}
 }
 
 
-/* v1.21: namen van invallers onder toekomstige spelerskeuzes */
-.future-substitutes{margin-top:12px;padding:11px 12px;background:#f7faf8;border:1px solid var(--line);border-radius:11px}
-.future-substitutes h3{margin:0 0 6px;color:var(--g)}
-.future-sub-row{display:grid;grid-template-columns:62px minmax(0,1fr);gap:8px;padding:6px 0;border-top:1px solid #e3ebe6;font-size:.78rem;line-height:1.3}
-.future-sub-row:first-of-type{border-top:0}
-.future-sub-row b{color:var(--g)}
-@media(max-width:390px){.future-sub-row{grid-template-columns:56px minmax(0,1fr);font-size:.74rem}}
+.dashboard-hero{margin-bottom:14px}
+.dashboard-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.dashboard-card{min-height:0;padding:14px}
+.dashboard-card .section-head{align-items:flex-start}
+.dashboard-row{padding:7px 0;border-bottom:1px solid var(--line)}
+.dashboard-row:last-child{border-bottom:0}
+.dashboard-row div{display:flex;flex-direction:column;gap:4px}
+.dashboard-row span{font-size:.85rem;color:var(--muted)}
+.dashboard-stats{margin-bottom:14px}
+.household-help{margin-bottom:14px}
+.member-fieldset{border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 16px}
+.member-fieldset legend{font-weight:800;padding:0 6px}
+.member-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.member-check{display:flex!important;align-items:center;gap:8px;background:var(--soft);padding:10px;border-radius:12px;margin:0!important}
+.member-check input{width:auto;margin:0}
+.danger-button{margin-top:10px}
+@media(max-width:700px){
+  .dashboard-grid{grid-template-columns:1fr}
+}
+@media(max-width:480px){
+  .member-checks{grid-template-columns:1fr}
+}
 
-/* v1.33: telefoonnummers in Spelers & reserves */
-.roster-page .couple-card small,.roster-page .reserve-list small{display:block;font-weight:500;color:var(--muted);font-size:.92rem;margin-top:2px}
-.roster-page .couple-card b+small{margin-bottom:8px}
-.roster-page .reserve-list b{display:block}
+
+.ingredient-editor{margin:0 0 16px}
+.ingredient-editor-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.ingredient-editor-head>div{display:flex;flex-direction:column;gap:3px}
+.ingredient-editor-head small{color:var(--muted)}
+.compact-btn{padding:9px 12px;white-space:nowrap}
+.ingredient-rows{display:grid;gap:10px}
+.ingredient-entry{border:1px solid var(--line);border-radius:14px;background:var(--soft);padding:11px}
+.ingredient-entry-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}
+.ingredient-entry-top span{font-size:.82rem;font-weight:800;color:var(--muted)}
+.ingredient-remove{border:0;background:transparent;padding:4px 6px;font-size:1rem;border-radius:8px}
+.ingredient-remove:disabled{opacity:.3}
+.ingredient-entry input,.ingredient-entry select{margin:0}
+.ingredient-name{width:100%;margin-bottom:8px!important}
+.ingredient-amount-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(110px,.8fr);gap:8px}
+.ingredient-amount-row label{margin:0;display:flex;flex-direction:column;gap:4px}
+.ingredient-amount-row label span{font-size:.75rem;color:var(--muted);font-weight:700}
+@media(max-width:430px){
+  .ingredient-editor-head{align-items:stretch}
+  .ingredient-editor-head .compact-btn{padding:8px 9px;font-size:.85rem}
+  .ingredient-entry{padding:9px}
+  .ingredient-amount-row{grid-template-columns:1fr 105px}
+}
+
+.eaters-block{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.eaters-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.grocery-meta{display:block;color:var(--muted);font-size:.75rem;margin-top:2px}
+.notification-item{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.notification-item.is-read{opacity:.65}
+.notification-badge{display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:var(--accent);color:#fff;font-size:.75rem;vertical-align:middle}
+
+.product-help{margin-bottom:14px;padding:14px 16px}
+.product-filters{margin-bottom:14px}
+.product-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.product-card-head h3{margin:0 0 6px}
+.product-store{background:var(--soft);padding:10px 12px;border-radius:12px}
+.product-two-columns{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grocery-store-group{border-bottom:1px solid var(--line);padding:4px 0 12px}
+.grocery-store-group:last-child{border-bottom:0}
+.grocery-store-title{margin:12px 12px 5px;font-size:1rem}
+@media(max-width:480px){.product-two-columns{grid-template-columns:1fr}}
+
+.page-head-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.quick-products{margin:12px 0}
+.quick-products h3{font-size:.92rem;margin:0 0 8px}
+.quick-product-row{display:flex;gap:8px;overflow:auto;padding-bottom:5px}
+.quick-product-row button{white-space:nowrap;border:1px solid var(--border);background:var(--surface);padding:9px 12px;border-radius:999px;color:var(--text)}
+.product-card-photo{width:100%;height:150px;object-fit:cover;border-radius:16px;margin-bottom:10px}
+.product-photo-preview{display:grid;gap:8px;margin:8px 0 14px}
+.product-photo-preview img{width:100%;max-height:220px;object-fit:contain;border-radius:14px;background:var(--primary-2)}
+.product-stock{padding:8px 10px;border-radius:10px;background:var(--primary-2)}
+.product-stock.stock-low{font-weight:700}
+.stores-list{display:grid;gap:8px;margin:12px 0}
+.store-row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:12px}
+.store-row button{border:0;background:transparent}
+.inline-add{display:flex;gap:8px}
+.inline-add input{flex:1}
+.row-actions{display:flex;gap:2px}
+.grocery-store-title{display:flex;justify-content:space-between;align-items:center}
+.grocery-store-title small{font-weight:400;color:var(--muted)}
+
+.recipe-view-actions{margin:12px 0}.recipe-actions{flex-wrap:wrap}.recipe-actions button{min-width:100px}
+
+/* v1.3.6: compact dashboard and ingredient selection */
+.dashboard-card h3{margin:2px 0 0;font-size:1rem}
+.dashboard-card .section-head{margin-bottom:4px}
+.dashboard-card .eyebrow{font-size:.72rem}
+.dashboard-card .muted{margin:.35rem 0;font-size:.88rem}
+.selection-actions{display:flex;gap:12px;justify-content:flex-end;margin:-4px 0 10px}
+.recipe-grocery-choices{display:grid;gap:8px;margin-bottom:16px;max-height:45vh;overflow:auto}
+.recipe-grocery-choice{display:flex!important;align-items:center;gap:10px;margin:0!important;padding:11px 12px;border:1px solid var(--line);border-radius:12px;background:var(--soft)}
+.recipe-grocery-choice input{width:auto;margin:0;flex:0 0 auto}
+.recipe-grocery-choice span{font-weight:700}
+@media(max-width:700px){
+  .dashboard-grid{gap:8px;margin-bottom:10px}
+  .dashboard-card{padding:11px 12px}
+  .dashboard-row{padding:5px 0}
+}
+
+/* v1.3.13 – Gezinskluis */
+.vault-meter-card{margin-bottom:14px}.vault-meter{height:14px;background:rgba(63,111,90,.14);border-radius:999px;overflow:hidden;margin:10px 0}.vault-meter span{display:block;height:100%;width:0;background:#3f6f5a;transition:width .25s}.vault-meter span.warning{background:#e28a20}.vault-meter span.danger{background:#c43d3d}.vault-warning{font-weight:700;color:#b42318}.vault-limit-note{font-size:.86rem;margin-bottom:0}.vault-toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}.vault-toolbar .search{margin:0}.vault-toolbar select{min-width:135px}.vault-file-card{display:grid;gap:9px}.vault-file-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.vault-file-head h3{margin:0;overflow-wrap:anywhere}.vault-file-actions{display:flex;flex-wrap:wrap;gap:7px}.vault-file-actions button{flex:1;min-width:90px}.vault-icon{font-size:1.55rem}.vault-access{font-weight:700}.check-row-simple{display:flex!important;align-items:center;gap:9px}.check-row-simple input{width:auto}.dark .vault-meter{background:rgba(255,255,255,.13)}
+@media(max-width:560px){.vault-toolbar{grid-template-columns:1fr}.vault-file-actions button{min-width:calc(50% - 7px)}}
+
+/* v1.3.13 – maptegels in de Gezinskluis */
+.vault-view-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 2px 12px}.vault-view-title strong{font-size:1.12rem}.vault-view-title span{font-size:.85rem;color:var(--muted)}
+.vault-folder-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.vault-folder-card{appearance:none;border:1px solid rgba(63,111,90,.16);background:var(--card);color:inherit;border-radius:22px;padding:18px 15px;text-align:left;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:154px;cursor:pointer}.vault-folder-card:active{transform:scale(.985)}.vault-folder-icon{font-size:2rem;margin-bottom:11px}.vault-folder-card strong{font-size:1.05rem;line-height:1.2;margin-bottom:5px}.vault-folder-card small{font-size:.82rem;color:var(--muted);margin-bottom:9px}.vault-folder-card em{font-size:.78rem;color:var(--muted);font-style:normal;line-height:1.3}.vault-special-card{background:linear-gradient(145deg,rgba(255,220,95,.16),var(--card))}.dark .vault-folder-card{border-color:rgba(255,255,255,.09)}
+@media(min-width:760px){.vault-folder-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:380px){.vault-folder-grid{grid-template-columns:1fr}.vault-folder-card{min-height:130px}}
+
+/* Gezinskluis v1.3.13 */
+.vault-toolbar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:10px;align-items:center}.vault-sort{min-width:150px;margin:0}.vault-file-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px}.vault-file-choices .photo-upload{margin:0}.vault-file-card .meta{line-height:1.45}@media(max-width:600px){.vault-toolbar{grid-template-columns:1fr 1fr}.vault-toolbar #vaultSearch{grid-column:1/-1}.vault-toolbar #vaultHomeBtn{grid-column:1/-1}.vault-file-choices{grid-template-columns:1fr}}
+
+/* Gezinskluis v1.3.14 */
+.vault-thumb-wrap{position:relative;width:100%;aspect-ratio:16/9;border-radius:16px;overflow:hidden;background:rgba(63,111,90,.09);display:grid;place-items:center}.vault-thumb-placeholder{font-size:2rem;opacity:.55}.vault-thumb{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .2s}.vault-thumb-wrap.loaded .vault-thumb{opacity:1}.vault-trash-card{background:linear-gradient(145deg,rgba(196,61,61,.08),var(--card));border-color:rgba(196,61,61,.18)}.vault-file-card.is-trash{opacity:.9}.vault-file-card.is-trash .vault-icon{filter:grayscale(.3)}
 
 
-/* v1.34: duidelijk koppeloverzicht op Home */
-.home-filled-row{border-top:1px solid #edf1ef;padding:9px 0}.home-filled-row:first-child{border-top:0}.home-filled-row>div{display:grid;gap:2px;margin-top:4px;font-size:.82rem}.home-filled-row>div span{display:block}.home-filled-sub{color:var(--g)}
+/* v1.3.15 – persoonlijk dagboek en ingrediënten */
+.ingredient-add-bottom{margin-top:10px;position:sticky;bottom:0;z-index:2;box-shadow:0 -8px 18px var(--bg)}
+.diary-privacy{margin-bottom:14px}.diary-privacy p{margin:.35rem 0 0}.diary-toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}.diary-toolbar .search{margin:0}.diary-card{display:grid;gap:10px}.diary-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.diary-card-head h3{margin:0}.diary-preview{margin:0;line-height:1.55;max-height:10em;overflow:hidden}.diary-photo-wrap{width:100%;max-height:280px;border-radius:16px;overflow:hidden;background:var(--soft)}.diary-photo-wrap img{width:100%;height:100%;max-height:280px;object-fit:cover;display:block}@media(max-width:560px){.diary-toolbar{grid-template-columns:1fr}.ingredient-add-bottom{position:sticky;bottom:4px}}
 
 
-/* v1.35: beheerder kan spelerskeuze per koppel aanpassen */
-.admin-couple-editor select{width:100%;margin:6px 0 10px}.admin-couple-current{display:grid;gap:10px;margin-top:8px}.admin-member-edit{padding:10px;border:1px solid var(--line);border-radius:12px}.admin-member-edit>div{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}.admin-status-btn.selected{background:#dff3e7;border-color:#86b99b;color:var(--g);font-weight:800}.admin-inline-sub{display:grid;gap:7px;padding:10px;background:#f7faf8;border:1px solid var(--line);border-radius:12px}.admin-inline-sub span{font-size:.86rem;color:var(--muted)}.admin-adjusted-note{margin:8px 0}
-@media(max-width:420px){.admin-member-edit>div{gap:4px}.admin-member-edit button{padding:10px 4px;font-size:.82rem}}
+/* v1.3.17 – dagboekgalerij en Google Agenda */
+.agenda-card-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}.diary-timeline-card{display:grid;grid-template-columns:58px minmax(0,1fr);gap:12px;align-items:start}.diary-date-badge{position:sticky;top:92px;display:grid;place-items:center;background:var(--primary-2);border-radius:16px;padding:9px 5px;text-align:center}.diary-date-badge span{font-size:1.4rem;font-weight:900;line-height:1}.diary-date-badge small{text-transform:capitalize;color:var(--muted);font-size:.68rem;margin-top:4px}.diary-card-content{min-width:0}.diary-gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:3px 0 8px}.diary-gallery-item{flex:0 0 min(82%,320px);aspect-ratio:4/3;border:0;padding:0;border-radius:16px;overflow:hidden;background:var(--primary-2);scroll-snap-align:start;display:grid;place-items:center}.diary-gallery-item img{width:100%;height:100%;object-fit:cover;display:block}.diary-gallery-item span{font-size:2rem}.diary-photo-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}.diary-photo-actions .photo-upload{margin:0}.diary-photo-preview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 14px}.diary-edit-photo{position:relative;min-width:0}.diary-edit-photo img,.diary-edit-photo-image{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:var(--primary-2);display:grid;place-items:center;overflow:hidden}.diary-edit-photo-image img{width:100%;height:100%;object-fit:cover}.diary-edit-photo>button{position:absolute;right:6px;top:6px;width:30px;height:30px;border:0;border-radius:50%;background:rgba(0,0,0,.68);color:#fff;font-weight:900}.diary-edit-photo small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:4px;color:var(--muted)}.diary-lightbox{width:min(900px,96vw);max-height:94vh}.diary-lightbox img{display:block;max-width:100%;max-height:78vh;margin:auto;object-fit:contain;border-radius:14px}.dark .diary-date-badge{background:var(--primary-2)}
+@media(max-width:520px){.agenda-card-head{flex-direction:column}.agenda-card-actions{width:100%;justify-content:flex-start}.diary-timeline-card{grid-template-columns:48px minmax(0,1fr);padding:12px}.diary-photo-actions{grid-template-columns:1fr}.diary-photo-preview{grid-template-columns:1fr 1fr}}
+
+
+/* v1.3.17 – cadeau-evenementen, vrijdagweek en universele agenda */
+.gift-help{margin-bottom:14px}.gift-help p{margin:.35rem 0 0}.gift-event-card{display:grid;gap:13px}.gift-event-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.gift-event-head h3{margin:0 0 5px}.gift-wishes{display:grid;gap:10px}.gift-wish-card{border:1px solid var(--border);border-radius:15px;padding:12px;background:var(--bg);display:grid;gap:8px}.gift-wish-card.claimed{border-color:var(--accent)}.gift-wish-card img{width:100%;max-height:210px;object-fit:cover;border-radius:12px}.gift-wish-card p{margin:0}.gift-claim-status,.gift-secret-note{padding:8px 10px;border-radius:10px;background:var(--primary-2);font-weight:700;font-size:.88rem}.gift-actions{display:flex;flex-wrap:wrap;gap:7px}.gift-actions button{flex:1;min-width:105px}.gift-actions .text-btn{flex:0 0 auto}@media(max-width:520px){.gift-event-head{flex-direction:column}.gift-actions button{min-width:calc(50% - 7px)}}
+
+
+/* v1.3.19 – agenda bewerken, agendakeuze en actieve boodschappen */
+.agenda-card-clickable{cursor:pointer}.agenda-card-clickable:focus{outline:3px solid var(--accent);outline-offset:2px}.agenda-tap-hint{display:block;margin-top:10px;color:var(--muted)}
+.agenda-detail-dialog h2{margin:.8rem 0 .35rem}.agenda-detail-note{white-space:pre-wrap;line-height:1.5}.calendar-event-title{font-weight:900;font-size:1.1rem;margin:14px 0}.calendar-choice-buttons{display:grid;gap:10px;margin:12px 0}.calendar-choice-buttons button{text-align:left;padding:14px}.calendar-choice-dialog select{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}
+
+
+/* v1.3.20 – snelle dagboektegel, agenda-afbeeldingen en standaardagenda */
+.dashboard-diary-card{background:linear-gradient(145deg,var(--surface),var(--primary-2));border-color:color-mix(in srgb,var(--primary) 25%,var(--border))}
+.agenda-photo-field{margin:13px 0}.agenda-photo-preview{display:grid;gap:8px;margin-top:12px}.agenda-photo-preview img,.agenda-detail-photo,.agenda-card-photo{width:100%;max-height:320px;object-fit:contain;border-radius:16px;background:var(--primary-2)}
+.agenda-card-photo{margin-top:10px;max-height:220px;object-fit:cover}.agenda-detail-photo{margin:12px 0}.calendar-choice-dialog label{display:grid;gap:6px;margin:13px 0;font-weight:700}.calendar-choice-dialog select,.settings select{width:100%;border:1px solid var(--border);background:var(--bg);color:var(--text);padding:12px;border-radius:13px}
+
+
+/* v1.3.21 – agenda per dag, openbare wensen en veilige registratie */
+.agenda-day-group{margin-bottom:22px}.agenda-day-title{position:sticky;top:92px;z-index:3;margin:0 0 10px;padding:10px 14px;border-radius:14px;background:var(--primary-2);text-transform:capitalize}.agenda-day-group .agenda-card{margin-bottom:10px}.agenda-past-toggle{margin-bottom:16px}.gift-event-card>.wide{margin-top:2px}
+
+
+/* v1.3.23 – openbare wensen en persoonlijke verborgen cadeau-ideeën */
+.gift-section{display:grid;gap:9px}.gift-section h4{margin:4px 0 0;font-size:1rem}.private-gift-section{border-top:1px solid var(--border);padding-top:12px}.private-gift-help{margin:0}.private-gift-idea{border-style:dashed;background:linear-gradient(145deg,var(--surface),var(--primary-2))}.private-idea-notice{padding:12px 14px;font-weight:700;margin:12px 0}
+
+
+/* v1.3.24 – persoonlijk cadeauboekje */
+.private-idea-groups{display:grid;gap:14px}.private-person-group{overflow:hidden}.private-person-summary{width:100%;border:0;background:transparent;color:var(--text);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:0;font-weight:900;font-size:1.05rem}.private-person-summary span{color:var(--muted);font-size:.85rem}.private-person-ideas{display:grid;gap:10px;margin-top:13px}.private-idea-card{border:1px dashed var(--primary);border-radius:16px;padding:13px;background:linear-gradient(145deg,var(--surface),var(--primary-2));display:grid;gap:8px}.private-idea-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.private-idea-head h3{margin:0}.private-idea-actions{display:flex;gap:7px;flex-wrap:wrap}.private-idea-actions button{flex:1}.private-idea-status{display:inline-block;width:max-content;padding:5px 9px;border-radius:999px;background:var(--primary-2);font-size:.8rem;font-weight:800}.private-idea-people{display:flex;gap:5px;flex-wrap:wrap}.private-idea-empty{text-align:center}.gift-private-toolbar{display:flex;gap:8px;flex-wrap:wrap}.gift-private-toolbar button{flex:1}.private-idea-notice p{margin:.35rem 0 0}@media(max-width:520px){.private-idea-head{flex-direction:column}.private-idea-actions button{min-width:calc(50% - 7px)}}
+
+
+/* v1.3.25 – veilige Firebase-opslag voor agenda en weekmenu */
+.save-warning-toast{position:fixed;left:50%;bottom:105px;z-index:150;transform:translate(-50%,18px);width:min(620px,calc(100% - 28px));padding:14px 16px;border-radius:16px;background:#9b2f2f;color:#fff;font-weight:800;box-shadow:0 18px 50px rgba(0,0,0,.28);opacity:0;pointer-events:none;transition:.22s}
+.save-warning-toast.show{opacity:1;transform:translate(-50%,0)}
+
+.gift-idea-photo-field{margin:13px 0}.gift-idea-photo-preview{display:grid;gap:8px;margin-top:12px;text-align:center}.gift-idea-photo-preview img,.private-idea-photo{width:100%;max-height:260px;object-fit:contain;border-radius:16px;background:var(--primary-2)}.private-idea-photo{margin:8px 0;object-fit:cover;max-height:210px}
+
+
+/* v1.3.27 – betrouwbare agendaknoppen */
+button:disabled{opacity:.58;cursor:wait}
+
+
+/* v1.3.28 – gekozen agenda-personen en privé to-do's */
+.todo-filter{display:flex;align-items:center;gap:9px;margin:0 2px 14px;font-weight:700}.todo-filter input{width:auto}.todo-card{display:grid;gap:10px}.todo-card.todo-done{opacity:.65}.todo-card.todo-done strong{text-decoration:line-through}.todo-check{display:flex!important;align-items:flex-start;gap:11px;margin:0!important}.todo-check input{width:auto;margin-top:4px}.todo-check span{display:grid;gap:4px}.todo-check small{color:var(--muted);font-weight:600}.todo-actions{display:flex;gap:8px}.todo-actions button{flex:1}#agendaSelectedPeopleField small{display:block;margin-top:8px;color:var(--muted)}
+
+
+/* v1.3.32 – versiebump; functionaliteit van v1.3.28 ongewijzigd */
+
+.wish-owner-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* v1.3.32 – Cadeautjes voor anderen + uitgebreide to-do prioriteiten */
+
+
+/* v1.3.33 – to-do prioriteit definitief eerst */
+
+
+/* v1.3.34 – foto bij persoonlijke to-do */
+.todo-photo-field{margin:13px 0}.todo-photo-preview{display:grid;gap:8px;margin-top:12px;text-align:center}.todo-photo-preview img,.todo-photo{width:100%;max-height:300px;object-fit:contain;border-radius:16px;background:var(--primary-2)}.todo-photo{margin:2px 0 4px;object-fit:cover;max-height:240px}
+
+
+/* v1.3.35 – opslag op Home en Dagjes uit */
+.storage-usage-card{margin-top:14px}.storage-usage-meter{height:14px;background:rgba(63,111,90,.14);border-radius:999px;overflow:hidden;margin:10px 0}.storage-usage-meter span{display:block;height:100%;width:0;background:#3f6f5a;transition:width .25s}.storage-usage-meter span.danger{background:#c43d3d}.storage-usage-warning{font-weight:800;color:#b42318;margin:.7rem 0 0}.storage-usage-updated{font-size:.8rem;margin:.55rem 0 0}.dark .storage-usage-meter{background:rgba(255,255,255,.13)}
+.outing-help{margin-bottom:14px}.outing-card{display:grid;gap:9px}.outing-card-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.outing-card-head h3{margin:0 0 5px}.outing-status{display:inline-block;width:max-content;padding:5px 9px;border-radius:999px;background:var(--primary-2);font-size:.8rem;font-weight:800}.outing-actions{display:flex;gap:8px}.outing-actions button{flex:1}.outing-card p{margin:.2rem 0;line-height:1.45}@media(max-width:520px){.outing-card-head{flex-direction:column}}
+
+/* v1.3.40 – privé ideeën voor Rinze & Christa */
+.couple-ideas-help{margin-bottom:14px}.couple-ideas-help p{margin:.4rem 0 0}.couple-ideas-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.couple-list{display:grid;gap:10px;margin-top:10px}.couple-country{margin:14px 0 7px;color:var(--primary);font-size:.9rem;text-transform:uppercase;letter-spacing:.08em}.couple-item{border:1px solid var(--border);border-radius:15px;padding:12px;background:var(--bg);display:grid;gap:7px}.couple-item-head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}.couple-item h4{margin:0}.couple-item p{margin:0;line-height:1.4}.couple-actions{display:flex;gap:7px}.couple-actions button{flex:1}.book-read{opacity:.72}.book-read h4{text-decoration:line-through}.read-toggle{display:flex;align-items:center;gap:8px;font-weight:800}.read-toggle input{width:auto}.couple-status{font-size:.8rem;font-weight:800;background:var(--primary-2);padding:5px 8px;border-radius:999px;white-space:nowrap}@media(max-width:700px){.couple-ideas-grid{grid-template-columns:1fr}}
+
+/* v1.3.42: zeven dagen van vrijdag t/m donderdag in een compact weekoverzicht */
+.weekmenu-grid{display:grid;grid-template-columns:1fr;gap:7px}
+.weekmenu-day{padding:11px 13px;margin-bottom:0;border-radius:15px}
+.weekmenu-day-head{align-items:center}
+.weekmenu-day-head h3{margin:0 0 5px;font-size:1rem}
+.weekmenu-day-head span{font-size:.78rem}
+.weekmenu-empty,.weekmenu-meal{min-height:42px;padding:9px 11px}
+.weekmenu-meal{gap:3px}
+.weekmenu-meal small{font-size:.76rem}
+.weekmenu-day .eaters-block{margin-top:7px;padding-top:6px}
+.weekmenu-day .eaters-title{margin-bottom:3px;font-size:.84rem}
+.weekmenu-day .chips{margin-top:3px}
+.weekmenu-day .chip{font-size:.7rem;padding:3px 7px}
+@media(max-width:650px){.weekmenu-grid{grid-template-columns:1fr}}
+
+/* v1.3.47 – leesbare kluismappen en lange documentnamen op mobiel */
+.vault-folder-grid{min-width:0}
+.vault-folder-card{min-width:0;max-width:100%;overflow:hidden}
+.vault-folder-card strong,.vault-folder-card small,.vault-folder-card em{max-width:100%;overflow-wrap:anywhere;word-break:normal;hyphens:auto}
+.vault-view-title{min-width:0;align-items:flex-start}
+.vault-view-title strong{min-width:0;flex:1 1 auto;overflow-wrap:anywhere;word-break:normal}
+.vault-view-title span{flex:0 0 auto;max-width:38%;text-align:right;overflow-wrap:anywhere}
+.vault-file-head{min-width:0}
+.vault-file-head>div:first-child{min-width:0;flex:1 1 auto}
+.vault-file-head h3,.vault-file-card .meta,.vault-file-card p{overflow-wrap:anywhere;word-break:normal;white-space:normal}
+.vault-file-head>.mini-btn{flex:0 0 auto}
+
+/* v1.3.48: veilig mapbeheer, opmerkingen en fotogalerijen */
+.vault-head-buttons{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.vault-folder-container{min-width:0;display:flex;flex-direction:column;gap:4px}.vault-folder-container>.vault-folder-card{width:100%;flex:1;min-height:125px}.vault-folder-actions{display:flex;gap:5px;justify-content:flex-end;padding:0 3px 7px}.vault-small-btn{border:1px solid var(--border);border-radius:9px;padding:5px 8px;background:var(--primary-2);color:var(--text);font-size:.78rem;font-weight:700}.vault-gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory}.vault-gallery>div{flex:0 0 min(70%,230px);scroll-snap-align:start}.vault-gallery button:first-child{border:0;padding:0;background:transparent;width:100%}.vault-gallery img{width:100%;height:175px;object-fit:contain;border-radius:12px;background:var(--primary-2)}.vault-gallery .vault-small-btn{width:100%}.vault-folder-grid{align-items:stretch}
