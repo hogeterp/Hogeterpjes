@@ -1,11 +1,12 @@
-window.HOGETERPJES_FIREBASE = {
-  useFirebase: true,
-  config: {
-    apiKey: "AIzaSyBxJOFVYsCbw_uglDP-LODnYNvsNREq_NQ",
-    authDomain: "hogeterpjes.firebaseapp.com",
-    projectId: "hogeterpjes",
-    storageBucket: "hogeterpjes.firebasestorage.app",
-    messagingSenderId: "225365940920",
-    appId: "1:225365940920:web:d0bc3094c9c6da3c93f24d"
-  }
+// Firebase-project: Wildenhorst
+// Project ID: wildenhorst-94729
+// Firebase webconfig is geen geheim. Zet hier nooit wachtwoorden of service-account sleutels in.
+window.WILDENHORST_FIREBASE={
+  configured:true,
+  apiKey:"AIzaSyBj6C4s4ZfvkMsez2IwWZoniByuhk4BVMo",
+  authDomain:"wildenhorst-94729.firebaseapp.com",
+  projectId:"wildenhorst-94729",
+  storageBucket:"wildenhorst-94729.firebasestorage.app",
+  messagingSenderId:"1062749373950",
+  appId:"1:1062749373950:web:ebae8afdc74d8d3d662caf"
 };

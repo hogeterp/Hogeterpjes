@@ -1,91 +1,247 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() {
-      return request.auth != null;
+    function signedIn(){ return request.auth != null; }
+    function me(){ return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function active(){ return signedIn() && me().data.status == 'active'; }
+    function admin(){ return active() && (me().data.role == 'admin' || me().data.role == 'headAdmin'); }
+    function headAdmin(){ return active() && me().data.role == 'headAdmin'; }
+    function self(uid){ return signedIn() && request.auth.uid == uid; }
+    function validStatus(s){ return s == 'speelt' || s == 'reserve' || s == 'afwezig'; }
+    function validStatusOrBlank(s){ return s == '' || validStatus(s); }
+    function validPair(a,b){
+      return (a == 'speelt' && (b == 'reserve' || b == 'afwezig'))
+          || (b == 'speelt' && (a == 'reserve' || a == 'afwezig'))
+          || (a == 'afwezig' && b == 'afwezig');
     }
-    function isAdmin() {
-      return signedIn() && request.auth.token.email == 'rohogeterp@gmail.com';
+    function acceptablePair(a,b){
+      return validPair(a,b)
+          || (a == 'afwezig' && b == '')
+          || (b == 'afwezig' && a == '');
     }
-    function settings() {
-      return get(/databases/$(database)/documents/appAdmin/settings).data;
+    function validCouplePlan(seasonId, coupleId){
+      let c = get(/databases/$(database)/documents/seasons/$(seasonId)/couples/$(coupleId));
+      return request.resource.data.keys().hasOnly(['coupleId','member1Id','member1Status','member2Id','member2Status','updatedBy','updatedAt'])
+          && request.resource.data.coupleId == coupleId
+          && request.resource.data.member1Id == c.data.memberIds[0]
+          && request.resource.data.member2Id == c.data.memberIds[1]
+          && validStatusOrBlank(request.resource.data.member1Status)
+          && validStatusOrBlank(request.resource.data.member2Status)
+          && acceptablePair(request.resource.data.member1Status, request.resource.data.member2Status)
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time;
     }
-    function isInvited() {
-      return signedIn() && (
-        isAdmin() ||
-        ('allowedEmails' in settings() && request.auth.token.email in settings().allowedEmails)
-      );
+    function validCouplePlanUpdate(seasonId, coupleId){
+      let c = get(/databases/$(database)/documents/seasons/$(seasonId)/couples/$(coupleId));
+      return request.resource.data.coupleId == coupleId
+          && request.resource.data.member1Id == c.data.memberIds[0]
+          && request.resource.data.member2Id == c.data.memberIds[1]
+          && validStatusOrBlank(request.resource.data.member1Status)
+          && validStatusOrBlank(request.resource.data.member2Status)
+          && acceptablePair(request.resource.data.member1Status, request.resource.data.member2Status)
+          && request.resource.data.updatedBy == request.auth.uid
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'coupleId','member1Id','member1Status','member2Id','member2Status','updatedBy','updatedAt'
+          ]);
     }
-    function profileName() {
-      return get(/databases/$(database)/documents/profielen/$(request.auth.uid)).data.displayName;
+    function ownCoupleBeforeClose(seasonId, playDateId, coupleId){
+      return active()
+          && me().data.coupleId == coupleId
+          && get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.status == 'active'
+          && get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.closeAt is timestamp
+          && request.time < get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.closeAt;
     }
-    function isRinzeOrChrista() {
-      return signedIn() && (
-        isAdmin() || profileName() == 'Rinze' || profileName() == 'Christa'
-      );
+    function validSubstituteProposal(seasonId, playDateId, coupleId){
+      return ownCoupleBeforeClose(seasonId, playDateId, coupleId)
+          && resource.data.member1Status == 'afwezig'
+          && resource.data.member2Status == 'afwezig'
+          && request.resource.data.member1Status == 'afwezig'
+          && request.resource.data.member2Status == 'afwezig'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'substituteId','substituteName','substituteType','substituteApproval',
+            'substituteSubmittedBy','substituteSubmittedAt','updatedAt'
+          ])
+          && request.resource.data.substituteName is string
+          && request.resource.data.substituteName.size() > 1
+          && (request.resource.data.substituteType == 'fixed' || request.resource.data.substituteType == 'reserve' || request.resource.data.substituteType == 'external')
+          && request.resource.data.substituteApproval == 'pending'
+          && request.resource.data.substituteSubmittedBy == request.auth.uid
+          && request.resource.data.substituteSubmittedAt == request.time
+          && request.resource.data.updatedAt == request.time;
     }
 
-    match /appAdmin/settings {
-      allow read: if isAdmin() || isInvited();
-      allow create, update, delete: if isAdmin();
+    function validSubstituteRemoval(seasonId, playDateId, coupleId){
+      return ownCoupleBeforeClose(seasonId, playDateId, coupleId)
+          && resource.data.substituteName is string
+          && resource.data.substituteName.size() > 1
+          && resource.data.substituteApproval == 'approved'
+          && request.resource.data.member1Status == resource.data.member1Status
+          && request.resource.data.member2Status == resource.data.member2Status
+          && request.resource.data.substituteId == ''
+          && request.resource.data.substituteName == ''
+          && request.resource.data.substituteType == ''
+          && request.resource.data.substituteApproval == ''
+          && request.resource.data.substituteSourceCoupleId == ''
+          && request.resource.data.substituteSourceCoupleLabel == ''
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'substituteId','substituteName','substituteType','substituteApproval',
+            'substituteSubmittedBy','substituteSubmittedAt','substituteApprovedBy','substituteApprovedAt',
+            'substituteSourceCoupleId','substituteSourceCoupleLabel','updatedAt'
+          ]);
     }
-    match /appData/hogeterpjes {
-      allow read, write: if isAdmin() || isInvited();
+    function validSubstituteSourceRelease(seasonId, playDateId){
+      return active()
+          && me().data.coupleId is string
+          && get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.status == 'active'
+          && get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.closeAt is timestamp
+          && request.time < get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)).data.closeAt
+          && resource.data.substituteForCoupleId == me().data.coupleId
+          && request.resource.data.substituteForCoupleId == ''
+          && request.resource.data.substituteForCoupleLabel == ''
+          && request.resource.data.substitutePlayerId == ''
+          && request.resource.data.substitutePlayerName == ''
+          && request.resource.data.updatedAt == request.time
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'substituteForCoupleId','substituteForCoupleLabel','substitutePlayerId','substitutePlayerName','updatedAt'
+          ]);
     }
 
-    match /sharedWeekMenus/{mealId} {
-      allow read, create, update, delete: if isAdmin() || isInvited();
-    }
-    match /sharedAgendaEvents/{eventId} {
-      allow read, create, update, delete: if isAdmin() || isInvited();
-    }
-    match /appChangeLog/{changeId} {
-      allow read: if isAdmin();
-      allow create: if isAdmin() || isInvited();
-      allow update, delete: if false;
-    }
-    match /profielen/{userId} {
-      allow read: if signedIn() && ((request.auth.uid == userId && (isAdmin() || isInvited())) || isAdmin());
-      allow write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
-    }
-    // v1.3.41: camping- en boekenideeën zijn uitsluitend voor Rinze en Christa.
-    match /privateCoupleIdeas/rinze-christa {
-      allow read, create, update, delete: if isRinzeOrChrista();
+    match /users/{uid} {
+      allow read: if self(uid) || admin();
+      allow update: if
+        (self(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['phone','singlesAllowed','updatedAt']))
+        || (headAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coupleId','participantType','playerId','reserveId','updatedAt']))
+        || (headAdmin() && !self(uid) && resource.data.role != 'headAdmin'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role'])
+            && (request.resource.data.role == 'admin' || request.resource.data.role == 'player'));
+      allow create: if self(uid)
+        && request.resource.data.keys().hasOnly(['email','role','status','participantType','createdAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.role == 'player'
+        && request.resource.data.status == 'pending'
+        && request.resource.data.participantType == 'pending';
+      allow update: if headAdmin() && !self(uid) && resource.data.status == 'pending'
+        && (request.resource.data.status == 'active' || request.resource.data.status == 'rejected')
+        && request.resource.data.role == 'player'
+        && request.resource.data.email == resource.data.email;
+      allow delete: if false;
     }
 
-    match /vaults/rinze-christa {
-      allow read: if isRinzeOrChrista();
-      allow create, update, delete: if isAdmin();
-      match /files/{fileId} {
-        allow read, create, update, delete: if isRinzeOrChrista();
-      }
-      match /folders/{folderId} {
-        allow read, create, update, delete: if isRinzeOrChrista();
-      }
+
+    match /accessEmails/{emailHash} {
+      // Alleen een gerichte controle op een hash is openbaar; de lijst zelf is niet uitleesbaar.
+      allow get: if true;
+      allow list: if false;
+      allow create, update, delete: if headAdmin();
     }
-    match /diaries/{userId} {
-      allow read, write: if isAdmin() && request.auth.uid == userId;
-      match /entries/{entryId} {
-        allow read, create, update, delete: if isAdmin() && request.auth.uid == userId;
+
+    match /seasons/{seasonId} {
+      allow read: if active();
+      allow create, update: if admin();
+      allow delete: if headAdmin();
+
+      match /players/{playerId} {
+        allow read, create, update: if admin();
+        allow delete: if headAdmin();
       }
-    }
-    match /privateGiftIdeas/{userId} {
-      allow read, write: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
-      match /ideas/{ideaId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == userId && (isAdmin() || isInvited());
+      match /reserves/{reserveId} {
+        allow read, create, update: if admin();
+        allow delete: if headAdmin();
       }
-    }
-    // v1.3.41: persoonlijke to-do's zijn uitsluitend toegankelijk voor de eigenaar.
-    // Deze toegang is bewust niet afhankelijk van appAdmin/settings, zodat een
-    // storing of ontbrekend allowedEmails-veld de eigen to-do's niet blokkeert.
-    match /privateTodos/{userId} {
-      allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
-      match /items/{todoId} {
-        allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
+      match /couples/{coupleId} {
+        allow read: if active();
+        allow create, update: if admin();
+        allow delete: if headAdmin();
       }
+      match /public/{docId} {
+        allow read: if active();
+        allow create, update: if admin();
+        allow delete: if headAdmin();
+      }
+
+      match /playDates/{playDateId} {
+        allow read: if active();
+        allow create, update: if admin();
+        allow delete: if headAdmin();
+
+        match /privateNotes/{uid} {
+          // v1.4: een privé-opmerking is uitsluitend voor het ingelogde account zelf.
+          // Ook beheerders en de hoofdbeheerder krijgen hier bewust geen leesrecht.
+          allow get: if active() && self(uid);
+          allow list: if false;
+          allow create: if active() && self(uid)
+            && request.resource.data.keys().hasOnly(['ownerUid','text','updatedAt'])
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 300
+            && request.resource.data.updatedAt == request.time;
+          allow update: if active() && self(uid)
+            && resource.data.ownerUid == request.auth.uid
+            && request.resource.data.ownerUid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','updatedAt'])
+            && request.resource.data.text is string
+            && request.resource.data.text.size() <= 300
+            && request.resource.data.updatedAt == request.time;
+          allow delete: if active() && self(uid);
+        }
+
+        match /couplePlans/{coupleId} {
+          allow read: if active();
+          allow create: if admin() || (
+            ownCoupleBeforeClose(seasonId, playDateId, coupleId)
+            && validCouplePlan(seasonId, coupleId)
+          );
+          allow update: if admin() || (
+            ownCoupleBeforeClose(seasonId, playDateId, coupleId)
+            && validCouplePlanUpdate(seasonId, coupleId)
+          ) || validSubstituteProposal(seasonId, playDateId, coupleId)
+            || validSubstituteRemoval(seasonId, playDateId, coupleId)
+            || validSubstituteSourceRelease(seasonId, playDateId);
+          allow delete: if headAdmin();
+        }
+        match /public/{docId} { allow read: if active(); allow write: if admin(); }
+        match /results/{resultId} {
+          allow read: if active();
+
+          // v1.32: iedere actieve vaste speler of reserve mag een ontbrekende
+          // baanuitslag invoeren. De oorspronkelijke invoerder mag die 48 uur corrigeren.
+          allow create: if admin() || (
+            active()
+            && (me().data.participantType == 'fixed' || me().data.participantType == 'reserve')
+            && request.resource.data.enteredBy == request.auth.uid
+            && request.resource.data.enteredAt == request.time
+            && get(/databases/$(database)/documents/seasons/$(seasonId)/playDates/$(playDateId)/public/lineup).data.published == true
+            && request.resource.data.keys().hasOnly([
+              'courtNumber','mode','teamA','teamB','teamAIds','teamBIds',
+              'teamACoupleIds','teamBCoupleIds','coupleAId','coupleAName',
+              'coupleBId','coupleBName','scoreText','pointsA','pointsB',
+              'pointAllocations','gamesA','gamesB','sets','lastGamePoints',
+              'enteredBy','enteredAt'
+            ])
+          );
+          allow update: if admin() || (
+            active()
+            && (me().data.participantType == 'fixed' || me().data.participantType == 'reserve')
+            && resource.data.enteredBy == request.auth.uid
+            && request.resource.data.enteredBy == resource.data.enteredBy
+            && request.resource.data.enteredAt == resource.data.enteredAt
+            && request.time < resource.data.enteredAt + duration.value(48, 'h')
+            && request.resource.data.keys().hasOnly([
+              'courtNumber','mode','teamA','teamB','teamAIds','teamBIds',
+              'teamACoupleIds','teamBCoupleIds','coupleAId','coupleAName',
+              'coupleBId','coupleBName','scoreText','pointsA','pointsB',
+              'pointAllocations','gamesA','gamesB','sets','lastGamePoints',
+              'enteredBy','enteredAt'
+            ])
+          );
+          allow delete: if admin();
+        }
+      match /standings/{coupleId} { allow read: if active(); allow write: if admin(); }
+      match /payments/{paymentId} { allow read, create, update: if admin(); allow delete: if headAdmin(); }
     }
-    match /{document=**} {
-      allow read, write: if false;
-    }
+    match /auditLogs/{id} { allow read: if admin(); allow write: if false; }
+    match /{document=**} { allow read, write: if false; }
   }
 }

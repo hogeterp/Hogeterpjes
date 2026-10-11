@@ -1,3493 +1,776 @@
-const DEFAULT_DATA = {
-  family: [
-    {name:"Rinze", birth:"1966-12-18", email:""},
-    {name:"Christa", birth:"1971-03-08", email:""},
-    {name:"Tessa", birth:"2000-06-20", email:""},
-    {name:"Maaike", birth:"2002-02-28", email:""},
-    {name:"Jasmijn", birth:"2005-10-25", email:""},
-    {name:"Lisa", birth:"2011-08-05", email:""},
-    {name:"Rivaldo", birth:"1999-04-21", email:""}
-  ],
-  households: [
-    {id:crypto.randomUUID(), name:"Rinze & Christa", members:["Rinze","Christa","Lisa","Jasmijn","Maaike"]},
-    {id:crypto.randomUUID(), name:"Tessa & Rivaldo", members:["Tessa","Rivaldo"]},
-    {id:crypto.randomUUID(), name:"Maaike", members:["Maaike"]},
-    {id:crypto.randomUUID(), name:"Jasmijn", members:["Jasmijn"]}
-  ],
-  recipes: [],
-  groceries: [],
-  wishes: [],
-  giftEvents: [],
-  events: [],
-  weekMenus: [],
-  notifications: [],
-  products: [],
-  outings: [],
-  stores: ["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"]
-};
+import{initializeApp}from'https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js';
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut,sendPasswordResetEmail,createUserWithEmailAndPassword,setPersistence,browserLocalPersistence}from'https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js';
+import{getFirestore,doc,getDoc,getDocFromServer,collection,query,where,getDocs,orderBy,limit,writeBatch,setDoc,updateDoc,serverTimestamp,deleteDoc}from'https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js';
+const $=id=>document.getElementById(id),cfg=window.WILDENHORST_FIREBASE||{};let auth,db,user,profile,season;
+const APP_VERSION='1.40';
+let testPlayer=null,activating=false,substituteContext=null,lineupState=null,newSeasonWizard=null;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function emailKey(email){const bytes=new TextEncoder().encode(String(email||'').trim().toLowerCase()),hash=await crypto.subtle.digest('SHA-256',bytes);return [...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,'0')).join('')}
+async function registeredEmail(email){try{return (await getDoc(doc(db,'accessEmails',await emailKey(email)))).exists()}catch(e){console.warn('E-mailcontrole mislukt',e);return false}}
+const WEBAPP_URL='https://hogeterp.github.io/Wildenhorst/';
+let waBeforeSend=null;
+function waOpen(text,beforeSend=null){const dlg=$('waPreviewDialog'),ta=$('waPreviewText');if(!dlg||!ta)return;let value=String(text||'').trimEnd();if(!value.includes(WEBAPP_URL))value+=`\n\n${WEBAPP_URL}`;ta.value=value;waBeforeSend=typeof beforeSend==='function'?beforeSend:null;dlg.showModal()}
+async function waSend(){const text=$('waPreviewText')?.value||'',before=waBeforeSend,url='https://wa.me/?text='+encodeURIComponent(text),reserved=before?window.open('about:blank','_blank'):null;try{if(before)await before()}catch(e){console.error(e);try{reserved?.close()}catch{}return}waBeforeSend=null;$('waPreviewDialog')?.close();if(reserved){reserved.location.href=url;return}const w=window.open(url,'_blank');if(!w)window.location.href=url}
+function show(id){$(id)?.classList.remove('hidden')}function hide(id){$(id)?.classList.add('hidden')}
+function admin(){return profile?.role==='admin'||profile?.role==='headAdmin'}function head(){return profile?.role==='headAdmin'}
+function activeProfile(){return testPlayer||profile}
+function testBanner(){return testPlayer?`<div class="test-banner">🧪 Testweergave: <b>${esc(testPlayer.name||testPlayer.displayName||testPlayer.id)}</b> <button id="stopTest" class="secondary">Stop testen</button></div>`:''}
+function bindTestBanner(){const b=$('stopTest');if(b)b.onclick=()=>{testPlayer=null;home()}}
+function keyDate(k){if(!k)return new Date(0);const[y,m,d]=k.split('-').map(Number);return new Date(y,m-1,d,12)}
+function dateText(k,year=true){if(!k)return'';return new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'long',...(year?{year:'numeric'}:{})}).format(keyDate(k))}
+function toKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function timeText(v){return String(v||'18:00').slice(0,5)}
+function closeOffset(day){return day==='wednesday'?3:day==='thursday'?2:day==='saturday'?0:1}
+function closeAtWith(dateKey,day='friday',time='18:00'){const d=keyDate(dateKey);d.setDate(d.getDate()-closeOffset(day));const[h,m]=timeText(time).split(':').map(Number);d.setHours(h,m,0,0);return d}
+function closeDayNl(day){return day==='wednesday'?'woensdag':day==='thursday'?'donderdag':day==='saturday'?'zaterdag':'vrijdag'}
+function seasonId(){return season?.id||'2026-2027'}
+function isFinalPlayDate(d){return season?.finalSaturdayEnabled===true&&!!season?.finalDateKey&&String(d?.dateKey||'')===String(season.finalDateKey)}
+function finalCompetitionPoints(base,isSub,finale){const n=Number(base||0);return finale?(isSub?Math.min(2,n*2):n*2):Math.min(isSub?2:99,n)}
+async function standingsBeforeDate(dateKey,couples){const ds=(await playDates()).filter(d=>String(d.dateKey||'')<String(dateKey||'')),agg=new Map(couples.map(c=>[c.id,{coupleId:c.id,points:0,gamesFor:0,gamesAgainst:0}]));for(const d of ds){const rs=await getDocs(collection(db,'seasons',seasonId(),'playDates',d.id,'results'));rs.docs.forEach(x=>{const r=x.data(),alloc=r.pointAllocations||{},ga=Number(r.gamesA||0),gb=Number(r.gamesB||0);Object.entries(alloc).forEach(([cid,pts])=>{if(agg.has(cid))agg.get(cid).points+=Number(pts||0)});[...new Set(r.teamACoupleIds||[])].forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=ga;agg.get(cid).gamesAgainst+=gb}});[...new Set(r.teamBCoupleIds||[])].forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=gb;agg.get(cid).gamesAgainst+=ga}})})}return [...agg.values()].map(r=>({...r,gameDiff:r.gamesFor-r.gamesAgainst})).sort((a,b)=>b.points-a.points||b.gameDiff-a.gameDiff||b.gamesFor-a.gamesFor||coupleNumber(a.coupleId)-coupleNumber(b.coupleId)).map((r,i)=>({...r,rank:i+1}))}
 
-const KEY="hogeterpjes-data-v1";
-const PROFILE_KEY="hogeterpjes-demo-profile";
-const PROFILE_PHOTO_KEY="hogeterpjes-profile-photo-v1";
-const PRIVATE_AGENDA_KEY="hogeterpjes-private-agenda-v1";
-const CALENDAR_PREF_KEY="hogeterpjes-calendar-preference-v1";
-let showPastAgenda=false;
-let signupVerificationInProgress=false;
-let data=loadData();
-data.products=Array.isArray(data.products)?data.products:[];
-data.outings=Array.isArray(data.outings)?data.outings:[];
-data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
-let currentHousehold=data.households[0]?.id || "";
-let currentWeekmenuHousehold="";
-let currentWeekStart=getFriday(new Date());
-let simpleMode="";
-let currentUser=null;
-let auth=null;
-let db=null;
-let storage=null;
-let cloudUnsubscribe=null;
-let vaultFilesUnsubscribe=null;
-let diaryUnsubscribe=null;
-let diaryEntries=[];
-let selectedDiaryPhotos=[];
-let diaryExistingPhotoPaths=[];
-let diaryPreviewObjectUrls=[];
-let privateGiftIdeas=[];
-let privateGiftIdeasUnsubscribe=null;
-let privateTodos=[];
-let privateTodosUnsubscribe=null;
-let coupleIdeasUnsubscribe=null;
-let coupleIdeas={campings:[],books:[]};
-const COUPLE_IDEAS_DOC="privateCoupleIdeas/rinze-christa";
-let weekMenusUnsubscribe=null;
-let sharedAgendaUnsubscribe=null;
-let sharedCollectionsReady=false;
-let cloudReady=false;
-let applyingRemote=false;
-let saveTimer=null;
-let sharedPhotoMigrationRunning=false;
-let agendaSaveInProgress=false;
-const agendaDeleteInProgress=new Set();
-const SHARED_DATA_DOC="appData/hogeterpjes";
-const ADMIN_DOC="appAdmin/settings";
-const WEEK_MENUS_COLLECTION="sharedWeekMenus";
-const SHARED_AGENDA_COLLECTION="sharedAgendaEvents";
-const CHANGE_LOG_COLLECTION="appChangeLog";
-const ADMIN_EMAIL="rohogeterp@gmail.com";
-const DIARY_OWNER_EMAIL=ADMIN_EMAIL;
-const STORAGE_LIMIT_BYTES=5*1024*1024*1024;
-const STORAGE_USAGE_CACHE_KEY="hogeterpjes-storage-usage-v1";
-const DATA_BACKUP_KEY="hogeterpjes-data-backup-v1";
-const WISH_MIGRATION_KEY="hogeterpjes-wishes-cloud-migration-v1.3.39";
-let storageUsageLoading=false;
-let adminSettings={allowedEmails:[ADMIN_EMAIL],accounts:[{name:"Rinze",email:ADMIN_EMAIL,active:true}]};
-const KNOWN_USERS = {
-  "rohogeterp@gmail.com": "Rinze"
-};
+function coupleNumber(id,data={}){const explicit=Number(data.number||data.coupleNumber);if(explicit)return explicit;const m=String(id||'').match(/(\d+)/);return m?Number(m[1]):''}
+function coupleLabel(id,data={}){const n=coupleNumber(id,data),name=data.name||id||'Koppel';return `${n?`Koppel ${n} – `:''}${name}`}
+function playerCoupleLabel(playerId,couples=[]){const c=couples.find(x=>(x.memberIds||[]).includes(playerId));return c?coupleLabel(c.id,c):''}
 
-function withTimeout(promise, ms, message="Actie duurde te lang"){
-  return Promise.race([
-    promise,
-    new Promise((_, reject)=>setTimeout(()=>reject(new Error(message)), ms))
-  ]);
-}
-
-function provisionalProfile(user){
-  const email=(user?.email || "").toLowerCase();
-  const invited=adminSettings.accounts?.find(a=>(a.email||"").toLowerCase()===email);
-  const displayName=
-    invited?.name ||
-    KNOWN_USERS[email] ||
-    user?.displayName ||
-    user?.email?.split("@")[0] ||
-    "Familielid";
-
-  return {
-    uid:user.uid,
-    email:user.email || "",
-    displayName
-  };
-}
-
-
-function cloneDefaults(){ return JSON.parse(JSON.stringify(DEFAULT_DATA)); }
-function loadData(){
+if(!cfg.configured){show('setup')}else{const app=initializeApp(cfg);auth=getAuth(app);db=getFirestore(app);setPersistence(auth,browserLocalPersistence);onAuthStateChanged(auth,authChanged)}
+async function authChanged(u){if(activating)return;if(!u){user=profile=season=null;hide('main');hide('setup');show('login');return}user=u;const s=await getDoc(doc(db,'users',u.uid));if(!s.exists()){await signOut(auth);return}if(s.data().status!=='active'){const m=$('loginMessage');m.textContent=s.data().status==='rejected'?'Dit e-mailadres is niet bekend bij de beheerder. Controleer het e-mailadres of neem contact op met de beheerder.':'Je account is aangemaakt en wacht nog op goedkeuring door de beheerder.';m.className=s.data().status==='rejected'?'message error':'message';show('loginMessage');await signOut(auth);return}profile={id:s.id,...s.data()};const qs=await getDocs(query(collection(db,'seasons'),where('active','==',true),limit(1)));season=qs.empty?null:{id:qs.docs[0].id,...qs.docs[0].data()};if(admin()&&season){try{await syncPublicRoster()}catch(e){console.warn('Publieke spelerslijst kon niet worden bijgewerkt',e)}}hide('login');show('main');go('home')}
+$('loginForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await signInWithEmailAndPassword(auth,$('email').value.trim(),$('password').value)}catch(_){const m=$('loginMessage');m.textContent='Inloggen is niet gelukt. Controleer e-mailadres en wachtwoord.';m.className='message error';show('loginMessage')}});
+$('activateAccount')?.addEventListener('click',()=>{ $('activateEmail').value=$('email').value.trim(); $('activatePassword').value=''; $('activatePassword2').value=''; hide('activateMessage'); $('activateDialog').showModal()});
+$('cancelActivate')?.addEventListener('click',()=>$('activateDialog').close());
+$('activateForm')?.addEventListener('submit',async e=>{e.preventDefault();const email=$('activateEmail').value.trim().toLowerCase(),p1=$('activatePassword').value,p2=$('activatePassword2').value,m=$('activateMessage');if(p1!==p2){m.textContent='De twee wachtwoorden zijn niet hetzelfde.';m.className='message error';show('activateMessage');return}if(!(await registeredEmail(email))){m.textContent='Dit e-mailadres is niet bekend bij de beheerder. Controleer het e-mailadres of neem contact op met de beheerder.';m.className='message error';show('activateMessage');return}try{activating=true;const cred=await createUserWithEmailAndPassword(auth,email,p1);await setDoc(doc(db,'users',cred.user.uid),{email,role:'player',status:'pending',participantType:'pending',createdAt:serverTimestamp()});m.textContent='Gelukt! Je account is aangemaakt. De beheerder moet het nog één keer goedkeuren. Daarna kun je inloggen.';m.className='message';show('activateMessage');$('email').value=email;setTimeout(async()=>{try{await signOut(auth)}catch(_){}activating=false},300)}catch(err){activating=false;m.textContent=err?.code==='auth/email-already-in-use'?'Voor dit e-mailadres bestaat al een account. Probeer in te loggen of gebruik Wachtwoord vergeten.':'Account activeren is niet gelukt. Controleer het e-mailadres en wachtwoord.';m.className='message error';show('activateMessage')}});
+$('forgotPassword')?.addEventListener('click',async()=>{const e=$('email').value.trim(),m=$('loginMessage');if(!e){m.textContent='Vul eerst je e-mailadres in.';m.className='message error';show('loginMessage');return}try{await sendPasswordResetEmail(auth,e);m.textContent='Als dit e-mailadres een account heeft, ontvang je een e-mail met een link om je wachtwoord opnieuw in te stellen. Controleer ook je spam. Je kunt bij het herstellen hetzelfde wachtwoord kiezen, als Firebase dat accepteert.';m.className='message';show('loginMessage')}catch(_){m.textContent='De resetmail kon niet worden verstuurd.';m.className='message error';show('loginMessage')}});
+$('forgotLogin')?.addEventListener('click',()=>$('forgotLoginDialog').showModal());$('waSend')?.addEventListener('click',waSend);$('waCancel')?.addEventListener('click',()=>{waBeforeSend=null;$('waPreviewDialog').close()});$('substituteSave')?.addEventListener('click',saveSubstituteProposal);$('substituteCancel')?.addEventListener('click',()=>{substituteContext=null;$('substituteDialog').close()});document.querySelectorAll('[data-route]').forEach(b=>b.onclick=()=>go(b.dataset.route));
+function nav(r){document.querySelectorAll('[data-route]').forEach(b=>b.classList.toggle('active',b.dataset.route===r))}function go(r){nav(r);if(r==='home')home();if(r==='couple')couple();if(r==='saturday')saturday();if(r==='standings')standings();if(r==='more')more()}
+async function playDates(){if(!season)return[];const s=await getDocs(query(collection(db,'seasons',season.id,'playDates'),orderBy('dateKey')));return s.docs.map(d=>({id:d.id,...d.data()})).filter(d=>d.status!=='cancelled')}
+function endMoment(d){const x=keyDate(d.dateKey);const[h,m]=(d.endTime||season?.endTime||'12:00').split(':').map(Number);x.setHours(h,m,0,0);return x}
+function resultEnteredDate(r){const v=r?.enteredAt;return v?.toDate?v.toDate():v instanceof Date?v:null}
+function canEditOwnResult(r){const t=resultEnteredDate(r);return !!r&&r.enteredBy===user?.uid&&!!t&&(Date.now()-t.getTime())<48*60*60*1000}
+function duplicatePlayerEntries(entries=[]){const seen=new Map(),dups=[];entries.filter(x=>x?.id).forEach(x=>{const id=String(x.id);if(seen.has(id)){if(!dups.some(d=>String(d.id)===id))dups.push(x)}else seen.set(id,x)});return dups}
+function nextPlayDate(ds,now=new Date()){return ds.find(d=>endMoment(d)>=now)||null}
+function previousPlayDate(ds,now=new Date()){return [...ds].reverse().find(d=>endMoment(d)<now)||null}
+async function home(){
+ const vp=activeProfile(),n=vp?.firstName||vp?.displayName||vp?.name||'';$('screen').innerHTML='<div class="card"><h2>Home</h2><p>Laden…</p></div>';
+ const ds=await playDates(),now=new Date(),next=nextPlayDate(ds,now),prev=previousPlayDate(ds,now);let pendingAccounts=[],futureSubSearchHtml='',bindHomeStats=null,homeAllNames=[];if(head()){try{const us=await getDocs(query(collection(db,'users'),where('status','==','pending')));pendingAccounts=us.docs.map(d=>({id:d.id,...d.data()}))}catch(e){console.warn('Openstaande accounts konden niet worden geladen',e)}}let nextHtml='<div class="card"><b>Er is nog geen volgende speeldag ingesteld.</b></div>';
+ if(next){
+  const [plans,couplesSnap]=await Promise.all([getDocs(collection(db,'seasons',season.id,'playDates',next.id,'couplePlans')),getDocs(collection(db,'seasons',season.id,'couples'))]);
+  const couples=couplesSnap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive').sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b));
+  homeAllNames=couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean));
+  const total=couples.length,planMap=new Map(plans.docs.map(x=>[x.id,x.data()])),valid=couples.filter(c=>{const x=planMap.get(c.id);return x&&validPair(x.member1Status,x.member2Status)}),playing=[];
+  valid.forEach(c=>{const x=planMap.get(c.id),parts=String(c.name||'').split(' – ');if(x.member1Status==='speelt')playing.push(parts[0]||x.member1Id);if(x.member2Status==='speelt')playing.push(parts[1]||x.member2Id);if(x.substituteName&&x.substituteApproval!=='pending'&&x.substituteApproval!=='rejected')playing.push(x.substituteName)});
+  const playingEntries=[];valid.forEach(c=>{const x=planMap.get(c.id)||{},parts=String(c.name||'').split(' – '),ids=Array.isArray(c.memberIds)?c.memberIds:[];if(x.member1Status==='speelt')playingEntries.push({id:x.member1Id||ids[0],name:parts[0]||x.member1Id});if(x.member2Status==='speelt')playingEntries.push({id:x.member2Id||ids[1],name:parts[1]||x.member2Id});if(x.substituteName&&x.substituteApproval!=='pending'&&x.substituteApproval!=='rejected')playingEntries.push({id:x.substituteId||`sub-${c.id}`,name:x.substituteName})});
+  const duplicatePlayers=duplicatePlayerEntries(playingEntries);
+  const usedAsSub=new Set([...planMap.values()].filter(x=>x?.substituteId&&x.substituteApproval!=='rejected').map(x=>String(x.substituteId)));
+  const availableFixedReserves=[];valid.forEach(c=>{const x=planMap.get(c.id)||{},parts=String(c.name||'').split(' – '),ids=Array.isArray(c.memberIds)?c.memberIds:[];if(x.member1Status==='reserve'&&ids[0]&&!usedAsSub.has(String(ids[0])))availableFixedReserves.push({id:ids[0],name:parts[0]||ids[0]});if(x.member2Status==='reserve'&&ids[1]&&!usedAsSub.has(String(ids[1])))availableFixedReserves.push({id:ids[1],name:parts[1]||ids[1]})});
+  const missing=couples.filter(c=>!valid.includes(c)),need=valid.filter(c=>{const x=planMap.get(c.id);return x.member1Status==='afwezig'&&x.member2Status==='afwezig'&&(!x.substituteName||x.substituteApproval==='rejected')});const pendingSubs=valid.filter(c=>planMap.get(c.id)?.substituteName&&planMap.get(c.id)?.substituteApproval==='pending');
+  const own=vp?.coupleId?planMap.get(vp.coupleId):null;let ownText='Nog niet ingevuld';if(own){const mineId=vp.playerId||vp.id;ownText=own.member1Id===mineId?statusLabel(own.member1Status):own.member2Id===mineId?statusLabel(own.member2Status):(own.member1Status==='speelt'||own.member2Status==='speelt'?'Koppel ingevuld':'Beide afwezig')}
+  const close=next.closeAt?.toDate?next.closeAt.toDate():closeAtWith(next.dateKey,season?.defaultCloseDay,season?.defaultCloseTime);
+  const allCoupleNames=couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean));
+  const filledLines=valid.map(c=>{const x=planMap.get(c.id),parts=String(c.name||'').split(' – '),n1=compactName(parts[0]||x.member1Id,homeAllNames),n2=compactName(parts[1]||x.member2Id,homeAllNames),line=(label,name)=>`<span><b>${label}:</b> ${esc(name||'–')}</span>`,rows=[];if(x.member1Status==='speelt')rows.push(line('Speelt',n1));if(x.member2Status==='speelt')rows.push(line('Speelt',n2));if(x.member1Status!=='speelt')rows.push(line(x.member1Status==='reserve'?'Reserve':'Afwezig',n1));if(x.member2Status!=='speelt')rows.push(line(x.member2Status==='reserve'?'Reserve':'Afwezig',n2));if(x.substituteName){const subClass=x.substituteApproval==='pending'||x.substituteApproval==='rejected'?' pending-text':'';const subStatus=x.substituteApproval==='pending'?' ⏳':x.substituteApproval==='rejected'?' ❌':' ✅';rows.push(`<span class="home-filled-sub${subClass}"><b>Vervanger:</b> ${esc(compactName(x.substituteName,homeAllNames))}${subStatus}</span>`)}return `<div class="home-filled-row"><b>${esc(String(coupleLabel(c.id,c)).split(' – ').slice(0,1).join(''))} – ${esc(n1)} – ${esc(n2)}</b><div>${rows.join('')}</div></div>`}).join('');
+  const missingLines=missing.map(c=>`<div class="simple-row"><b>${esc(coupleLabel(c.id,c))}</b></div>`).join('');
+  nextHtml=`<section class="hero next-hero"><div class="eyebrow">🎾 Volgende speeldag</div><h1>${esc(dateText(next.dateKey))}</h1><p><b>${esc(next.startTime||season?.startTime||'10:00')}–${esc(next.endTime||season?.endTime||'12:00')}</b> · ${Number(next.courtCount||season?.defaultCourts||2)} banen</p><div class="deadline"><b>Spelerskeuze wijzigen tot</b><br>⏰ ${esc(dateText(toKey(close),false))} ${esc(timeText(`${String(close.getHours()).padStart(2,'0')}:${String(close.getMinutes()).padStart(2,'0')}`))}</div><div class="home-stats"><button class="stat-btn" data-stat="playing"><b>${playing.length}</b><span>spelers die spelen</span></button><button class="stat-btn" data-stat="filled"><b>${valid.length}/${total}</b><span>koppels ingevuld</span></button><button class="stat-btn" data-stat="missing"><b>${missing.length}</b><span>nog invullen</span></button></div><div id="homeStatDetail"></div>${admin()?`<div class="admin-readiness ${need.length||pendingSubs.length||missing.length||duplicatePlayers.length?'attention':'ready'}"><b>⚙️ Overzicht beheerder</b><span><strong>${playing.length}</strong> spelers definitief${playing.length===8&&!duplicatePlayers.length?' · ✓ compleet voor 2 dubbels':''}</span>${need.length?`<span>⚠️ ${need.length} ${need.length===1?'koppel beide afwezig · invaller nog niet geregeld':'koppels beide afwezig · invallers nog niet geregeld'}</span>`:''}${pendingSubs.length?`<span>⏳ ${pendingSubs.length} ${pendingSubs.length===1?'invaller wacht':'invallers wachten'} op goedkeuring</span>`:''}${duplicatePlayers.length?`<span>⚠️ ${duplicatePlayers.map(x=>esc(compactName(x.name,allCoupleNames))).join(', ')} ${duplicatePlayers.length===1?'staat':'staan'} meer dan één keer bij de spelers</span>`:''}${!need.length&&!pendingSubs.length&&!duplicatePlayers.length?`<span>✓ Geen openstaande invallers</span>`:''}</div>`:''}<div class="my-status"><b>Jouw spelerskeuze:</b> ${esc(ownText)}</div>${own?.substituteName?`<div class="home-sub ${own.substituteApproval==='pending'||own.substituteApproval==='rejected'?'pending-sub':''}"><b>👤 Vervanger: ${esc(own.substituteName)}</b><span>${own.substituteApproval==='pending'?'⏳ Wacht op goedkeuring beheerder':own.substituteApproval==='rejected'?'❌ Afgewezen – geef een nieuwe vervanger door':'✅ Goedgekeurd door beheerder'}</span></div>`:''}${pendingSubs.length&&(!own?.substituteName||own.substituteApproval!=='pending')?`<div class="message pending-sub">⏳ ${pendingSubs.length} ${pendingSubs.length===1?'vervanger wacht':'vervangers wachten'} op goedkeuring van de beheerder.</div>`:''}</section>`;
+  const homeLineupSnap=await getDocFromServer(doc(db,'seasons',season.id,'playDates',next.id,'public','lineup')).catch(e=>{console.warn('Actuele publicatiestatus Home niet geladen',e);return null});
+  if(homeLineupSnap?.exists()&&homeLineupSnap.data()?.published===true){const lc=homeLineupSnap.data().courts||[],allNames=couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean));nextHtml+=`<div class="card home-lineup"><h3>🎾 Baanindeling ${esc(dateText(next.dateKey,false))}</h3>${lc.map(c=>`<div class="home-court"><b>Baan ${esc(c.number)} · ${esc(c.mode||'Dubbel')}</b><div><span>${esc(compactTeam(c.teamA||[],allNames))}</span><strong>–</strong><span>${esc(compactTeam(c.teamB||[],allNames))}</span></div></div>`).join('')}<button class="link" data-go="saturday">Bekijk zaterdag →</button></div>`}
+  bindHomeStats=()=>{const detail=$('homeStatDetail'),root=$('screen');if(!detail||!root)return;root.querySelectorAll('[data-stat]').forEach(b=>b.addEventListener('click',()=>{const t=b.dataset.stat,wasOpen=detail.dataset.open===t;root.querySelectorAll('[data-stat]').forEach(x=>x.classList.remove('detail-open'));if(wasOpen){detail.innerHTML='';detail.dataset.open='';return}detail.dataset.open=t;b.classList.add('detail-open');detail.innerHTML=t==='playing'?`<div class="card stat-detail"><h3>Spelers die spelen</h3>${playing.length?playing.map(x=>`<div class="simple-row">${esc(x)}</div>`).join(''):'<p>Nog niemand gepland.</p>'}</div>`:t==='filled'?`<div class="card stat-detail"><h3>Koppels ingevuld</h3>${filledLines||'<p>Nog geen koppels ingevuld.</p>'}${duplicatePlayers.length?`<div class="message error"><b>⚠️ Dit klopt niet:</b> ${duplicatePlayers.map(x=>esc(compactName(x.name,couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean))))).join(', ')} ${duplicatePlayers.length===1?'staat':'staan'} meer dan één keer ingepland.</div>`:''}<div class="notice"><b>Beschikbaar als reserve uit de vaste groep</b>${availableFixedReserves.length?availableFixedReserves.map(x=>`<div class="simple-row">${esc(compactName(x.name,couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean))))}</div>`).join(''):'<p>Geen vaste spelers meer beschikbaar als reserve. Benader een reserve buiten de vaste groep.</p>'}</div></div>`:`<div class="card stat-detail"><h3>Nog invullen</h3>${missingLines||'<p>Iedereen heeft ingevuld. ✓</p>'}</div>`;detail.scrollIntoView({behavior:'smooth',block:'nearest'})}))};
+ }
+ // v1.10: toon op Home openstaande vervanger-zoektochten van alle komende speeldagen, niet alleen de eerstvolgende.
+ const futureDates=ds.filter(d=>endMoment(d)>=now);
+ if(futureDates.length){
   try{
-    const saved=localStorage.getItem(KEY);
-    return saved ? JSON.parse(saved) : cloneDefaults();
-  }catch(e){ return cloneDefaults(); }
-}
-function isInlineImage(value){
-  return typeof value==="string" && value.startsWith("data:image/");
-}
-
-async function uploadSharedImage(value,kind,id){
-  if(!isInlineImage(value)) return value||"";
-  if(!storage || !currentUser) throw new Error("Firebase Storage is niet beschikbaar");
-  const response=await fetch(value);
-  const blob=await response.blob();
-  const path=`shared-media/${kind}/${id}/${Date.now()}-${crypto.randomUUID()}.jpg`;
-  const ref=storage.ref(path);
-  await ref.put(blob,{contentType:blob.type||"image/jpeg",customMetadata:{ownerUid:currentUser.uid,kind}});
-  return await ref.getDownloadURL();
-}
-
-async function migrateInlineSharedPhotos(){
-  if(sharedPhotoMigrationRunning || !storage || !currentUser || !cloudReady) return;
-  const groups=[["wishes","wishes"],["recipes","recipes"],["products","products"]];
-  const pending=[];
-  for(const [field,kind] of groups){
-    for(const item of (Array.isArray(data[field])?data[field]:[])){
-      if(isInlineImage(item?.photo)) pending.push([item,kind]);
-    }
-  }
-  if(!pending.length) return;
-  sharedPhotoMigrationRunning=true;
-  try{
-    setSyncStatus(`Foto's naar Firebase Storage verplaatsen…`);
-    for(const [item,kind] of pending){
-      item.photo=await uploadSharedImage(item.photo,kind,item.id||crypto.randomUUID());
-    }
-    localStorage.setItem(KEY,JSON.stringify(data));
-    renderAll();
-    sharedPhotoMigrationRunning=false;
-    await pushDataToCloud();
-    setSyncStatus("✓ Foto's verplaatst en gegevens opgeslagen");
-  }catch(error){
-    console.error("Fotomigratie mislukt",error);
-    setSyncStatus("Foto's konden niet naar Storage worden verplaatst",true);
-    showSaveWarning("Foto's konden niet naar Firebase Storage worden verplaatst. Publiceer eerst de storage.rules van v1.3.45.");
-  }finally{
-    sharedPhotoMigrationRunning=false;
-  }
-}
-
-function saveData(){
-  localStorage.setItem(KEY,JSON.stringify(data));
-  renderAll();
-  if(db && currentUser && cloudReady && !applyingRemote){
-    clearTimeout(saveTimer);
-    saveTimer=setTimeout(pushDataToCloud,350);
-  }
-}
-
-async function pushDataToCloud(){
-  if(!db || !currentUser || !cloudReady || sharedPhotoMigrationRunning) return;
-  try{
-    setSyncStatus("Wijzigingen opslaan…");
-    const {events,weekMenus,...sharedData}=data;
-    await db.doc(SHARED_DATA_DOC).set({
-      ...sharedData,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-      updatedBy: currentUser.uid
-    },{merge:true});
-    setSyncStatus("✓ Opgeslagen in Firebase");
-  }catch(error){
-    console.error(error);
-    setSyncStatus("Opslaan mislukt — controleer je verbinding",true);
-    showSaveWarning("De wijziging kon niet in Firebase worden opgeslagen. Laat deze pagina open en probeer opnieuw.");
-  }
-}
-
-function showSaveWarning(message){
-  let box=document.getElementById("saveWarningToast");
-  if(!box){
-    box=document.createElement("div");
-    box.id="saveWarningToast";
-    box.className="save-warning-toast";
-    document.body.appendChild(box);
-  }
-  box.textContent=message;
-  box.classList.add("show");
-  clearTimeout(showSaveWarning.timer);
-  showSaveWarning.timer=setTimeout(()=>box.classList.remove("show"),6500);
-}
-
-async function writeChangeLog(kind,action,beforeValue,afterValue){
-  if(!db || !currentUser) return;
-  try{
-    await db.collection(CHANGE_LOG_COLLECTION).add({
-      kind,action,before:beforeValue||null,after:afterValue||null,
-      userUid:currentUser.uid,userName:currentPersonName(),
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
+   const [couplesSnap,rosterSnap]=await Promise.all([getDocs(collection(db,'seasons',season.id,'couples')),getDoc(doc(db,'seasons',season.id,'public','roster'))]);
+   const futureCouples=couplesSnap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive');
+   const roster=rosterSnap.exists()?rosterSnap.data():{},allRosterNames=[...(roster.fixedPlayers||[]).map(p=>typeof p==='string'?p:p.name),...(roster.reserves||[]).map(p=>typeof p==='string'?p:p.name)].filter(Boolean);
+   const searches=[];
+   for(const d of futureDates){
+    const plans=await getDocs(collection(db,'seasons',season.id,'playDates',d.id,'couplePlans'));
+    const planMap=new Map(plans.docs.map(x=>[x.id,x.data()]));
+    futureCouples.forEach(c=>{
+     const x=planMap.get(c.id);
+     if(!x||x.member1Status!=='afwezig'||x.member2Status!=='afwezig')return;
+     const approved=!!x.substituteName&&x.substituteApproval!=='pending'&&x.substituteApproval!=='rejected';
+     if(approved)return;
+     const names=String(c.name||'').split(' – ').filter(Boolean).map(n=>compactName(n,allRosterNames)).join(' & ');
+     searches.push({dateKey:d.dateKey,coupleNo:coupleNumber(c.id,c),names,pending:!!x.substituteName&&x.substituteApproval==='pending'});
     });
-  }catch(error){ console.warn("Back-upregistratie mislukt",error); }
-}
+   }
+   if(searches.length){
+    futureSubSearchHtml=`<div class="home-sub-search"><b>🔎 Vervanger gezocht</b>${searches.map(x=>`<span><strong>Koppel ${esc(x.coupleNo)} · ${esc(x.names)}</strong> zoekt voor <strong>${esc(dateText(x.dateKey,false))}</strong> nog een vervanger.${x.pending?' <small>Voorgestelde vervanger wacht op goedkeuring.</small>':''}</span>`).join('')}</div>`;
+   }
+  }catch(e){console.warn('Openstaande vervangers op Home konden niet worden geladen',e)}
+ }
 
-async function saveWeekMenuRecord(record,beforeValue=null){
-  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
-  setSyncStatus("Weekmenu opslaan…");
-  await db.collection(WEEK_MENUS_COLLECTION).doc(record.id).set({...record,serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-  await writeChangeLog("weekmenu",beforeValue?"update":"create",beforeValue,record);
-  setSyncStatus("✓ Weekmenu opgeslagen in Firebase");
+ let lastHtml='<div class="card"><h3>🏆 Laatste uitslag</h3><p>Nog geen gespeelde zaterdag met uitslagen.</p></div>';
+ const resultDates=[...ds].filter(d=>keyDate(d.dateKey)<=now).reverse();
+ if(!homeAllNames.length){try{const cs=await getDocs(collection(db,'seasons',season.id,'couples'));homeAllNames=cs.docs.map(x=>x.data()).filter(c=>c.status!=='inactive').flatMap(c=>String(c.name||'').split(' – ').filter(Boolean))}catch(e){console.warn('Namen voor laatste uitslag konden niet worden geladen',e)}}
+ for(const rd of resultDates){const rr=await getDocs(collection(db,'seasons',season.id,'playDates',rd.id,'results'));if(!rr.empty){const rows=[...rr.docs].sort((a,b)=>Number(a.data().courtNumber||0)-Number(b.data().courtNumber||0));lastHtml=`<div class="card"><h3>🏆 Laatste uitslag · ${esc(dateText(rd.dateKey,false))}</h3>${rows.map(x=>homeResultLine(x.data(),homeAllNames)).join('')}<button class="link" data-go="saturday" data-open-archive="1">Alle uitslagen →</button></div>`;break}}
+ $('screen').innerHTML=`${testBanner()}${head()&&pendingAccounts.length?`<button type="button" id="pendingAccountsHome" class="home-pending-account"><b>🔔 ${pendingAccounts.length} account${pendingAccounts.length===1?'':'s'} wacht${pendingAccounts.length===1?'':'en'} op goedkeuring</b><span>Tik hier om ${pendingAccounts.length===1?'de aanvraag':'de aanvragen'} te bekijken.</span></button>`:''}<section class="welcome"><h2>Welkom${n?', '+esc(n):''}</h2><span>${esc(season?.name||'Actief seizoen')}</span></section>${nextHtml}${futureSubSearchHtml}${lastHtml}${admin()?'<div class="adminbar"><b>⚙️ Beheerder</b><button id="beheer">Open beheer</button></div>':''}<div class="tiles"><button class="tile" data-go="couple">👥<strong>Mijn koppel</strong><small>Wie speelt, reserve of afwezig is.</small></button><button class="tile" data-go="saturday">🎾<strong>Zaterdag</strong><small>Baanindeling en uitslagen.</small></button><button class="tile" data-go="standings">🏆<strong>Stand</strong><small>Punten per koppel.</small></button><button class="tile" data-go="more">ℹ️<strong>Uitleg & gegevens</strong><small>Spelregels en eigen gegevens.</small></button></div>`;
+ $('screen').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{if(b.dataset.openArchive==='1')window.__openSaturdayArchive=true;go(b.dataset.go)});bindHomeStats?.();$('beheer')?.addEventListener('click',beheer);$('pendingAccountsHome')?.addEventListener('click',()=>beheer('admins'));bindTestBanner()
 }
-async function deleteWeekMenuRecord(record){
-  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
-  setSyncStatus("Weekmenu verwijderen…");
-  await withTimeout(
-    db.collection(WEEK_MENUS_COLLECTION).doc(record.id).delete(),
-    20000,
-    "Weekmenu verwijderen duurde te lang"
-  );
-  void writeChangeLog("weekmenu","delete",record,null);
-  setSyncStatus("✓ Weekmenu bijgewerkt");
+function resultLine(r){const teamText=v=>Array.isArray(v)?v.join(' & '):v;const a=teamText(r.teamA)||r.teamAName||r.coupleAName||'Team A',b=teamText(r.teamB)||r.teamBName||r.coupleBName||'Team B',score=r.scoreText||r.score||'';return `<div class="result-line"><b>${esc(a)}</b><span>${esc(score||'–')}</span><b>${esc(b)}</b></div>`}
+function pointText(r){if(String(r.mode||'').toLowerCase()==='enkel')return 'Enkelspel · 0 competitiepunten';const a=Number(r.pointsA||0),b=Number(r.pointsB||0);return `Punten ${a} – ${b}`}
+function homeResultLine(r,allNames=null){const compact=Array.isArray(allNames),teamText=v=>compact?(Array.isArray(v)?compactTeam(v,allNames):compactName(v,allNames)):(Array.isArray(v)?v.join(' & '):v),a=teamText(r.teamA)||(compact?compactName(r.coupleAName,allNames):r.coupleAName)||'Team A',b=teamText(r.teamB)||(compact?compactName(r.coupleBName,allNames):r.coupleBName)||'Team B';return `<div class="home-result"><b>Baan ${esc(r.courtNumber||'')} · ${esc(r.mode||'Dubbel')}</b><div>${esc(a)} <strong>–</strong> ${esc(b)}</div><span>${esc(r.scoreText||'–')}</span><small>${esc(pointText(r))}</small></div>`}
+function profileParticipantIds(p=profile){return [...new Set([p?.playerId,p?.reserveId,p?.id].filter(Boolean).map(String))]}
+function profilePlaysInLineup(lineup,p=profile){const ids=profileParticipantIds(p);return !!lineup?.published&&(lineup.courts||[]).some(c=>[...(c.teamAIds||[]),...(c.teamBIds||[])].some(id=>ids.includes(String(id))))}
+function statusLabel(s){return s==='speelt'?'Speelt':s==='reserve'?'Reserve':s==='afwezig'?'Afwezig':'Nog kiezen'}
+function firstName(name){const n=String(name||'').trim().split(/\s+/)[0]||'';return n==='Martijnb'?'Martijn':n}
+function ownCoupleMemberIndex(vp,ids,names){
+ if(testPlayer)return -1;
+ const direct=[vp?.playerId,vp?.id].filter(Boolean).map(String);
+ let idx=ids.findIndex(id=>direct.includes(String(id)));if(idx>=0)return idx;
+ const norm=v=>String(v||'').trim().toLocaleLowerCase('nl').replace(/\s+/g,' '),ownNames=[vp?.name,vp?.displayName,[vp?.firstName,vp?.lastName].filter(Boolean).join(' ')].map(norm).filter(Boolean),pair=(names||[]).map(norm);
+ idx=pair.findIndex(n=>ownNames.includes(n));if(idx>=0)return idx;
+ const ownFirst=[...new Set(ownNames.map(n=>n.split(' ')[0]).filter(Boolean))],pairFirst=pair.map(n=>n.split(' ')[0]);
+ const hits=pairFirst.map((n,i)=>ownFirst.includes(n)?i:-1).filter(i=>i>=0);return hits.length===1?hits[0]:-1
 }
-async function saveSharedAgendaRecord(record,beforeValue=null){
-  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
-  setSyncStatus("Afspraak opslaan…");
-  await db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).set({...record,serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-  await writeChangeLog("agenda",beforeValue?"update":"create",beforeValue,record);
-  setSyncStatus("✓ Afspraak opgeslagen in Firebase");
+function compactName(name,allNames=[]){const full=String(name||'').trim(),first=firstName(full);if(!first)return'';const unique=[...new Map((allNames||[]).map(n=>[String(n||'').trim().toLocaleLowerCase('nl'),String(n||'').trim()])).values()].filter(Boolean),same=unique.filter(n=>firstName(n).toLocaleLowerCase('nl')===first.toLocaleLowerCase('nl'));if(same.length<2)return first;const rest=full.slice(first.length).trim();if(!rest)return first;const parts=rest.split(/\s+/),prefixes=new Set(['van','de','der','den','het','ter','ten','te','v.d.','v.d']);let i=0,prefix=[];while(i<parts.length-1&&prefixes.has(parts[i].toLocaleLowerCase('nl'))){prefix.push(parts[i]);i++}const initial=(parts[i]||parts.at(-1)||'').charAt(0).toUpperCase()+'.';if(prefix.length){const abbr=prefix.map(x=>x.replace(/\./g,'').charAt(0).toLowerCase()+'.').join('')+initial;return `${first} ${abbr}`}return `${first} ${initial}`}
+function compactTeam(team,allNames=[]){return (Array.isArray(team)?team:[team]).filter(Boolean).map(n=>compactName(n,allNames)).join(' & ')}
+function shortDateText(k){if(!k)return'';return new Intl.DateTimeFormat('nl-NL',{day:'numeric',month:'short'}).format(keyDate(k)).replace('.','')}
+function validPair(a,b){return (a==='speelt'&&(b==='reserve'||b==='afwezig'))||(b==='speelt'&&(a==='reserve'||a==='afwezig'))||(a==='afwezig'&&b==='afwezig')}
+function acceptablePlan(a,b){return validPair(a,b)||(a==='afwezig'&&!b)||(b==='afwezig'&&!a)}
+function planHint(a,b,n1,n2){if(a==='afwezig'&&b==='afwezig')return '⚠️ Beide afwezig — vervanger nodig.';if(a==='speelt')return `✓ ${esc(n1)} speelt${b==='afwezig'?'; '+esc(n2)+' is afwezig':'; '+esc(n2)+' is reserve'}.`;if(b==='speelt')return `✓ ${esc(n2)} speelt${a==='afwezig'?'; '+esc(n1)+' is afwezig':'; '+esc(n1)+' is reserve'}.`;return 'Kies wie speelt. De partner wordt automatisch Reserve.'}
+async function couple(){
+ const vp=activeProfile(),screen=$('screen'),timeout=(promise,ms,label)=>new Promise((resolve,reject)=>{let done=false;const timer=setTimeout(()=>{if(done)return;done=true;const e=new Error(`${label} reageert niet binnen ${Math.round(ms/1000)} seconden`);e.code='timeout';reject(e)},ms);promise.then(v=>{if(done)return;done=true;clearTimeout(timer);resolve(v)}).catch(e=>{if(done)return;done=true;clearTimeout(timer);reject(e)})});
+ screen.innerHTML=testBanner()+'<div class="card"><h2>Mijn koppel</h2><p>Gegevens laden…</p></div>';bindTestBanner();if(!vp?.coupleId){screen.innerHTML='<div class="card"><h2>Mijn koppel</h2><p>Nog geen koppel gekoppeld.</p></div>';return}
+ try{
+  // v1.20: laad alleen de noodzakelijke basis eerst en geef iedere Firebase-read een eindtijd.
+  const [c,dates]=await Promise.all([timeout(getDoc(doc(db,'seasons',season.id,'couples',vp.coupleId)),8000,'Koppel'),timeout(playDates(),8000,'Speeldata')]);
+  if(!c.exists())throw new Error('Het gekoppelde koppel bestaat niet in dit seizoen.');
+  const cp=c.data(),ids=Array.isArray(cp.memberIds)?cp.memberIds:[],nameParts=String(cp.name||'').split(' – '),names=[nameParts[0]||'Speler 1',nameParts[1]||'Speler 2'];
+  let allRosterNames=names,rosterCouples=[];try{const rosterSnap=await timeout(getDoc(doc(db,'seasons',season.id,'public','roster')),5000,'Spelerslijst');if(rosterSnap.exists()){rosterCouples=rosterSnap.data().couples||[];allRosterNames=rosterCouples.flatMap(x=>x.names||[])}}catch(e){console.warn('Spelerslijst overgeslagen in Mijn koppel',e)}
+  const firstNames=names.map(n=>compactName(n,allRosterNames)),resolvedMineIdx=ownCoupleMemberIndex(vp,ids,names),cpNo=coupleNumber(vp.coupleId,cp),cpLabel=coupleLabel(vp.coupleId,cp);
+  // Een fout op één zaterdag mag de rest van Mijn koppel niet meer blokkeren.
+  const planSnaps=await Promise.all(dates.map(d=>timeout(getDoc(doc(db,'seasons',season.id,'playDates',d.id,'couplePlans',vp.coupleId)),8000,`Keuze ${d.dateKey}`).catch(e=>{console.warn('Koppelkeuze niet geladen',d.id,e);return null})));
+  const lineupByDate=new Map(),subCounts=[0,0];
+  let html=`<div class="card couple-top"><div class="couple-identity"><h2>${cpNo?`Koppel ${esc(cpNo)}`:'Mijn koppel'}</h2><p>${esc(names[0])} &amp; ${esc(names[1])}</p></div><div id="coupleSummary"></div><div id="coupleStats" class="player-stats"></div><div id="coupleSubStats" class="message compact-season-stats"><b>Invallen dit seizoen</b> · ${esc(firstNames[0])} <b>…</b> · ${esc(firstNames[1])} <b>…</b></div><button id="coupleWhatsApp" class="secondary couple-wa">📱 Overzicht via WhatsApp</button></div>`;
+  dates.forEach((d,i)=>{const snap=planSnaps[i],x=snap?.exists()?snap.data():{},a=x.member1Status||'',b=x.member2Status||'',close=d.closeAt?.toDate?d.closeAt.toDate():closeAtWith(d.dateKey,season?.defaultCloseDay,season?.defaultCloseTime),pastClose=new Date()>=close,locked=!admin()&&pastClose,closeDay=new Intl.DateTimeFormat('nl-NL',{weekday:'short'}).format(close).replace('.',''),closeTime=`${String(close.getHours()).padStart(2,'0')}:${String(close.getMinutes()).padStart(2,'0')}`,hasSaved=validPair(a,b),mineIdx=resolvedMineIdx;html+=`<div class="date-card plan-card compact-plan" data-date="${esc(d.id)}" data-key="${esc(d.dateKey)}" data-id1="${esc(ids[0]||'')}" data-id2="${esc(ids[1]||'')}" data-s1="${esc(a)}" data-s2="${esc(b)}" data-saved1="${esc(a)}" data-saved2="${esc(b)}" data-editing="false" data-subname="${esc(x.substituteName||'')}" data-subapproval="${esc(x.substituteApproval|| (x.substituteName?'approved':''))}"><div class="date-head"><b>${esc(dateText(d.dateKey))}</b><span class="status ${pastClose?'closed':''}">${pastClose?'🔒 Gesloten':`🟢 Open tot ${esc(closeDay)} ${esc(closeTime)}`}</span></div>${x.adminAdjustedBy?'<div class="message admin-adjusted-note"><b>⚙️ Aangepast door beheerder</b><br><small>De spelerskeuze voor deze zaterdag is door de beheerder gewijzigd.</small></div>':''}${pastClose&&!admin()?'<div class="choice-deadline closed-note">Spelerskeuze gesloten.</div>':''}<div class="compact-choice"><div class="compact-player-name"><strong>${esc(firstNames[0])}</strong></div><div class="choice-row" data-who="1"><button type="button" data-status="speelt" disabled>Speelt</button><button type="button" data-status="reserve" disabled>Reserve</button><button type="button" data-status="afwezig" disabled>Afwezig</button></div></div><div class="compact-choice"><div class="compact-player-name"><strong>${esc(firstNames[1])}</strong></div><div class="choice-row" data-who="2"><button type="button" data-status="speelt" disabled>Speelt</button><button type="button" data-status="reserve" disabled>Reserve</button><button type="button" data-status="afwezig" disabled>Afwezig</button></div></div>${mineIdx>=0?`<label class="private-note-label private-note-wide"><span class="private-note-title">📝 Mijn opmerking <em>alleen voor mij</em></span><input class="private-note" data-private-note type="text" maxlength="300" value="" placeholder="Bijv. later, vakantie, etc."><small class="private-note-msg">Privé-opmerking laden…</small></label>`:''}<div class="plan-hint"></div><div class="substitute-info">${x.substituteName?`<div class="message ${x.substituteApproval==='pending'?'pending-sub':''}">👤 Vervanger: <b>${esc(x.substituteName)}</b>${x.substituteApproval==='pending'?' · ⏳ wacht op goedkeuring':x.substituteApproval==='rejected'?' · ❌ afgewezen':x.substituteApproval==='approved'?' · ✅ goedgekeurd':''}</div>${x.substituteApproval==='approved'&&!locked?`<button type="button" class="remove-sub secondary">🗑️ Vervanger verwijderen</button>`:''}`:''}${x.substituteForCoupleLabel?`<div class="message">↪ ${esc(x.substitutePlayerName||'Een speler')} valt in voor <b>${esc(x.substituteForCoupleLabel)}</b>.</div>`:''}</div><button type="button" class="wa-sub secondary ${a==='afwezig'&&b==='afwezig'?'':'hidden'}">💬 Vervanger gezocht via WhatsApp</button><button type="button" class="sub-propose ${a==='afwezig'&&b==='afwezig'&&x.member1Status==='afwezig'&&x.member2Status==='afwezig'?'':'hidden'}">👤 ${x.substituteName?'Vervanger wijzigen':'Vervanger doorgeven'}</button>${locked?'':`<button type="button" class="edit-plan ${hasSaved?'secondary':''}">${hasSaved?'✏️ Keuze wijzigen':'✏️ Keuze invullen'}</button>`}<div class="plan-msg"></div></div>`});
+  screen.innerHTML=html;document.querySelectorAll('.plan-card').forEach(card=>{paintPlan(card,firstNames);card.querySelectorAll('.choice-row button').forEach(btn=>btn.onclick=()=>choosePlan(card,btn,firstNames));card.querySelector('.edit-plan')?.addEventListener('click',()=>handlePlanAction(card,firstNames));card.querySelector('.wa-sub')?.addEventListener('click',()=>waOpen(`🎾 Vervanger gezocht – Wildenhorst\n\n${cpLabel} zoekt voor ${dateText(card.dataset.key)} een vervanger.\n\nWie kan en wil invallen? Laat het even weten in de WhatsApp-groep.`));card.querySelector('.sub-propose')?.addEventListener('click',()=>openSubstituteProposal(card,cpLabel));card.querySelector('.remove-sub')?.addEventListener('click',()=>removeApprovedSubstitute(card,cpLabel));const note=card.querySelector('[data-private-note]');if(note){let timer;const save=()=>savePrivateNote(card,note);note.addEventListener('input',()=>{clearTimeout(timer);const m=card.querySelector('.private-note-msg');if(m){m.textContent='Niet opgeslagen';m.className='private-note-msg pending'}timer=setTimeout(save,700)});note.addEventListener('blur',()=>{clearTimeout(timer);save()})}});refreshCoupleSummary(firstNames);
+  $('coupleWhatsApp').onclick=()=>openCoupleWhatsApp(dates,planSnaps,lineupByDate,ids,firstNames,cpNo);
+  // v1.22: herstel de melding 'valt in voor' ook als een oudere spelerskeuze de bronmarkering heeft overschreven.
+  // Dit laadt los van het hoofdscherm, zodat een storing Mijn koppel niet kan blokkeren.
+  Promise.all(dates.map(d=>timeout(getDocs(collection(db,'seasons',season.id,'playDates',d.id,'couplePlans')),5000,`Invallers ${d.dateKey}`).catch(e=>{console.warn('Invallers niet gecontroleerd',d.id,e);return null}))).then(snaps=>{dates.forEach((d,i)=>{const snap=snaps[i],card=[...document.querySelectorAll('.plan-card')].find(x=>x.dataset.date===d.id),box=card?.querySelector('.substitute-info');if(!snap||!box||box.textContent.includes('valt in voor'))return;const hit=snap.docs.find(x=>x.id!==vp.coupleId&&ids.includes(String(x.data()?.substituteId||''))&&x.data()?.substituteApproval!=='pending'&&x.data()?.substituteApproval!=='rejected');if(!hit)return;const data=hit.data()||{},playerName=data.substituteName||names[ids.indexOf(String(data.substituteId||''))]||'Een speler',rc=rosterCouples.find(c=>String(c.id)===String(hit.id)),target=rc?`Koppel ${rc.number||coupleNumber(rc.id,rc)} – ${(rc.names||[]).join(' – ')}`:`Koppel ${coupleNumber(hit.id,data)||hit.id}`;box.insertAdjacentHTML('beforeend',`<div class="message">↪ ${esc(playerName)} valt in voor <b>${esc(target)}</b>.</div>`)});});
+  // Privé-opmerkingen zijn optioneel: een storing hier mag Mijn koppel nooit meer tegenhouden.
+  if(!testPlayer&&user?.uid&&resolvedMineIdx>=0){Promise.all(dates.map(d=>timeout(getDoc(doc(db,'seasons',season.id,'playDates',d.id,'privateNotes',user.uid)),5000,`Privé-opmerking ${d.dateKey}`).catch(e=>{console.warn('Privé-opmerking niet geladen',d.id,e);return null}))).then(snaps=>{dates.forEach((d,i)=>{const card=[...document.querySelectorAll('.plan-card')].find(x=>x.dataset.date===d.id),field=card?.querySelector('[data-private-note]'),msg=card?.querySelector('.private-note-msg'),snap=snaps[i];if(field&&snap?.exists())field.value=String(snap.data()?.text||'');if(msg){msg.textContent=snap?'':'Privé-opmerking kon niet worden geladen';msg.className=snap?'private-note-msg':'private-note-msg error'}})})}
+  // Historische statistiek wordt apart geladen; ook dit kan de pagina niet meer blokkeren.
+  const todayKey=toKey(new Date()),pastDates=dates.filter(d=>d.dateKey<todayKey);Promise.all(pastDates.map(d=>timeout(getDoc(doc(db,'seasons',season.id,'playDates',d.id,'public','lineup')),5000,`Indeling ${d.dateKey}`).catch(e=>{console.warn('Historische indeling niet geladen',d.id,e);return null}))).then(lineupSnaps=>{lineupSnaps.forEach((snap,i)=>{if(snap?.exists())lineupByDate.set(pastDates[i].id,snap.data());if(!snap?.exists()||snap.data()?.published!==true)return;(snap.data().courts||[]).forEach(court=>{[['teamAIds','teamACoupleIds','teamA'],['teamBIds','teamBCoupleIds','teamB']].forEach(([idKey,coupleKey,nameKey])=>{const pids=Array.isArray(court[idKey])?court[idKey].map(String):[],cids=Array.isArray(court[coupleKey])?court[coupleKey].map(String):[],pnames=Array.isArray(court[nameKey])?court[nameKey]:[];ids.forEach((pid,idx)=>{for(let pos=0;pos<Math.max(pids.length,pnames.length);pos++){const sameId=pid&&String(pids[pos]||'')===String(pid),sameName=String(pnames[pos]||'').trim().toLocaleLowerCase('nl')===String(names[idx]||'').trim().toLocaleLowerCase('nl')||compactName(String(pnames[pos]||''),allRosterNames)===firstNames[idx];if((sameId||sameName)&&String(cids[pos]||'')!==String(vp.coupleId)){subCounts[idx]++;break}}})})})});const el=$('coupleSubStats');if(el)el.innerHTML=`<b>Invallen dit seizoen</b> · ${esc(firstNames[0])} <b>${subCounts[0]}×</b> · ${esc(firstNames[1])} <b>${subCounts[1]}×</b>`})
+ }catch(e){console.error('Mijn koppel laden mislukt',e);screen.innerHTML=testBanner()+`<div class="card"><h2>Mijn koppel</h2><div class="message error"><b>Laden is niet gelukt.</b><br>${e?.code==='timeout'?'Firebase reageerde niet op tijd. Controleer je internetverbinding en probeer opnieuw.':'De basisgegevens van je koppel konden niet worden geladen.'}</div><button id="retryCouple">Opnieuw proberen</button></div>`;bindTestBanner();$('retryCouple')?.addEventListener('click',couple)}
 }
-async function deleteSharedAgendaRecord(record){
-  if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
-  setSyncStatus("Afspraak verwijderen…");
-  await withTimeout(
-    db.collection(SHARED_AGENDA_COLLECTION).doc(record.id).delete(),
-    20000,
-    "Afspraak verwijderen duurde te lang"
-  );
-  void writeChangeLog("agenda","delete",record,null);
-  setSyncStatus("✓ Agenda bijgewerkt");
-}
-
-function subscribeSharedCollections(){
-  if(!db || !currentUser) return;
-  if(weekMenusUnsubscribe) weekMenusUnsubscribe();
-  if(sharedAgendaUnsubscribe) sharedAgendaUnsubscribe();
-  let weekLoaded=false, agendaLoaded=false;
-  const markReady=()=>{ if(weekLoaded&&agendaLoaded){ sharedCollectionsReady=true; setSyncStatus("✓ Alles is gesynchroniseerd"); } };
-  weekMenusUnsubscribe=db.collection(WEEK_MENUS_COLLECTION).onSnapshot(async snap=>{
-    const rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
-    if(snap.empty && !weekLoaded && Array.isArray(data.weekMenus) && data.weekMenus.length){
-      const batch=db.batch(); data.weekMenus.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
-      await batch.commit();
-    }else{
-      data.weekMenus=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderWeekmenu(); renderHome();
-    }
-    weekLoaded=true; markReady();
-  },error=>{ console.error(error); setSyncStatus("Weekmenu kon niet worden geladen",true); });
-  sharedAgendaUnsubscribe=db.collection(SHARED_AGENDA_COLLECTION).onSnapshot(async snap=>{
-    const rows=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
-    if(snap.empty && Array.isArray(data.events) && data.events.length){
-      const batch=db.batch(); data.events.forEach(row=>batch.set(db.collection(SHARED_AGENDA_COLLECTION).doc(row.id),row));
-      await batch.commit();
-    }else{
-      data.events=rows; localStorage.setItem(KEY,JSON.stringify(data)); renderAgenda(); renderHome();
-    }
-    agendaLoaded=true; markReady();
-  },error=>{ console.error(error); setSyncStatus("Agenda kon niet worden geladen",true); });
-}
-
-function setSyncStatus(text,isError=false){
-  const el=document.getElementById("syncStatus");
-  if(el) el.textContent=text;
-  if(firebaseStatus){
-    firebaseStatus.textContent=isError ? "Firebase-fout" : (currentUser ? "Firebase online" : "Firebase gekoppeld");
-    firebaseStatus.classList.toggle("online",!isError && !!currentUser);
-    firebaseStatus.classList.toggle("error",isError);
+async function savePrivateNote(card,field){if(testPlayer||!user?.uid||!card||!field)return;const text=field.value.trim(),m=card.querySelector('.private-note-msg'),ref=doc(db,'seasons',seasonId(),'playDates',card.dataset.date,'privateNotes',user.uid);try{if(text)await setDoc(ref,{ownerUid:user.uid,text,updatedAt:serverTimestamp()},{merge:false});else await deleteDoc(ref);if(m){m.textContent='✓ Privé opgeslagen';m.className='private-note-msg saved'} }catch(e){console.error(e);if(m){m.textContent='Opslaan mislukt';m.className='private-note-msg error'}}}
+function refreshCoupleSummary(names){const cards=[...document.querySelectorAll('.plan-card')],today=toKey(new Date());const filled=cards.filter(c=>validPair(c.dataset.saved1,c.dataset.saved2)).length;const count=(who,past)=>cards.filter(c=>{const s=who===1?c.dataset.saved1:c.dataset.saved2,isPast=c.dataset.key<today;return s==='speelt'&&(past?isPast:!isPast)}).length;$('coupleSummary').innerHTML=`<div class="message compact-summary"><b>${filled}/${cards.length}</b> speelzaterdagen ingevuld · wijzigen tot ${esc(closeDayNl(season?.defaultCloseDay))} ${esc(timeText(season?.defaultCloseTime))}</div>`;$('coupleStats').innerHTML=`<div><strong>${esc(names[0])}</strong><span>Gepland <b>${count(1,false)}</b></span><span>Gespeeld <b>${count(1,true)}</b></span></div><div><strong>${esc(names[1])}</strong><span>Gepland <b>${count(2,false)}</b></span><span>Gespeeld <b>${count(2,true)}</b></span></div>`}
+async function removeApprovedSubstitute(card,cpLabel){
+ const vp=activeProfile(),name=card.dataset.subname||'deze vervanger';
+ if(!confirm(`Weet je zeker dat je ${name} als vervanger voor ${dateText(card.dataset.key,false)} wilt verwijderen?`))return;
+ const msg=card.querySelector('.plan-msg');if(msg){msg.textContent='Vervanger verwijderen…';msg.className='plan-msg'}
+ try{
+  const targetRef=doc(db,'seasons',season.id,'playDates',card.dataset.date,'couplePlans',vp.coupleId),targetSnap=await getDoc(targetRef),target=targetSnap.data()||{};
+  if(!targetSnap.exists()||target.substituteApproval!=='approved')throw new Error('Deze vervanger is niet meer als goedgekeurd gekoppeld.');
+  const batch=writeBatch(db),clear={substituteId:'',substituteName:'',substituteType:'',substituteApproval:'',substituteSubmittedBy:'',substituteSubmittedAt:null,substituteApprovedBy:'',substituteApprovedAt:null,substituteSourceCoupleId:'',substituteSourceCoupleLabel:'',updatedAt:serverTimestamp()};
+  // v1.36: wijzig uitsluitend documenten van deze ene speeldag. De Speelt/Reserve/Afwezig-keuzes blijven onaangeroerd.
+  batch.update(targetRef,clear);
+  const sourceId=String(target.substituteSourceCoupleId||'');
+  if(sourceId&&sourceId!==String(vp.coupleId)){
+   const sourceRef=doc(db,'seasons',season.id,'playDates',card.dataset.date,'couplePlans',sourceId),sourceSnap=await getDoc(sourceRef),source=sourceSnap.data()||{};
+   if(sourceSnap.exists()&&String(source.substituteForCoupleId||'')===String(vp.coupleId)&&String(source.substitutePlayerId||'')===String(target.substituteId||''))batch.update(sourceRef,{substituteForCoupleId:'',substituteForCoupleLabel:'',substitutePlayerId:'',substitutePlayerName:'',updatedAt:serverTimestamp()});
+  }else if(target.substituteId){
+   // Fallback voor oudere gegevens zonder bron-koppel-id: zoek alleen binnen exact deze speeldag.
+   const plans=await getDocs(collection(db,'seasons',season.id,'playDates',card.dataset.date,'couplePlans'));
+   const hit=plans.docs.find(x=>x.id!==vp.coupleId&&String(x.data()?.substituteForCoupleId||'')===String(vp.coupleId)&&String(x.data()?.substitutePlayerId||'')===String(target.substituteId||''));
+   if(hit)batch.update(hit.ref,{substituteForCoupleId:'',substituteForCoupleLabel:'',substitutePlayerId:'',substitutePlayerName:'',updatedAt:serverTimestamp()});
   }
+  await batch.commit();
+  if(msg){msg.textContent=`✓ ${name} is verwijderd als vervanger.`;msg.className='plan-msg ok'}
+  setTimeout(()=>couple(),500)
+ }catch(e){console.error(e);if(msg){msg.textContent=e?.message||'Vervanger verwijderen lukt niet.';msg.className='plan-msg error'}}
 }
-
-
-function cloudList(value){
-  if(Array.isArray(value)) return value;
-  if(value && typeof value==="object"){
-    const keys=Object.keys(value);
-    if(keys.length && keys.every(k=>/^\d+$/.test(k))){
-      return keys.sort((a,b)=>Number(a)-Number(b)).map(k=>value[k]);
-    }
+function choosePlan(card,btn,names){if(card.dataset.editing!=='true')return;const who=btn.closest('.choice-row').dataset.who,status=btn.dataset.status;let a=card.dataset.s1||'',b=card.dataset.s2||'';if(who==='1')a=status;else b=status;if(status==='speelt'){if(who==='1'&&b!=='afwezig')b='reserve';if(who==='2'&&a!=='afwezig')a='reserve'}if(status==='reserve'){if(who==='1')b='speelt';else a='speelt'}if(status==='afwezig'){if(who==='1'&&b==='reserve')b='speelt';if(who==='2'&&a==='reserve')a='speelt'}card.dataset.s1=a;card.dataset.s2=b;paintPlan(card,names)}
+function paintPlan(card,names){const a=card.dataset.s1||'',b=card.dataset.s2||'',editing=card.dataset.editing==='true';card.querySelectorAll('.choice-row').forEach(row=>{const s=row.dataset.who==='1'?a:b;row.querySelectorAll('button').forEach(x=>{x.classList.toggle('selected',x.dataset.status===s);x.disabled=!editing})});const h=card.querySelector('.plan-hint');if(h){h.innerHTML=planHint(a,b,names[0],names[1]);h.classList.toggle('hidden',!validPair(a,b)&&!editing)}card.querySelector('.wa-sub')?.classList.toggle('hidden',!(card.dataset.saved1==='afwezig'&&card.dataset.saved2==='afwezig'));card.querySelector('.sub-propose')?.classList.toggle('hidden',!(card.dataset.saved1==='afwezig'&&card.dataset.saved2==='afwezig'));const action=card.querySelector('.edit-plan');if(action){const saved=validPair(card.dataset.saved1||'',card.dataset.saved2||''),changed=a!==(card.dataset.saved1||'')||b!==(card.dataset.saved2||'');if(editing){action.textContent='💾 Keuze opslaan';action.classList.remove('secondary');action.disabled=!changed||!acceptablePlan(a,b)}else{action.textContent=saved?'✏️ Keuze wijzigen':'✏️ Keuze invullen';action.classList.toggle('secondary',saved);action.disabled=false}}}
+async function handlePlanAction(card,names){if(card.dataset.editing!=='true'){card.dataset.editing='true';paintPlan(card,names);return}await savePlan(card,names)}
+async function savePlan(card,names){const vp=activeProfile(),a=card.dataset.s1||'',b=card.dataset.s2||'',btn=card.querySelector('.edit-plan'),msg=card.querySelector('.plan-msg');if(!acceptablePlan(a,b)){msg.textContent='Kies een geldige combinatie.';msg.className='plan-msg error';return}btn.disabled=true;btn.textContent='Opslaan…';msg.textContent='';try{await setDoc(doc(db,'seasons',season.id,'playDates',card.dataset.date,'couplePlans',vp.coupleId),{coupleId:vp.coupleId,member1Id:card.dataset.id1,member1Status:a,member2Id:card.dataset.id2,member2Status:b,updatedBy:user.uid,updatedAt:serverTimestamp()},{merge:true});card.dataset.saved1=a;card.dataset.saved2=b;card.dataset.editing='false';msg.textContent='✓ Opgeslagen en gepubliceerd';msg.className='plan-msg ok';refreshCoupleSummary(names);paintPlan(card,names);setTimeout(()=>{if(msg.textContent.startsWith('✓'))msg.textContent=''},1800)}catch(e){console.error(e);msg.textContent='Opslaan lukt niet. Controleer de Firestore-regels en de deadline.';msg.className='plan-msg error';btn.textContent='💾 Keuze opslaan';btn.disabled=false}}
+function openCoupleWhatsApp(dates,planSnaps,lineupByDate,ids,names,cpNo){const today=toKey(new Date()),seasonText=String(season?.name||seasonId()).replace(/^Seizoen\s+/i,''),lines=[`🎾 *Wildenhorst – Koppel ${cpNo||''}*`,`${names[0]} & ${names[1]}`,`Seizoen ${seasonText}`,'','*Afgelopen speeldagen*'],counts=ids.map(()=>({played:0,sub:0}));let pastCount=0;dates.forEach((d,i)=>{if(d.dateKey>=today)return;pastCount++;const lineup=lineupByDate.get(d.id),states=ids.map(()=>({played:false,sub:false}));if(lineup?.published)(lineup.courts||[]).forEach(c=>{[['teamAIds','teamACoupleIds'],['teamBIds','teamBCoupleIds']].forEach(([ik,ck])=>{const pids=(c[ik]||[]).map(String),cids=c[ck]||[];ids.forEach((id,j)=>{const pos=pids.indexOf(String(id));if(pos<0)return;const own=activeProfile().coupleId;states[j].played=true;states[j].sub=!!own&&!cids.includes(own)})})});const parts=[];states.forEach((st,j)=>{if(st.played){counts[j][st.sub?'sub':'played']++;parts.push(`${names[j]} ${st.sub?'ingevallen':'gespeeld'}`)}});lines.push(`${shortDateText(d.dateKey)} · ${parts.length?parts.join(' · '):'niet gespeeld'}`)});if(!pastCount)lines.push('Nog geen afgelopen speeldagen.');lines.push('','*Komende speeldagen*');let futureCount=0;dates.forEach((d,i)=>{if(d.dateKey<today)return;futureCount++;const plan=planSnaps[i].exists()?planSnaps[i].data():{},a=plan.member1Status||'',b=plan.member2Status||'';if(!validPair(a,b)){lines.push(`${shortDateText(d.dateKey)} · nog niet ingevuld`);return}if(a==='afwezig'&&b==='afwezig'){lines.push(`${shortDateText(d.dateKey)} · beiden afwezig${plan.substituteName?` · vervanger: ${firstName(plan.substituteName)}`:''}`);return}lines.push(`${shortDateText(d.dateKey)} · ${names[0]} ${statusLabel(a).toLowerCase()} · ${names[1]} ${statusLabel(b).toLowerCase()}`)});if(!futureCount)lines.push('Geen komende speeldagen.');lines.push('','*Totaal t/m nu*');names.forEach((n,j)=>lines.push(`${n} · ${counts[j].played}× gespeeld · ${counts[j].sub}× ingevallen`));waOpen(lines.join('\n'))}
+async function openSubstituteProposal(card,cpLabel){
+ if(card.dataset.saved1!=='afwezig'||card.dataset.saved2!=='afwezig'){const m=card.querySelector('.plan-msg');m.textContent='Sla eerst op dat jullie allebei afwezig zijn.';m.className='plan-msg error';return}
+ substituteContext={card,cpLabel};const dlg=$('substituteDialog'),fixedList=$('subFixedList'),reserveList=$('subReserveList'),name=$('subOtherName'),msg=$('substituteMessage');msg.textContent='';name.value='';fixedList.innerHTML='<p>Laden…</p>';reserveList.innerHTML='<p>Laden…</p>';dlg.showModal();
+ try{const [rosterSnap,plansSnap]=await Promise.all([getDoc(doc(db,'seasons',season.id,'public','roster')),getDocs(collection(db,'seasons',season.id,'playDates',card.dataset.date,'couplePlans'))]),roster=rosterSnap.exists()?rosterSnap.data():{},plans=new Map(plansSnap.docs.map(x=>[x.id,x.data()])),fixed=Array.isArray(roster.fixedPlayers)?roster.fixedPlayers:[],res=Array.isArray(roster.reserves)?roster.reserves:[],ownCouple=activeProfile().coupleId;
+  const availableFixed=fixed.filter(p=>{if(!p?.id||p.coupleId===ownCouple)return false;const cp=plans.get(p.coupleId)||{};if(cp.substituteId===p.id||[...plans.values()].some(x=>x.substituteId===p.id&&x.substituteApproval!=='rejected'))return false;if(cp.member1Id===p.id&&cp.member1Status==='speelt')return false;if(cp.member2Id===p.id&&cp.member2Status==='speelt')return false;return true});
+  fixedList.innerHTML=availableFixed.length?availableFixed.map(p=>`<label class="sub-choice"><input type="radio" name="subChoice" value="${esc(p.id)}" data-name="${esc(p.name||'')}" data-type="fixed"> <span>${esc(p.name||'')} · vaste speler</span></label>`).join(''):'<p>Geen niet-spelende vaste spelers beschikbaar.</p>';
+  reserveList.innerHTML=res.length?res.map((r,i)=>{const id=typeof r==='string'?`legacy-${i}`:r.id,n=typeof r==='string'?r:r.name;return `<label class="sub-choice"><input type="radio" name="subChoice" value="${esc(id||'')}" data-name="${esc(n||'')}" data-type="reserve"> <span>${esc(n||'')}</span></label>`}).join(''):'<p>Er zijn geen reserves beschikbaar in de lijst.</p>'
+ }catch(e){console.error(e);fixedList.innerHTML='<p>De vaste spelers konden niet worden geladen.</p>';reserveList.innerHTML='<p>De reservelijst kon niet worden geladen.</p>'}
+}
+async function saveSubstituteProposal(){
+ const ctx=substituteContext;if(!ctx)return;const selected=document.querySelector('input[name="subChoice"]:checked'),other=$('subOtherName').value.trim(),msg=$('substituteMessage');let substituteId='',substituteName='',substituteType='';
+ if(selected){substituteId=selected.value;substituteName=selected.dataset.name;substituteType=selected.dataset.type||'reserve'}else if(other){substituteId=`external-${user.uid}-${Date.now()}`;substituteName=other;substituteType='external'}else{msg.textContent='Kies een vaste speler, reserve of vul de naam van een andere vervanger in.';msg.className='message error';return}
+ try{await updateDoc(doc(db,'seasons',season.id,'playDates',ctx.card.dataset.date,'couplePlans',activeProfile().coupleId),{substituteId,substituteName,substituteType,substituteApproval:'pending',substituteSubmittedBy:user.uid,substituteSubmittedAt:serverTimestamp(),updatedAt:serverTimestamp()});ctx.card.dataset.subname=substituteName;ctx.card.dataset.subapproval='pending';ctx.card.querySelector('.substitute-info').innerHTML=`<div class="message pending-sub">👤 Vervanger: <b>${esc(substituteName)}</b><br><span>⏳ Wacht op goedkeuring beheerder</span></div>`;ctx.card.querySelector('.sub-propose').textContent='👤 Vervanger wijzigen';$('substituteDialog').close();substituteContext=null}catch(e){console.error(e);msg.textContent='Vervanger doorgeven lukt niet. Controleer de Firestore-regels.';msg.className='message error'}
+}
+function tennisPointValue(x){return ({'0':0,'15':1,'30':2,'40':3}[String(x)]??0)}
+function completedSetScore(a,b){
+ a=Number(a);b=Number(b);const hi=Math.max(a,b),lo=Math.min(a,b);
+ return (hi>=6&&hi-lo>=2)||(hi===7&&(lo===5||lo===6));
+}
+function calculateTennisResult(sets,lastGameA='0',lastGameB='0',mode='Dubbel'){
+ const filled=(sets||[]).filter(x=>x&&x.a!==''&&x.b!=='').map(x=>({a:Number(x.a),b:Number(x.b)}));
+ let pa=0,pb=0,gamesA=0,gamesB=0;const parts=[];
+ filled.forEach((x,i)=>{
+  gamesA+=x.a;gamesB+=x.b;let part=`${x.a}-${x.b}`;const isLast=i===filled.length-1;
+  if(mode!=='Enkel'){
+   if(!isLast||completedSetScore(x.a,x.b)){if(x.a>x.b)pa+=1;else if(x.b>x.a)pb+=1}
+   else if(x.a>x.b&&x.a>=3)pa+=.5;
+   else if(x.b>x.a&&x.b>=3)pb+=.5;
+   else if(x.a===x.b&&x.a>=3){
+    const ga=String(lastGameA||'0'),gb=String(lastGameB||'0');part+=` (${ga}-${gb})`;
+    const va=tennisPointValue(ga),vb=tennisPointValue(gb);
+    if(va>vb)pa+=.5;else if(vb>va)pb+=.5;else{pa+=.25;pb+=.25}
+   }
   }
-  return null;
+  parts.push(part)
+ });
+ return{pa,pb,gamesA,gamesB,scoreText:parts.join(', '),sets:filled,lastGamePoints:filled.length?`${lastGameA||'0'}-${lastGameB||'0'}`:''}
+}
+async function saturday(){
+ const ds=await playDates();if(!ds.length){$('screen').innerHTML='<div class="card">Nog geen speelzaterdag ingesteld.</div>';return}
+ const now=new Date(),next=nextPlayDate(ds,now)||ds.at(-1);
+ $('screen').innerHTML=`<div class="sat-tabs"><button id="satCurrent" class="active">🎾 Zaterdag</button><button id="satArchive">🏆 Uitslagen</button></div><div id="satCurrentView"><div class="card"><label>Speeldag</label><select id="satDate">${ds.map(d=>`<option value="${esc(d.id)}" ${d.id===next.id?'selected':''}>${esc(dateText(d.dateKey))}</option>`).join('')}</select></div><div id="satBody"></div></div><div id="satArchiveView" class="hidden"></div>`;
+ const showCurrent=()=>{$('satCurrent').classList.add('active');$('satArchive').classList.remove('active');$('satCurrentView').classList.remove('hidden');$('satArchiveView').classList.add('hidden')};
+ const showArchive=async()=>{$('satArchive').classList.add('active');$('satCurrent').classList.remove('active');$('satCurrentView').classList.add('hidden');$('satArchiveView').classList.remove('hidden');await renderResultArchive(ds)};
+ $('satCurrent').onclick=showCurrent;$('satArchive').onclick=showArchive;$('satDate').onchange=()=>renderSaturday(ds.find(d=>d.id===$('satDate').value));await renderSaturday(next);
+ if(window.__openSaturdayArchive){window.__openSaturdayArchive=false;await showArchive()}
+}
+async function renderSaturday(d){
+ const host=$('satBody');host.innerHTML='<div class="card">Laden…</div>';
+ const [ls,rs,rosterSnap]=await Promise.all([getDocFromServer(doc(db,'seasons',season.id,'playDates',d.id,'public','lineup')).catch(e=>{console.warn('Actuele publicatiestatus Zaterdag niet geladen',e);return null}),getDocs(collection(db,'seasons',season.id,'playDates',d.id,'results')),getDoc(doc(db,'seasons',season.id,'public','roster'))]),l=ls?.exists()?ls.data():null,allNames=rosterSnap.exists()?(rosterSnap.data().couples||[]).flatMap(x=>x.names||[]):[];
+ const results=[...rs.docs].map(x=>({id:x.id,...x.data()})),resultByCourt=new Map(results.map(r=>[String(r.courtNumber),r])),courts=(l?.courts||[]).filter(c=>c.mode!=='Niet gebruiken'),canEnter=!!l?.published&&['fixed','reserve'].includes(String(activeProfile()?.participantType||''));
+ const courtHtml=!l?.published?'<div class="card"><b>Indeling is nog niet bekend.</b></div>':courts.map(c=>{const r=resultByCourt.get(String(c.number));return `<div class="court-card"><h3>Baan ${esc(c.number)} · ${esc(c.mode||'Dubbel')}</h3><div class="match compact-match"><span>${esc(compactTeam(c.teamA||[],allNames))}</span><strong>–</strong><span>${esc(compactTeam(c.teamB||[],allNames))}</span></div>${r?`<div class="court-result"><b>${esc(r.scoreText||'–')}</b><small>${esc(pointText(r))}</small><span>${canEditOwnResult(r)?'Uitslag opgeslagen · je kunt deze tot 48 uur na de eerste invoer corrigeren':'🔒 Uitslag opgeslagen'}</span></div>${canEditOwnResult(r)?`<button class="result-entry-btn" data-court="${esc(c.number)}">✏️ Uitslag wijzigen</button>`:''}`:canEnter?`<button class="result-entry-btn" data-court="${esc(c.number)}">🏆 Uitslag invoeren</button>`:'<div class="court-result muted"><small>Nog geen uitslag ingevoerd.</small></div>'}</div>`}).join('');
+ host.innerHTML=`<section class="hero"><h1>${esc(dateText(d.dateKey))}</h1><p>${esc(d.startTime||season?.startTime||'10:00')}–${esc(d.endTime||season?.endTime||'12:00')}</p>${l?.changedAfterPublish?'<div class="message">⚠️ Indeling gewijzigd</div>':''}</section>${courtHtml}${l?.published?`<div class="card day-total"><b>${results.length} van ${courts.length} uitslagen ingevoerd</b>${results.length===courts.length&&courts.length?'<span> ✓ compleet</span>':''}</div>`:''}<div id="playerResultBox"></div>`;
+ host.querySelectorAll('[data-court]').forEach(b=>b.onclick=()=>openPlayerResult(d,l,b.dataset.court))
+}
+async function renderResultArchive(ds){
+ const host=$('satArchiveView');host.innerHTML='<div class="card"><h2>🏆 Uitslagen</h2><p>Laden…</p></div>';const days=[];
+ for(const d of [...ds].reverse()){const rs=await getDocs(collection(db,'seasons',season.id,'playDates',d.id,'results'));if(!rs.empty)days.push({d,results:[...rs.docs].map(x=>x.data()).sort((a,b)=>Number(a.courtNumber||0)-Number(b.courtNumber||0))})}
+ host.innerHTML=`<div class="card"><h2>🏆 Alle uitslagen</h2><p>Alle gespeelde zaterdagen, nieuwste eerst.</p></div>${days.length?days.map(({d,results})=>`<div class="card archive-day"><h3>${esc(dateText(d.dateKey))}</h3>${results.map(homeResultLine).join('')}</div>`).join(''):'<div class="card">Er zijn nog geen uitslagen opgeslagen.</div>'}`
+}
+async function openPlayerResult(d,lineup,courtNumber){
+ const box=$('playerResultBox');if(!box||!lineup?.published||!['fixed','reserve'].includes(String(activeProfile()?.participantType||'')))return;
+ const match=(lineup.courts||[]).find(c=>String(c.number)===String(courtNumber));if(!match)return;
+ const existing=await getDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'results',`court-${match.number}`)),saved=existing.exists()?existing.data():null;if(saved&&saved.enteredBy!==user.uid){box.innerHTML='<div class="message">🔒 Deze uitslag is door een andere speler opgeslagen. Een beheerder kan hem wijzigen.</div>';return}if(saved&&!canEditOwnResult(saved)){box.innerHTML='<div class="message">🔒 De termijn van 48 uur om deze uitslag zelf te corrigeren is voorbij. Alleen een beheerder kan hem nu wijzigen.</div>';return}
+ const aCids=[...new Set(match.teamACoupleIds||[])],bCids=[...new Set(match.teamBCoupleIds||[])];let setCount=Math.max(3,Array.isArray(saved?.sets)?saved.sets.length:3),values=Array.from({length:setCount},(_,i)=>saved?.sets?.[i]||{a:'',b:''}),[lastGameA='0',lastGameB='0']=String(saved?.lastGamePoints||'0-0').split('-');
+ const draw=()=>{
+  const pointOpts=v=>['0','15','30','40'].map(x=>`<option ${String(v)===x?'selected':''}>${x}</option>`).join('');
+  box.innerHTML=`<div class="card"><h3>Uitslag baan ${esc(match.number)}</h3><p><b>${esc((match.teamA||[]).join(' & '))}</b><br>–<br><b>${esc((match.teamB||[]).join(' & '))}</b></p><div id="prSets">${Array.from({length:setCount},(_,i)=>`<div class="set-row result-set-row"><b>Set ${i+1}</b><input data-pra="${i}" type="number" min="0" max="99" value="${esc(values[i]?.a||'')}"><span>–</span><input data-prb="${i}" type="number" min="0" max="99" value="${esc(values[i]?.b||'')}">${i===setCount-1?`<span class="last-game-inline" title="Lopende game"><small>game</small><select id="prGpa">${pointOpts(lastGameA)}</select><span>–</span><select id="prGpb">${pointOpts(lastGameB)}</select></span>`:''}</div>`).join('')}</div><div class="last-game-help">Alleen bij de laatste set kun je eventueel de stand in de lopende game invullen, bijvoorbeeld <b>4–4 · 15–0</b>.</div><div class="set-buttons"><button id="prAddSet" class="secondary">＋ Set toevoegen</button>${setCount>3?'<button id="prRemoveSet" class="link">Laatste set verwijderen</button>':''}</div><div id="prPreview" class="message"></div><button id="prSave">${saved?'Wijzigingen opslaan':'Uitslag opslaan'}</button><div id="prMsg"></div></div>`;
+  const capture=()=>{values=Array.from({length:setCount},(_,i)=>({a:box.querySelector(`[data-pra="${i}"]`)?.value||'',b:box.querySelector(`[data-prb="${i}"]`)?.value||''}));lastGameA=$('prGpa')?.value||'0';lastGameB=$('prGpb')?.value||'0'};
+  const calc=()=>{capture();const c=calculateTennisResult(values,lastGameA,lastGameB,match.mode||'Dubbel');$('prPreview').textContent=match.mode==='Enkel'?`Enkelspel: 0 competitiepunten. Stand ${c.scoreText||'nog niet ingevuld'}`:`Punten: ${c.pa} – ${c.pb}`;return c};
+  box.querySelectorAll('[data-pra],[data-prb]').forEach(x=>x.oninput=calc);$('prGpa').onchange=calc;$('prGpb').onchange=calc;
+  $('prAddSet').onclick=()=>{capture();setCount++;values.push({a:'',b:''});draw()};$('prRemoveSet')?.addEventListener('click',()=>{capture();setCount=Math.max(3,setCount-1);values=values.slice(0,setCount);draw()});
+  $('prSave').onclick=async()=>{const c=calc(),msg=$('prMsg');if(!c.scoreText){msg.textContent='Vul minimaal één set in.';msg.className='message error';return}const alloc={},finale=isFinalPlayDate(d);aCids.forEach((id,i)=>alloc[id]=finalCompetitionPoints(c.pa,(match.teamASubstituteFlags||[])[i]===true,finale));bCids.forEach((id,i)=>alloc[id]=finalCompetitionPoints(c.pb,(match.teamBSubstituteFlags||[])[i]===true,finale));const data={courtNumber:match.number,mode:match.mode||'Dubbel',teamA:match.teamA||[],teamB:match.teamB||[],teamAIds:match.teamAIds||[],teamBIds:match.teamBIds||[],teamACoupleIds:aCids,teamBCoupleIds:bCids,coupleAId:aCids[0]||'',coupleAName:(match.teamA||[]).join(' & '),coupleBId:bCids[0]||'',coupleBName:(match.teamB||[]).join(' & '),scoreText:c.scoreText,pointsA:c.pa,pointsB:c.pb,pointAllocations:alloc,gamesA:c.gamesA,gamesB:c.gamesB,sets:c.sets,lastGamePoints:c.lastGamePoints,enteredBy:user.uid,enteredAt:saved?.enteredAt||serverTimestamp()};try{await setDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'results',`court-${match.number}`),data,{merge:false});msg.textContent=saved?'✓ Wijziging opgeslagen.':'✓ Uitslag opgeslagen. Je kunt deze zelf nog 48 uur corrigeren.';msg.className='message';setTimeout(()=>renderSaturday(d),600)}catch(e){console.error(e);msg.textContent='Opslaan lukt niet. Controleer de Firestore-regels.';msg.className='message error'}};
+  calc()
+ };draw();box.scrollIntoView({behavior:'smooth',block:'start'})
+}
+async function standings(){$('screen').innerHTML='<div class="card"><h2>Stand</h2><p>Laden…</p></div>';if(!season)return;const [cs,ds]=await Promise.all([getDocs(collection(db,'seasons',season.id,'couples')),playDates()]),couples=cs.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive'),allNames=couples.flatMap(c=>String(c.name||'').split(' – ').filter(Boolean)),agg=new Map(couples.map(c=>[c.id,{coupleId:c.id,coupleName:c.name||'',points:0,gamesFor:0,gamesAgainst:0}]));for(const d of ds){const rs=await getDocs(collection(db,'seasons',season.id,'playDates',d.id,'results'));rs.docs.forEach(x=>{const r=x.data(),alloc=r.pointAllocations&&Object.keys(r.pointAllocations).length?r.pointAllocations:{[r.coupleAId]:Number(r.pointsA||0),[r.coupleBId]:Number(r.pointsB||0)},ga=Number(r.gamesA||0),gb=Number(r.gamesB||0);Object.entries(alloc).forEach(([cid,pts])=>{if(cid&&agg.has(cid))agg.get(cid).points+=Number(pts||0)});[...new Set(r.teamACoupleIds||[r.coupleAId].filter(Boolean))].forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=ga;agg.get(cid).gamesAgainst+=gb}});[...new Set(r.teamBCoupleIds||[r.coupleBId].filter(Boolean))].forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=gb;agg.get(cid).gamesAgainst+=ga}})})}const rows=[...agg.values()].map(r=>({...r,gameDiff:r.gamesFor-r.gamesAgainst})).sort((a,b)=>b.points-a.points||b.gameDiff-a.gameDiff||b.gamesFor-a.gamesFor||coupleNumber(a.coupleId)-coupleNumber(b.coupleId)).map((r,i)=>({...r,rank:i+1}));$('screen').innerHTML='<h2>🏆 Stand</h2>'+((rows.map(r=>`<div class="standing"><span class="rank">${r.rank}</span><div><b>${esc((r.coupleId?`Koppel ${coupleNumber(r.coupleId,r)} – `:'')+(String(r.coupleName||'Koppel').split(' – ').filter(Boolean).map(n=>compactName(n,allNames)).join(' – ')))}</b>${(Number(r.gamesFor||0)>0||Number(r.gamesAgainst||0)>0)?`<br><small>Gamesaldo: ${r.gameDiff>0?'+':''}${r.gameDiff}</small>`:''}</div><span class="points">${Number(r.points||0).toFixed(2).replace(/\.00$/,'').replace(/0$/,'')} pt</span></div>`).join(''))||'<div class="card">Nog geen uitslagen verwerkt.</div>')}
+
+function more(){$('screen').innerHTML=`<div class="tiles"><button class="tile" id="data">👤<strong>Mijn gegevens</strong><small>Contactgegevens bekijken en wijzigen.</small></button><button class="tile" id="futureChoices">📅<strong>Toekomstige spelerskeuzes</strong><small>Bekijk voor alle koppels de keuzes voor komende zaterdagen.</small></button><button class="tile" id="roster">👥<strong>Spelers & reserves</strong><small>Bekijk alle vaste koppels en reservespelers.</small></button><button class="tile" id="rules">📘<strong>Uitleg / spelregels</strong><small>Spelerskeuze, vervangers en puntentelling.</small></button>${admin()?'<button class="tile" id="admin">⚙️<strong>Beheer</strong><small>Seizoen, spelers, banen, uitslagen en betalingen.</small></button>':''}<button class="tile" id="logout">🚪<strong>Uitloggen</strong></button></div>`;$('rules').onclick=rules;$('roster').onclick=playersAndReserves;$('futureChoices').onclick=renderPublicFutureChoices;$('admin')?.addEventListener('click',beheer);$('logout').onclick=()=>signOut(auth);$('data').onclick=data}
+async function syncAccessEmails(){if(!head()||!season)return 0;const [ps,rs]=await Promise.all([getDocs(collection(db,'seasons',season.id,'players')),getDocs(collection(db,'seasons',season.id,'reserves'))]),people=[...ps.docs.map(d=>d.data()),...rs.docs.map(d=>d.data())].filter(x=>x.status!=='inactive'),emails=[...new Set(people.map(x=>String(x.email||'').trim().toLowerCase()).filter(Boolean))],keys=await Promise.all(emails.map(emailKey)),batch=writeBatch(db);for(const k of keys)batch.set(doc(db,'accessEmails',k),{active:true,seasonId:season.id,updatedAt:serverTimestamp()},{merge:true});await batch.commit();return emails.length}
+async function syncPublicRoster(){if(!admin()||!season)return;const [cs,ps,rs]=await Promise.all([getDocs(collection(db,'seasons',season.id,'couples')),getDocs(collection(db,'seasons',season.id,'players')),getDocs(collection(db,'seasons',season.id,'reserves'))]);const rawCouples=cs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.status!=='inactive').sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b)),couples=rawCouples.map(c=>({id:c.id,number:coupleNumber(c.id,c),names:String(c.name||'').split(' – ').filter(Boolean),memberIds:Array.isArray(c.memberIds)?c.memberIds:[]})),activePlayers=ps.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.status!=='inactive'),activeReserves=rs.docs.map(d=>({id:d.id,...d.data()})).filter(x=>x.status!=='inactive'),fixedPlayers=activePlayers.map(p=>({id:p.id,name:String(p.name||'').trim(),phone:String(p.phone||'').trim(),coupleId:rawCouples.find(c=>(c.memberIds||[]).includes(p.id))?.id||p.coupleId||''})).filter(p=>p.name).sort((a,b)=>a.name.localeCompare(b.name,'nl')),reserves=activeReserves.map(r=>({id:r.id,name:String(r.name||'').trim(),phone:String(r.phone||'').trim()})).filter(r=>r.name).sort((a,b)=>a.name.localeCompare(b.name,'nl'));await setDoc(doc(db,'seasons',season.id,'public','roster'),{couples,fixedPlayers,reserves,updatedAt:serverTimestamp()},{merge:false});if(head())await syncAccessEmails()}
+
+async function playersAndReserves(){$('screen').innerHTML='<div class="card"><h2>👥 Spelers & reserves</h2><p>Laden…</p></div>';if(admin()){try{await syncPublicRoster()}catch(e){console.warn(e)}}const snap=await getDoc(doc(db,'seasons',season.id,'public','roster'));if(!snap.exists()){$('screen').innerHTML='<div class="card"><h2>👥 Spelers & reserves</h2><p>De spelerslijst is nog niet beschikbaar. Vraag een beheerder de app één keer te openen.</p></div>';return}const d=snap.data(),couples=Array.isArray(d.couples)?d.couples:[],fixedPlayers=Array.isArray(d.fixedPlayers)?d.fixedPlayers:[],reserves=Array.isArray(d.reserves)?d.reserves:[],fixedById=new Map(fixedPlayers.map(p=>[String(p.id),p]));$('screen').innerHTML=`<div class="card roster-page"><h2>👥 Spelers & reserves</h2><h3>Vaste spelers</h3><div class="couple-grid">${couples.map(c=>`<div class="couple-card"><span>Koppel ${esc(c.number)}</span>${(c.names||[]).map((n,i)=>{const p=fixedById.get(String((c.memberIds||[])[i]))||{};return `<b>${esc(n)}</b>${p.phone?`<small>${esc(p.phone)}</small>`:''}`}).join('')}</div>`).join('')}</div><h3>Reserves</h3><div class="reserve-list">${reserves.map(r=>{const x=typeof r==='string'?{name:r}:r;return `<div><b>${esc(x.name)}</b>${x.phone?`<small>${esc(x.phone)}</small>`:''}</div>`}).join('')||'<p>Geen reserves.</p>'}</div></div>`}
+async function renderPublicFutureChoices(){
+ $('screen').innerHTML='<div class="card"><h2>📅 Toekomstige spelerskeuzes</h2><p>Laden…</p></div>';
+ try{
+  if(admin()){try{await syncPublicRoster()}catch(e){console.warn('Publieke spelerslijst kon niet worden bijgewerkt',e)}}
+  const [dates,rosterSnap]=await Promise.all([playDates(),getDoc(doc(db,'seasons',seasonId(),'public','roster'))]);
+  if(!rosterSnap.exists()){$('screen').innerHTML='<div class="card"><h2>📅 Toekomstige spelerskeuzes</h2><p>Het overzicht is nog niet beschikbaar. Vraag een beheerder de app één keer te openen.</p><button id="futureBack" class="secondary">← Terug</button></div>';$('futureBack').onclick=more;return}
+  const today=toKey(new Date()),future=dates.filter(d=>d.dateKey>=today),roster=rosterSnap.data(),couples=(Array.isArray(roster.couples)?roster.couples:[]).slice().sort((a,b)=>Number(a.number||coupleNumber(a.id,a))-Number(b.number||coupleNumber(b.id,b))),fixed=Array.isArray(roster.fixedPlayers)?roster.fixedPlayers:[],reserves=Array.isArray(roster.reserves)?roster.reserves:[],fixedMap=new Map(fixed.map(p=>[String(p.id),p])),allNames=[...fixed.map(p=>p.name),...reserves.map(r=>typeof r==='string'?r:r.name)].filter(Boolean);
+  const planSnaps=await Promise.all(future.map(d=>getDocs(collection(db,'seasons',seasonId(),'playDates',d.id,'couplePlans')))),planMap=new Map();future.forEach((d,i)=>planMap.set(d.id,new Map(planSnaps[i].docs.map(x=>[x.id,x.data()]))));
+  const statusCode=s=>s==='speelt'?'<span class="choice-code play">S</span>':s==='reserve'?'<span class="choice-code reserve">R</span>':s==='afwezig'?'<span class="choice-code absent">A</span>':'<span class="choice-code empty">–</span>';
+  const head=future.map(d=>`<th>${esc(shortDateText(d.dateKey))}</th>`).join('');
+  const rows=couples.map(c=>{const mids=Array.isArray(c.memberIds)?c.memberIds:[],names=Array.isArray(c.names)?c.names:[],no=Number(c.number||coupleNumber(c.id,c));return [0,1].map(idx=>{const pid=mids[idx],raw=fixedMap.get(String(pid))?.name||names[idx]||pid||`Speler ${idx+1}`,display=compactName(raw,allNames),cells=future.map(d=>{const pl=planMap.get(d.id)?.get(c.id)||{},st=idx===0?pl.member1Status:pl.member2Status,approved=pl.member1Status==='afwezig'&&pl.member2Status==='afwezig'&&!!pl.substituteName&&pl.substituteApproval!=='pending'&&pl.substituteApproval!=='rejected',inv=approved&&idx===0?'<span class="choice-code substitute" title="Invaller geregeld">I</span>':'';return `<td><span class="choice-code-wrap">${statusCode(st)}${inv}</span></td>`}).join('');return `<tr class="future-player-row"><td class="sticky-player compact-person"><span class="couple-mini">${idx===0?esc(no):''}</span><span>${esc(display)}</span></td>${cells}</tr>`}).join('')}).join('');
+  const substituteRows=future.flatMap(d=>couples.map(c=>{const pl=planMap.get(d.id)?.get(c.id)||{};if(!pl.substituteName||pl.substituteApproval==='pending'||pl.substituteApproval==='rejected')return null;const targetNames=(Array.isArray(c.names)?c.names:[]).filter(Boolean).map(n=>compactName(n,allNames)).join(' & ');return {dateKey:d.dateKey,coupleNo:Number(c.number||coupleNumber(c.id,c)),targetNames,name:compactName(pl.substituteName,allNames)}}).filter(Boolean));
+  const substituteHtml=substituteRows.length?`<div class="future-substitutes"><h3>👤 Invallers</h3>${substituteRows.map(x=>`<div class="future-sub-row"><b>${esc(shortDateText(x.dateKey))}</b><span>${esc(x.name)} valt in voor koppel ${esc(x.coupleNo)}${x.targetNames?' · '+esc(x.targetNames):''}</span></div>`).join('')}</div>`:'';
+  $('screen').innerHTML=`<div class="card"><div class="section-head"><div><h2>📅 Toekomstige spelerskeuzes</h2><p class="muted-note">Voor iedereen zichtbaar. Alleen-lezen overzicht van de komende speelzaterdagen.</p></div><button id="futureBack" class="secondary">← Terug</button></div><div class="choice-legend"><span class="choice-code play">S</span> Speelt <span class="choice-code reserve">R</span> Reserve <span class="choice-code absent">A</span> Afwezig <span class="choice-code substitute">I</span> Invaller geregeld <span class="choice-code empty">–</span> Nog niet ingevuld</div>${future.length?`<div class="future-scroll"><table class="admin-table future-table"><thead><tr><th class="sticky-player">Speler</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>${substituteHtml}`:'<p>Er zijn geen komende speelzaterdagen.</p>'}</div>`;
+  $('futureBack').onclick=more;
+ }catch(e){console.error(e);$('screen').innerHTML='<div class="card"><h2>📅 Toekomstige spelerskeuzes</h2><p>Het overzicht kon niet worden geladen.</p><button id="futureBack" class="secondary">← Terug</button></div>';$('futureBack').onclick=more}
 }
 
-async function restoreWishesDirectlyFromFirestore(){
-  if(!db || !currentUser) return false;
-  try{
-    const snap=await db.doc(SHARED_DATA_DOC).get({source:"server"});
-    if(!snap.exists) return false;
-    const wishes=cloudList(snap.get("wishes"));
-    if(Array.isArray(wishes) && wishes.length){
-      data.wishes=wishes;
-      try{ localStorage.setItem(KEY,JSON.stringify(data)); }catch(e){}
-      renderWishes();
-      renderHome();
-      return true;
-    }
-  }catch(err){
-    console.error("Wensen rechtstreeks uit Firestore herstellen mislukt",err);
+function rules(){$('screen').innerHTML=`<div class="card help"><h2>📘 Uitleg / spelregels</h2><h3>Koppels</h3><p>De vaste koppels hebben gedurende het seizoen een vast koppelnummer 1 t/m 8. Dit nummer blijft hetzelfde bij de spelerskeuze, stand, uitslagen en vervangers.</p><h3>Speeltijden</h3><p><b>Inspeeltijd:</b> 10.00 tot 10.15 uur.<br><b>Aanvang wedstrijd:</b> 10.15 uur.</p><h3>Spelerskeuze</h3><p>Per koppel speelt normaal één speler en staat de partner reserve. Beiden op <b>Speelt</b> kan niet. Zijn beiden afwezig, dan is een vervanger nodig.</p><h3>Vervanger gezocht</h3><p>Als beiden afwezig zijn, kan het koppel via WhatsApp een vervanger zoeken en daarna een niet-spelende vaste speler, reserve of andere vervanger voorstellen. De beheerder moet die vervanger eerst goedkeuren. Pas na goedkeuring telt de vervanger mee voor de baanindeling.</p><h3>Enkelspel</h3><p>Enkelspel is alleen een noodoplossing als de baanindeling daarom vraagt. Een speler kan aangeven hiervoor beschikbaar te zijn. <b>Enkelspel levert 0 competitiepunten op.</b></p><h3>Punten</h3><p>Een volledig gewonnen set levert <b>1 punt</b> op. Gaat de zoemer terwijl de laatste set nog niet is afgelopen, dan krijgt het team dat voorstaat in games <b>½ punt</b>, mits de leider minimaal 3 games heeft. Staat het in games gelijk en hebben beide teams minimaal 3 games, dan wordt er <b>na de zoemer nog één beslissend punt gespeeld</b>. Het team dat dit punt wint, krijgt ½ punt. Voorbeelden: bij <b>3–3 en 0–0</b> wordt nog één punt gespeeld; ook bij <b>3–3 en 30–30</b> wordt nog één beslissend punt gespeeld.</p><h3>Invallers en punten</h3><p>Als van een vast koppel <b>minimaal één van de twee vaste spelers aanwezig is</b>, kan dat koppel gewoon de volledige punten behalen. Is een koppel <b>volledig afwezig</b> en speelt er een invaller namens dat koppel, dan kan alleen dat afwezige koppel maximaal <b>2 competitiepunten</b> behalen. De andere koppels op de baan worden hierdoor niet beperkt.</p><p><b>Voorbeeld:</b> Koppel 1 (aanwezig) / Koppel 4 (volledig afwezig, invaller) speelt tegen Koppel 2 (aanwezig) / Koppel 3 (aanwezig). Bij een uitslag van 3–1 krijgt Koppel 1 <b>3 punten</b>, Koppel 4 <b>maximaal 2 punten</b>, Koppel 2 <b>1 punt</b> en Koppel 3 <b>1 punt</b>.</p><h3>🏆 Finalezaterdag</h3><p>Als de beheerder de finalezaterdag activeert, wordt de indeling gebaseerd op de stand na de voorlaatste speeldag: <b>nr. 1 + nr. 4 tegen nr. 2 + nr. 3</b> en <b>nr. 5 + nr. 8 tegen nr. 6 + nr. 7</b>. Op de finale tellen de behaalde competitiepunten dubbel. De maximumregel voor een <b>volledig afwezig koppel dat met een invaller speelt</b> blijft echter 2 punten. In bovenstaand voorbeeld wordt de finale-uitslag dus: Koppel 1 <b>6 punten</b>, Koppel 4 <b>2 punten</b>, Koppel 2 <b>2 punten</b> en Koppel 3 <b>2 punten</b>. Enkelspel blijft 0 competitiepunten opleveren.</p></div>`}
+function data(){const vp=activeProfile();$('screen').innerHTML=`${testBanner()}<div class="card"><h2>Mijn gegevens</h2><div class="formgrid"><div><label>Naam</label><div class="readonly">${esc(vp?.displayName||vp?.name||'')}</div></div><div><label>E-mailadres / inlognaam</label><div class="readonly">${esc(testPlayer?vp?.email||'':user?.email||'')}</div></div><div><label>Telefoonnummer</label><input id="myPhone" type="tel" value="${esc(vp?.phone||'')}" ${testPlayer?'disabled':''}></div><div><label>Enkelspel</label><select id="mySingles" ${testPlayer?'disabled':''}><option value="no" ${vp?.singlesAllowed!==true?'selected':''}>Nee</option><option value="yes" ${vp?.singlesAllowed===true?'selected':''}>Ja, alleen als het voor de baanindeling nodig is</option></select></div></div>${testPlayer?'<p>In testweergave kun je deze persoonsgegevens niet wijzigen.</p>':'<button id="saveMine">Wijzigingen opslaan</button><div id="myMsg"></div>'}</div>`;bindTestBanner();if(!testPlayer)$('saveMine').onclick=saveMyData}
+async function saveMyData(){const phone=$('myPhone').value.trim(),singles=$('mySingles').value==='yes',m=$('myMsg');try{await updateDoc(doc(db,'users',user.uid),{phone,singlesAllowed:singles,updatedAt:serverTimestamp()});profile={...profile,phone,singlesAllowed:singles};if(profile.playerId){try{await updateDoc(doc(db,'seasons',seasonId(),'players',profile.playerId),{phone,singlesAllowed:singles,updatedAt:serverTimestamp()})}catch(_){}}m.textContent='✓ Je gegevens zijn opgeslagen.';m.className='message'}catch(e){console.error(e);m.textContent='Opslaan lukt niet. Controleer de Firestore-regels.';m.className='message error'}}
+
+function downloadTextFile(name,text,type='application/vnd.ms-excel;charset=utf-8'){const blob=new Blob(['\ufeff'+text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+function exportExcel(name,headers,rows){const clean=v=>String(v??'').replace(/\t/g,' ').replace(/\r?\n/g,' ');downloadTextFile(name,[headers,...rows].map(r=>r.map(clean).join('\t')).join('\n'))}
+function exportPdf(title,headers,rows){const w=window.open('','_blank');if(!w){alert('Sta pop-ups toe om de PDF-export te openen.');return}const h=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#17251d}h1{color:#087b42;font-size:22px}table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #ccc;padding:6px;text-align:left}th{background:#e9f6ee}@media print{button{display:none}}</style></head><body><h1>${esc(title)}</h1><p>${esc(season?.name||'')}</p><table><thead><tr>${headers.map(x=>`<th>${esc(x)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table><script>setTimeout(()=>window.print(),300)<\\/script></body></html>`;w.document.open();w.document.write(h);w.document.close()}
+function beheer(initialTab='season'){if(!admin())return;const allowed=['season','players','lineup','results','payments','rules',...(head()?['admins']:[])],start=allowed.includes(initialTab)?initialTab:'season',s=$('screen');s.innerHTML=`<div class="adminbar"><b>⚙️ Beheer</b><button class="secondary" id="close">Sluiten</button></div><div class="admintabs"><button data-a="season">Seizoen</button><button data-a="players">Spelers</button><button data-a="lineup">Indeling</button><button data-a="results">Uitslagen</button><button data-a="payments">Betalen</button>${head()?'<button data-a="admins">Beheerders</button>':''}<button data-a="rules">Uitleg</button></div><div id="ap"></div>`;$('close').onclick=()=>go('home');s.querySelectorAll('[data-a]').forEach(b=>{b.classList.toggle('active',b.dataset.a===start);b.onclick=()=>{s.querySelectorAll('[data-a]').forEach(x=>x.classList.toggle('active',x===b));ap(b.dataset.a)}});ap(start)}
+function generateSaturdays(startKey,endKey){const out=[],d=keyDate(startKey),end=keyDate(endKey);while(d<=end){if(d.getDay()===6)out.push(toKey(d));d.setDate(d.getDate()+1)}return out}
+
+async function renderSeasonAdmin(){
+ const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Seizoen & speeldata</h2><p>Laden…</p></div>';const sid=seasonId();
+ const [dateSnap,ps,cs,rs,seasonsSnap]=await Promise.all([getDocs(query(collection(db,'seasons',sid,'playDates'),orderBy('dateKey'))),getDocs(collection(db,'seasons',sid,'players')),getDocs(collection(db,'seasons',sid,'couples')),getDocs(collection(db,'seasons',sid,'reserves')),getDocs(collection(db,'seasons'))]);
+ const saved=dateSnap.docs.map(d=>({id:d.id,...d.data()})),players=ps.docs.map(x=>({id:x.id,...x.data()})),couples=cs.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b)),reserves=rs.docs.map(x=>({id:x.id,...x.data()})),closeDay=season?.defaultCloseDay||'friday',closeTime=season?.defaultCloseTime||'18:00',today=toKey(new Date());
+ const past=saved.filter(d=>d.status!=='cancelled'&&d.dateKey<today),future=saved.filter(d=>d.status!=='cancelled'&&d.dateKey>=today),activeDates=saved.filter(d=>d.status!=='cancelled'),finalDateKey=season?.finalDateKey||activeDates.at(-1)?.dateKey||'';
+ const lineupSnaps=await Promise.all(past.map(d=>getDoc(doc(db,'seasons',sid,'playDates',d.id,'public','lineup'))));
+ const stat=new Map(players.map(p=>[p.id,{played:0,sub:0}])),rstat=new Map(reserves.map(r=>[r.id,0]));
+ lineupSnaps.forEach(ls=>{if(!ls.exists()||ls.data()?.published!==true)return;(ls.data().courts||[]).forEach(c=>{[['teamAIds','teamACoupleIds'],['teamBIds','teamBCoupleIds']].forEach(([ik,ck])=>{const ids=c[ik]||[],cids=c[ck]||[];ids.forEach(id=>{if(stat.has(id)){const st=stat.get(id),own=couples.find(cp=>(cp.memberIds||[]).includes(id))?.id;if(own&&cids.includes(own))st.played++;else st.sub++}else if(rstat.has(id))rstat.set(id,rstat.get(id)+1)})})})});
+ const futurePlans=await Promise.all(future.map(d=>getDocs(collection(db,'seasons',sid,'playDates',d.id,'couplePlans'))));
+ const planMap=new Map();future.forEach((d,i)=>{const m=new Map();futurePlans[i].docs.forEach(x=>m.set(x.id,x.data()));planMap.set(d.id,m)});
+ const shortDate=k=>new Intl.DateTimeFormat('nl-NL',{day:'numeric',month:'short'}).format(keyDate(k)).replace('.','');
+ const statusCode=s=>s==='speelt'?'<span class="choice-code play">S</span>':s==='reserve'?'<span class="choice-code reserve">R</span>':s==='afwezig'?'<span class="choice-code absent">A</span>':'<span class="choice-code empty">–</span>';
+ const allPlayerNames=players.map(p=>p.name||p.id);
+ const statRows=couples.flatMap(c=>(c.memberIds||[]).map(pid=>{const p=players.find(x=>x.id===pid)||{},st=stat.get(pid)||{played:0,sub:0};return [coupleNumber(c.id,c),compactName(p.name||pid,allPlayerNames),st.played,st.sub,st.played+st.sub]}));
+ const reserveNames=reserves.map(r=>r.name||r.id),reserveRows=reserves.map(r=>[compactName(r.name||r.id,reserveNames),rstat.get(r.id)||0]);
+ const futureHead=future.map(d=>`<th>${esc(shortDate(d.dateKey))}</th>`).join('');
+ const futureRows=couples.map(c=>{const mids=c.memberIds||[],no=coupleNumber(c.id,c);return mids.map((pid,idx)=>{const p=players.find(x=>x.id===pid)||{},cells=future.map(d=>{const pl=planMap.get(d.id)?.get(c.id)||{},st=idx===0?pl.member1Status:pl.member2Status,approvedSub=pl.member1Status==='afwezig'&&pl.member2Status==='afwezig'&&!!pl.substituteName&&pl.substituteApproval!=='pending'&&pl.substituteApproval!=='rejected',subCode=approvedSub&&idx===0?'<span class="choice-code substitute" title="Invaller geregeld">I</span>':'';return `<td><span class="choice-code-wrap">${statusCode(st)}${subCode}</span></td>`}).join('');return `<tr class="future-player-row"><td class="sticky-player compact-person"><span class="couple-mini">${idx===0?esc(no):''}</span><span>${esc(compactName(p.name||pid,allPlayerNames))}</span></td>${cells}</tr>`}).join('')}).join('');
+ const archives=seasonsSnap.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.id!==sid).sort((a,b)=>String(b.endDate||b.id).localeCompare(String(a.endDate||a.id)));
+ host.innerHTML=`<div class="admin-card"><div class="section-head"><div><h2>Huidig seizoen</h2><p><b>${esc(season?.name||sid)}</b><br>${esc(dateText(season?.startDate||saved[0]?.dateKey||''))} t/m ${esc(dateText(season?.endDate||saved.at(-1)?.dateKey||''))}</p></div></div><div class="season-summary"><div><small>Planning sluit op</small><b>${esc(closeDayNl(closeDay))} ${esc(closeTime)}</b></div><div><small>Standaard banen</small><b>${Number(season?.defaultCourts||2)}</b></div><div><small>Aantal koppels</small><b>${couples.length} <small>(${players.length} spelers)</small></b></div><div><small>Aantal reserves</small><b>${reserves.length}</b></div></div><div class="season-settings"><div><label>Planning sluit op</label><select id="closeDay"><option value="wednesday" ${closeDay==='wednesday'?'selected':''}>woensdag</option><option value="thursday" ${closeDay==='thursday'?'selected':''}>donderdag</option><option value="friday" ${closeDay==='friday'?'selected':''}>vrijdag</option></select></div><div><label>Tijd</label><input id="closeTime" type="time" value="${esc(closeTime)}"></div><div><label>Standaard banen</label><input id="courts" type="number" min="1" max="8" value="${Number(season?.defaultCourts||2)}"></div></div><div class="finale-setting"><label><input id="finalSaturdayEnabled" type="checkbox" ${season?.finalSaturdayEnabled===true?'checked':''}> <b>🏆 Finalezaterdag gebruiken</b></label><small>De laatste actieve speeldag is dan de finale${finalDateKey?`: <b>${esc(dateText(finalDateKey,false))}</b>`:''}. De indeling volgt 1+4 tegen 2+3 en 5+8 tegen 6+7; punten tellen dubbel, behalve invallers: maximaal 2 punten.</small></div><div class="admin-actions"><button id="saveDates">Algemene instellingen opslaan</button></div><div class="message" id="dateMsg"></div></div>
+ <div class="admin-card"><div class="section-head"><div><h2>Overzicht spelers seizoen</h2><p class="muted-note">Aantal keren gespeeld en ingevallen op basis van gepubliceerde indelingen.</p></div></div><div class="table-scroll"><table class="admin-table"><thead><tr><th>Koppel</th><th>Speler</th><th>Gespeeld</th><th>Ingevallen</th><th>Totaal</th></tr></thead><tbody>${statRows.map(r=>`<tr>${r.map(x=>`<td>${esc(x)}</td>`).join('')}</tr>`).join('')}</tbody></table></div><h3>Reserves</h3><div class="table-scroll"><table class="admin-table"><thead><tr><th>Naam</th><th>Ingevallen</th></tr></thead><tbody>${reserveRows.map(r=>`<tr><td>${esc(r[0])}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></div></div>
+ <div class="admin-card"><h2>Toekomstige spelerskeuzes</h2><p class="muted-note">Per koppel wat voor de komende zaterdagen is aangegeven.</p><div class="choice-legend"><span class="choice-code play">S</span> Speelt <span class="choice-code reserve">R</span> Reserve <span class="choice-code absent">A</span> Afwezig <span class="choice-code substitute">I</span> Invaller geregeld <span class="choice-code empty">–</span> Nog niet ingevuld</div><div class="future-scroll"><table class="admin-table future-table"><thead><tr><th class="sticky-player">Speler</th>${futureHead}</tr></thead><tbody>${futureRows}</tbody></table></div></div>
+ <div class="admin-card"><h2>Speelzaterdagen beheren</h2><div class="playdate-list">${saved.map(d=>`<label class="playdate-item"><input class="pd-check" type="checkbox" data-date="${esc(d.dateKey)}" data-original="${d.status!=='cancelled'?'active':'cancelled'}" ${d.status!=='cancelled'?'checked':''}><span><b>${esc(dateText(d.dateKey))}</b><br><small>${d.status!=='cancelled'?'Spelen':'Niet spelen'}</small></span></label>`).join('')}</div></div>
+ <div class="admin-card"><h2>Vorige seizoenen</h2><p class="muted-note">Afgesloten seizoenen blijven volledig bewaard, inclusief spelerskeuzes, baanindelingen, uitslagen, standen en betalingen.</p>${archives.length?archives.map(a=>`<div class="archive-row"><div><b>${esc(a.name||a.id)}</b><small>${esc(a.startDate||'')} t/m ${esc(a.endDate||'')} · ${a.active===false?'Gearchiveerd':'Niet actief'}</small></div><span>🔒 Bewaard</span></div>`).join(''):'<p>Nog geen vorig seizoen opgeslagen.</p>'}</div>
+ ${head()?`<div class="admin-card reset-season-card"><h2>🧹 Competitie schoon starten</h2><p>Gebruik dit één keer na de testfase. Spelers, koppels, reserves, beheerders, speeldata, speelsterktes, seizoeninstellingen en spelregels blijven staan.</p><p><b>Wordt gewist:</b> alle spelerskeuzes en vervangers, gepubliceerde baanindelingen, uitslagen, stand, gespeelde/invalbeurten, speelhistorie en betalingen van het huidige seizoen.</p><button id="resetTestData" class="danger">🧹 Testgegevens wissen en op 0 starten</button><div id="resetTestMsg" class="message"></div></div><div class="admin-card new-season-card"><h2>Nieuw seizoen</h2><p>Maak pas een nieuw seizoen aan als de vaste spelers, reserves en nieuwe speeldata bekend zijn. Het huidige seizoen wordt niet verwijderd maar als archief bewaard.</p><button id="newSeason" class="danger-outline">＋ Start nieuw seizoen</button></div>`:''}<div id="newSeasonBox"></div>`;
+ const updateCount=()=>{const n=host.querySelectorAll('.pd-check:checked').length;$('dateMsg').textContent=`${n} speelzaterdagen geselecteerd. Planning sluit ${closeDayNl($('closeDay').value)} om ${$('closeTime').value}.`;host.querySelectorAll('.playdate-item').forEach(l=>{const c=l.querySelector('input'),sm=l.querySelector('small');sm.textContent=c.checked?'Spelen':'Niet spelen';sm.className=c.checked?'':'off'})};
+ host.querySelectorAll('.pd-check').forEach(c=>c.onchange=()=>{updateCount();const changed=[...host.querySelectorAll('.pd-check')].some(x=>(x.checked?'active':'cancelled')!==x.dataset.original);if(changed){$('dateMsg').textContent+=` Wijzigingen zijn nog niet opgeslagen.`;$('dateMsg').className='message'}});
+ $('closeDay').onchange=updateCount;$('closeTime').onchange=updateCount;updateCount();$('saveDates').onclick=savePlayDates;if($('newSeason'))$('newSeason').onclick=startNewSeasonWizard;if($('resetTestData'))$('resetTestData').onclick=resetCurrentSeasonTestData
+}
+
+
+async function deleteRefsInBatches(refs){
+ for(let i=0;i<refs.length;i+=450){const batch=writeBatch(db);refs.slice(i,i+450).forEach(r=>batch.delete(r));await batch.commit()}
+}
+async function resetCurrentSeasonTestData(){
+ if(!head()||!season)return;
+ const sid=seasonId(),btn=$('resetTestData'),msg=$('resetTestMsg');
+ const first=confirm(`TESTGEGEVENS WISSEN?\n\nHiermee maak je ${season?.name||sid} volledig schoon voor de echte competitie.\n\nBLIJFT STAAN:\n• spelers, koppels en reserves\n• accounts en beheerders\n• speeldata en seizoeninstellingen\n• speelsterktes en enkelspelvoorkeuren\n• spelregels\n\nWORDT DEFINITIEF GEWIST:\n• alle spelerskeuzes en vervangers\n• alle baanindelingen\n• alle uitslagen en standen\n• gespeelde/invalbeurten en speelhistorie\n• alle betalingen\n\nDoorgaan?`);
+ if(!first)return;
+ const second=confirm('LAATSTE CONTROLE\n\nWeet je zeker dat alle testgegevens van dit seizoen definitief mogen worden gewist?\n\nDruk op OK om de competitie schoon op 0 te starten.');
+ if(!second){if(msg){msg.textContent='Wissen geannuleerd.';msg.className='message'}return}
+ if(btn){btn.disabled=true;btn.textContent='Bezig met wissen…'};if(msg){msg.textContent='Testgegevens worden verwijderd…';msg.className='message'}
+ try{
+  const refs=[];
+  const dates=await getDocs(collection(db,'seasons',sid,'playDates'));
+  for(const d of dates.docs){
+   for(const sub of ['couplePlans','public','results']){
+    const snap=await getDocs(collection(db,'seasons',sid,'playDates',d.id,sub));
+    snap.docs.forEach(x=>refs.push(x.ref));
+   }
   }
-  return false;
-}
-
-function subscribeToCloudData(){
-  if(!db || !currentUser) return;
-  if(cloudUnsubscribe) cloudUnsubscribe();
-
-  setSyncStatus("Gegevens laden…");
-  cloudUnsubscribe=db.doc(SHARED_DATA_DOC).onSnapshot(async snap=>{
-    try{
-      if(snap.exists){
-        const remote=snap.data() || {};
-        try{ localStorage.setItem(DATA_BACKUP_KEY,JSON.stringify(data)); }catch(e){ console.warn("Lokale back-up mislukt",e); }
-
-        const remoteWishes=cloudList(remote.wishes);
-        const remoteRecipes=cloudList(remote.recipes);
-        const remoteProducts=cloudList(remote.products);
-
-        applyingRemote=true;
-        data={
-          family:cloudList(remote.family) || cloneDefaults().family,
-          households:cloudList(remote.households) || cloneDefaults().households,
-          recipes:remoteRecipes || [],
-          groceries:cloudList(remote.groceries) || [],
-          wishes:remoteWishes || [],
-          giftEvents:cloudList(remote.giftEvents) || [],
-          events:Array.isArray(data.events)?data.events:(cloudList(remote.events) || []),
-          weekMenus:Array.isArray(data.weekMenus)?data.weekMenus:(cloudList(remote.weekMenus) || []),
-          notifications:cloudList(remote.notifications) || [],
-          products:remoteProducts || [],
-          outings:cloudList(remote.outings) || [],
-          stores:(cloudList(remote.stores) || []).length ? cloudList(remote.stores) : data.stores
-        };
-
-        localStorage.setItem(KEY,JSON.stringify(data));
-        renderAll();
-        applyingRemote=false;
-        cloudReady=true;
-        setSyncStatus("Alles is gesynchroniseerd");
-
-        if(!data.wishes.length){
-          const restored=await restoreWishesDirectlyFromFirestore();
-          if(restored) setSyncStatus("✓ Wensen rechtstreeks uit Firebase hersteld");
-        }
-
-        if(data.wishes.length || data.recipes.length || data.products.length){
-          setTimeout(()=>migrateInlineSharedPhotos(),250);
-        }
-      }else{
-        cloudReady=true;
-        setSyncStatus("Firebase-document ontbreekt",true);
-      }
-    }catch(error){
-      applyingRemote=false;
-      console.error("Gedeelde Firebase-data verwerken mislukt",error);
-      setSyncStatus("Gedeelde gegevens konden niet worden geladen",true);
-    }
-  },error=>{
-    console.error("Firebase-data laden mislukt",error);
-    setSyncStatus("Firebase-data kon niet worden geladen",true);
-  });
-}
-
-function fmtDate(iso){ return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(iso+"T12:00:00")); }
-function ageFor(iso){
-  const b=new Date(iso+"T12:00:00"), n=new Date(); let a=n.getFullYear()-b.getFullYear();
-  if(n < new Date(n.getFullYear(),b.getMonth(),b.getDate())) a--; return a;
-}
-function getNextBirthday(){
-  const now=new Date(); now.setHours(0,0,0,0);
-  return data.family.map(p=>{
-    const b=new Date(p.birth+"T12:00:00");
-    let next=new Date(now.getFullYear(),b.getMonth(),b.getDate());
-    if(next<now) next.setFullYear(next.getFullYear()+1);
-    return {...p,next,days:Math.round((next-now)/86400000)};
-  }).sort((a,b)=>a.days-b.days)[0];
-}
-function initials(name=""){ return name.split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase() || "?"; }
-
-function currentPersonName(){
-  const name=currentUser?.displayName || currentUser?.name || "";
-  const exact=data.family.find(p=>p.name.toLowerCase()===name.toLowerCase());
-  if(exact) return exact.name;
-
-  const email=(currentUser?.email || "").toLowerCase();
-  const byEmail=data.family.find(p=>(p.email || "").toLowerCase()===email);
-  return byEmail?.name || name;
-}
-
-function isDiaryOwner(){
-  return (currentUser?.email || "").toLowerCase()===DIARY_OWNER_EMAIL;
-}
-
-function updateDiaryAccess(){
-  const allowed=isDiaryOwner();
-  const menu=document.getElementById("diaryMenuBtn");
-  const page=document.querySelector('[data-page="dagboek"]');
-  const homeCard=document.getElementById("dashboardDiaryCard");
-  if(menu) menu.classList.toggle("hidden",!allowed);
-  if(homeCard) homeCard.classList.toggle("hidden",!allowed);
-  if(page) page.classList.toggle("diary-denied",!allowed);
-  if(!allowed && page?.classList.contains("active")) navigate("home");
-}
-
-function canManageWish(wish){
-  return wish.person===currentPersonName();
-}
-
-function householdById(id){ return data.households.find(h=>h.id===id); }
-function mealAttendees(meal){
-  const household=householdById(meal?.householdId || currentWeekmenuHousehold);
-  if(Array.isArray(meal?.attendees)) return meal.attendees;
-  return (household?.members || []).map(name=>({type:"family",name}));
-}
-function attendeeCount(meal){ return Math.max(1,mealAttendees(meal).length); }
-function addNotification({householdId="",text="",type="info"}){
-  data.notifications=data.notifications || [];
-  data.notifications.unshift({id:crypto.randomUUID(),householdId,text,type,createdBy:currentPersonName(),createdAt:new Date().toISOString(),readBy:[]});
-  data.notifications=data.notifications.slice(0,150);
-}
-function visibleNotifications(){
-  const ids=userHouseholdIds();
-  return (data.notifications || []).filter(n=>!n.householdId || ids.includes(n.householdId));
-}
-function renderNotifications(){
-  if(!window.notificationList) return;
-  const email=(currentUser?.email || "").toLowerCase();
-  const rows=visibleNotifications();
-  notificationList.innerHTML=rows.length?rows.map(n=>`<article class="item-card notification-item ${n.readBy?.includes(email)?"is-read":""}">
-    <div><strong>${escapeHtml(n.text)}</strong><div class="meta">${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}).format(new Date(n.createdAt))}${n.createdBy?` · door ${escapeHtml(n.createdBy)}`:""}</div></div>
-    <button class="mini-btn" onclick="markNotificationRead('${n.id}')">${n.readBy?.includes(email)?"Gelezen":"Markeer gelezen"}</button>
-  </article>`).join(""):`<div class="card muted">Nog geen meldingen.</div>`;
-  const unread=rows.filter(n=>!n.readBy?.includes(email)).length;
-  if(window.notificationBadge){ notificationBadge.textContent=unread; notificationBadge.classList.toggle("hidden",!unread); }
-}
-window.markNotificationRead=id=>{
-  const n=(data.notifications || []).find(x=>x.id===id); if(!n)return;
-  const email=(currentUser?.email || "").toLowerCase(); n.readBy=Array.from(new Set([...(n.readBy||[]),email])); saveData();
-};
-
-
-
-const WEEK_DAYS=["Vrijdag","Zaterdag","Zondag","Maandag","Dinsdag","Woensdag","Donderdag"];
-
-function getMonday(value){
-  const date=new Date(value);
-  date.setHours(12,0,0,0);
-  const day=date.getDay();
-  const diff=day===0 ? -6 : 1-day;
-  date.setDate(date.getDate()+diff);
-  return date;
-}
-
-function getFriday(value){
-  const date=new Date(value);
-  date.setHours(12,0,0,0);
-  const day=date.getDay();
-  const diff=(day-5+7)%7;
-  date.setDate(date.getDate()-diff);
-  return date;
-}
-
-function isoDate(date){
-  const d=new Date(date);
-  const y=d.getFullYear();
-  const m=String(d.getMonth()+1).padStart(2,"0");
-  const day=String(d.getDate()).padStart(2,"0");
-  return `${y}-${m}-${day}`;
-}
-
-function addDays(date,days){
-  const d=new Date(date);
-  d.setDate(d.getDate()+days);
-  return d;
-}
-
-function getIsoWeek(date){
-  const d=new Date(Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()));
-  const dayNum=d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate()+4-dayNum);
-  const yearStart=new Date(Date.UTC(d.getUTCFullYear(),0,1));
-  return Math.ceil((((d-yearStart)/86400000)+1)/7);
-}
-
-function accessibleHouseholds(){
-  const ids=userHouseholdIds();
-  return data.households.filter(h=>ids.includes(h.id));
-}
-
-function weekMenuKey(){
-  return isoDate(currentWeekStart);
-}
-
-function getWeekMeals(householdId=currentWeekmenuHousehold,weekStart=weekMenuKey()){
-  return (data.weekMenus || []).filter(m=>m.householdId===householdId && m.weekStart===weekStart);
-}
-
-function getMealForDay(dayIndex){
-  return getWeekMeals().find(m=>Number(m.dayIndex)===Number(dayIndex));
-}
-
-function recipeMealName(meal){
-  if(meal.recipeId){
-    return data.recipes.find(r=>r.id===meal.recipeId)?.name || meal.name || "Onbekend recept";
+  for(const sub of ['standings','payments']){
+   const snap=await getDocs(collection(db,'seasons',sid,sub));
+   snap.docs.forEach(x=>refs.push(x.ref));
   }
-  return meal.name || "Gerecht";
-}
-
-function formatWeekRange(){
-  const end=addDays(currentWeekStart,6);
-  const formatter=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"});
-  return `${formatter.format(currentWeekStart)} t/m ${formatter.format(end)}`;
-}
-
-function fillWeekmenuHouseholds(){
-  if(!window.weekmenuHousehold) return;
-  const allowed=accessibleHouseholds();
-
-  if(!allowed.some(h=>h.id===currentWeekmenuHousehold)){
-    currentWeekmenuHousehold=allowed[0]?.id || "";
+  await deleteRefsInBatches(refs);
+  // Controle: na het wissen mogen de wedstrijd-/testcollecties echt leeg zijn.
+  let remaining=0;
+  const verifyDates=await getDocs(collection(db,'seasons',sid,'playDates'));
+  for(const d of verifyDates.docs){
+   for(const sub of ['couplePlans','public','results']) remaining+=(await getDocs(collection(db,'seasons',sid,'playDates',d.id,sub))).size;
   }
+  for(const sub of ['standings','payments']) remaining+=(await getDocs(collection(db,'seasons',sid,sub))).size;
+  if(remaining)throw new Error(`Resetcontrole: ${remaining} testdocument(en) staan nog in Firestore.`);
+  lineupState=null;substituteContext=null;testPlayer=null;
+  if(msg){msg.textContent=`✓ Klaar. ${refs.length} testdocumenten verwijderd. De competitie staat weer op nul.`;msg.className='message'}
+  alert('Klaar. Alle testgegevens van het huidige seizoen zijn gewist. De competitie begint nu schoon vanaf nul.');
+  await renderSeasonAdmin();
+ }catch(e){
+  console.error(e);
+  if(msg){msg.textContent=`Wissen is niet volledig gelukt${e?.message?`: ${e.message}`:'.'} Spelers, koppels en reserves zijn niet verwijderd.`;msg.className='message error'}
+  if(btn){btn.disabled=false;btn.textContent='🧹 Testgegevens wissen en op 0 starten'}
+ }
+}
+async function startNewSeasonWizard(){
+ if(!head())return;
+ const ok=confirm(`Nieuw seizoen starten?\n\nWeet je dit zeker?\n\nHet huidige seizoen ${season?.name||seasonId()} wordt bij de definitieve stap afgesloten en als archief bewaard. Alle uitslagen, standen, betalingen, spelerskeuzes, baanindelingen en invalbeurten blijven bewaard.\n\nJe kunt eerst de nieuwe data, vaste spelers, reserves en koppels controleren. Er wordt nu nog niets gewijzigd.`);
+ if(!ok)return;
+ const box=$('newSeasonBox');box.innerHTML='<div class="admin-card"><h2>Nieuw seizoen voorbereiden</h2><p>Laden…</p></div>';box.scrollIntoView({behavior:'smooth',block:'start'});
+ const [ps,cs,rs]=await Promise.all([getDocs(collection(db,'seasons',seasonId(),'players')),getDocs(collection(db,'seasons',seasonId(),'couples')),getDocs(collection(db,'seasons',seasonId(),'reserves'))]);
+ const players=ps.docs.map(x=>({id:x.id,...x.data(),role:'fixed'})),reserves=rs.docs.map(x=>({id:x.id,...x.data(),role:'reserve'})),couples=cs.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b));
+ const pairMap=new Map();couples.forEach(c=>(c.memberIds||[]).forEach(pid=>pairMap.set(pid,coupleNumber(c.id,c))));
+ newSeasonWizard={step:1,oldSeasonId:seasonId(),excludedDates:[],people:[...players,...reserves].map(p=>({...p,newRole:p.role,coupleNo:p.role==='fixed'?(pairMap.get(p.id)||''):''})),couples,settings:{name:`Seizoen ${Number((season?.endDate||'2027').slice(0,4))+0}/${Number((season?.endDate||'2027').slice(0,4))+1}`,start:'',end:'',startTime:season?.startTime||'10:00',endTime:season?.endTime||'12:00',courts:Number(season?.defaultCourts||2),closeDay:season?.defaultCloseDay||'friday',closeTime:season?.defaultCloseTime||'18:00'}};
+ renderNewSeasonWizard()
+}
+function renderNewSeasonWizard(){
+ const w=newSeasonWizard,box=$('newSeasonBox');if(!w||!box)return;
+ const steps=`<div class="wizard-steps"><span class="${w.step===1?'active':''}">1 Data</span><span class="${w.step===2?'active':''}">2 Spelers</span><span class="${w.step===3?'active':''}">3 Koppels</span><span class="${w.step===4?'active':''}">4 Bevestigen</span></div>`;
+ if(w.step===1){
+   box.innerHTML=`<div class="admin-card new-season-wizard">${steps}<h2>1. Nieuwe speeldata</h2><p>Vul eerst de periode en algemene instellingen voor het nieuwe seizoen in.</p><div class="formgrid"><div><label>Naam seizoen</label><input id="nsName" value="${esc(w.settings.name)}"></div><div><label>Eerste zaterdag</label><input id="nsStart" type="date" value="${esc(w.settings.start)}"></div><div><label>Laatste zaterdag</label><input id="nsEnd" type="date" value="${esc(w.settings.end)}"></div><div><label>Speeltijd van</label><input id="nsStartTime" type="time" value="${esc(w.settings.startTime)}"></div><div><label>Speeltijd tot</label><input id="nsEndTime" type="time" value="${esc(w.settings.endTime)}"></div><div><label>Standaard banen</label><input id="nsCourts" type="number" min="1" max="8" value="${Number(w.settings.courts||2)}"></div><div><label>Spelerskeuze sluit</label><select id="nsCloseDay"><option value="wednesday" ${w.settings.closeDay==='wednesday'?'selected':''}>woensdag</option><option value="thursday" ${w.settings.closeDay==='thursday'?'selected':''}>donderdag</option><option value="friday" ${w.settings.closeDay==='friday'?'selected':''}>vrijdag</option></select></div><div><label>Sluitingstijd</label><input id="nsCloseTime" type="time" value="${esc(w.settings.closeTime)}"></div></div><div class="ns-saturdays"><h3>Zaterdagen uitsluiten</h3><p class="muted-note">Alle zaterdagen tussen de eerste en laatste datum worden automatisch geselecteerd. Zet een vinkje uit voor een zaterdag waarop niet wordt gespeeld.</p><div id="nsSaturdayList"></div></div><div class="wizard-actions"><button class="secondary" id="nsCancel">Annuleren</button><button id="nsNext1">Verder naar spelers</button></div><div id="nsMsg"></div></div>`;
+   const refreshNsSats=()=>{const start=$('nsStart').value,end=$('nsEnd').value,list=$('nsSaturdayList');if(!start||!end||keyDate(start)>keyDate(end)){list.innerHTML='<p>Kies eerst een geldige eerste en laatste zaterdag.</p>';return}const sats=generateSaturdays(start,end);w.excludedDates=(w.excludedDates||[]).filter(k=>sats.includes(k));list.innerHTML=`<div class="ns-sat-grid">${sats.map(k=>`<label class="ns-sat-item"><input type="checkbox" data-nssat="${esc(k)}" ${w.excludedDates.includes(k)?'':'checked'}><span>${esc(dateText(k))}</span></label>`).join('')}</div><b class="ns-count">${sats.length-w.excludedDates.length} zaterdagen geselecteerd</b>`;list.querySelectorAll('[data-nssat]').forEach(ch=>ch.onchange=()=>{const key=ch.dataset.nssat,set=new Set(w.excludedDates||[]);if(ch.checked)set.delete(key);else set.add(key);w.excludedDates=[...set];refreshNsSats()})};
+   $('nsStart').onchange=refreshNsSats;$('nsEnd').onchange=refreshNsSats;refreshNsSats();
+   $('nsCancel').onclick=()=>{newSeasonWizard=null;box.innerHTML=''};$('nsNext1').onclick=()=>{const start=$('nsStart').value,end=$('nsEnd').value,m=$('nsMsg');if(!start||!end||keyDate(start)>keyDate(end)){m.textContent='Controleer de eerste en laatste zaterdag.';m.className='message error';return}const selected=generateSaturdays(start,end).filter(k=>!(w.excludedDates||[]).includes(k));if(!selected.length){m.textContent='Selecteer minimaal één speelzaterdag.';m.className='message error';return}w.settings={name:$('nsName').value.trim()||`Seizoen ${start.slice(0,4)}/${end.slice(0,4)}`,start,end,startTime:$('nsStartTime').value,endTime:$('nsEndTime').value,courts:Number($('nsCourts').value||2),closeDay:$('nsCloseDay').value,closeTime:$('nsCloseTime').value};w.step=2;renderNewSeasonWizard()}
+ }else if(w.step===2){
+   box.innerHTML=`<div class="admin-card new-season-wizard">${steps}<h2>2. Vaste spelers en reserves</h2><p>Kies per persoon de rol voor het nieuwe seizoen. Niemand wordt uit het oude seizoen verwijderd.</p><div class="role-list">${w.people.map((p,i)=>`<div class="role-row"><div><b>${esc(p.name||p.id)}</b><small>${p.role==='fixed'?'Nu vaste speler':'Nu reserve'}</small></div><select data-nsrole="${i}"><option value="fixed" ${p.newRole==='fixed'?'selected':''}>Vaste speler</option><option value="reserve" ${p.newRole==='reserve'?'selected':''}>Reserve</option><option value="skip" ${p.newRole==='skip'?'selected':''}>Niet meenemen</option></select></div>`).join('')}</div><div class="new-person-box"><h3>Nieuwe deelnemer toevoegen</h3><div class="formgrid"><div><label>Naam</label><input id="nsNewName"></div><div><label>E-mail</label><input id="nsNewEmail" type="email"></div><div><label>Telefoon</label><input id="nsNewPhone" type="tel"></div><div><label>Rol</label><select id="nsNewRole"><option value="fixed">Vaste speler</option><option value="reserve">Reserve</option></select></div></div><button class="secondary" id="nsAddPerson">Toevoegen</button></div><div class="wizard-actions"><button class="secondary" id="nsBack2">Terug</button><button id="nsNext2">Verder naar koppels</button></div><div id="nsMsg"></div></div>`;
+   box.querySelectorAll('[data-nsrole]').forEach(sel=>sel.onchange=()=>{const i=Number(sel.dataset.nsrole);w.people[i].newRole=sel.value;if(sel.value!=='fixed')w.people[i].coupleNo=''});
+   $('nsAddPerson').onclick=()=>{const name=$('nsNewName').value.trim(),m=$('nsMsg');if(!name){m.textContent='Vul eerst een naam in.';m.className='message error';return}w.people.push({id:`new_${Date.now()}`,name,email:$('nsNewEmail').value.trim(),phone:$('nsNewPhone').value.trim(),strength:5,singlesAllowed:false,role:'new',newRole:$('nsNewRole').value,coupleNo:''});renderNewSeasonWizard()};
+   $('nsBack2').onclick=()=>{w.step=1;renderNewSeasonWizard()};$('nsNext2').onclick=()=>{const fixed=w.people.filter(p=>p.newRole==='fixed');if(fixed.length<2||fixed.length%2!==0){const m=$('nsMsg');m.textContent='Het aantal vaste spelers moet even zijn en minimaal 2.';m.className='message error';return}w.step=3;renderNewSeasonWizard()}
+ }else if(w.step===3){
+   const fixed=w.people.filter(p=>p.newRole==='fixed'),max=Math.max(1,fixed.length/2),opts=Array.from({length:max},(_,i)=>i+1);
+   fixed.forEach(p=>{if(Number(p.coupleNo)>max)p.coupleNo=''});
+   box.innerHTML=`<div class="admin-card new-season-wizard">${steps}<h2>3. Nieuwe koppels</h2><p>Geef iedere vaste speler een koppelnummer. Elk koppel moet precies twee spelers hebben.</p><div class="couple-assign-list">${fixed.map(p=>`<div class="role-row"><b>${esc(p.name||p.id)}</b><select data-nscouple="${esc(p.id)}"><option value="">Kies koppel…</option>${opts.map(n=>`<option value="${n}" ${Number(p.coupleNo)===n?'selected':''}>Koppel ${n}</option>`).join('')}</select></div>`).join('')}</div><button class="secondary" id="nsAutoPairs">Oude koppels zoveel mogelijk behouden</button><div class="wizard-actions"><button class="secondary" id="nsBack3">Terug</button><button id="nsNext3">Controleer alles</button></div><div id="nsMsg"></div></div>`;
+   box.querySelectorAll('[data-nscouple]').forEach(sel=>sel.onchange=()=>{const p=w.people.find(x=>x.id===sel.dataset.nscouple);if(p)p.coupleNo=sel.value});
+   $('nsAutoPairs').onclick=()=>{let n=1;const used=new Set();w.couples.forEach(c=>{const members=(c.memberIds||[]).map(id=>w.people.find(p=>p.id===id)).filter(p=>p?.newRole==='fixed');if(members.length===2){members.forEach(p=>{p.coupleNo=n});used.add(...members.map(p=>p.id));n++}});fixed.filter(p=>!p.coupleNo).forEach((p,i,arr)=>{p.coupleNo=n+Math.floor(i/2)});renderNewSeasonWizard()};
+   $('nsBack3').onclick=()=>{w.step=2;renderNewSeasonWizard()};$('nsNext3').onclick=()=>{const groups=new Map();fixed.forEach(p=>{const n=Number(p.coupleNo);if(n){if(!groups.has(n))groups.set(n,[]);groups.get(n).push(p)}});const bad=fixed.some(p=>!p.coupleNo)||[...groups.values()].some(g=>g.length!==2);if(bad){const m=$('nsMsg');m.textContent='Ieder koppel moet precies twee vaste spelers bevatten.';m.className='message error';return}w.step=4;renderNewSeasonWizard()}
+ }else{
+   const fixed=w.people.filter(p=>p.newRole==='fixed'),reserves=w.people.filter(p=>p.newRole==='reserve'),groups=[...fixed.reduce((m,p)=>{const n=Number(p.coupleNo);if(!m.has(n))m.set(n,[]);m.get(n).push(p);return m},new Map()).entries()].sort((a,b)=>a[0]-b[0]),sats=generateSaturdays(w.settings.start,w.settings.end).filter(k=>!(w.excludedDates||[]).includes(k));
+   box.innerHTML=`<div class="admin-card new-season-wizard">${steps}<h2>4. Controle en bevestiging</h2><div class="confirm-warning"><b>⚠️ Pas na de groene knop hieronder wordt het huidige seizoen afgesloten.</b><br>Het oude seizoen blijft volledig als archief bestaan. Het nieuwe seizoen begint met 0 punten, 0 uitslagen en nieuwe spelerskeuzes.</div><div class="season-summary"><div><small>Nieuw seizoen</small><b>${esc(w.settings.name)}</b></div><div><small>Speelzaterdagen</small><b>${sats.length}</b></div><div><small>Koppels</small><b>${groups.length}</b></div><div><small>Reserves</small><b>${reserves.length}</b></div></div><h3>Nieuwe koppels</h3>${groups.map(([n,g])=>`<div class="archive-row"><b>Koppel ${n}</b><span>${esc(g.map(p=>p.name||p.id).join(' & '))}</span></div>`).join('')}<h3>Nieuwe reserves</h3><p>${reserves.length?reserves.map(p=>esc(p.name||p.id)).join(', '):'Geen reserves'}</p><div class="wizard-actions"><button class="secondary" id="nsBack4">Terug</button><button id="createSeason">✓ Seizoen definitief aanmaken</button></div><div id="nsMsg"></div></div>`;
+   $('nsBack4').onclick=()=>{w.step=3;renderNewSeasonWizard()};$('createSeason').onclick=createSeasonFromWizard
+ }
+ box.scrollIntoView({behavior:'smooth',block:'start'})
+}
+async function createSeasonFromWizard(){
+ const w=newSeasonWizard,m=$('nsMsg');if(!w)return;const sats=generateSaturdays(w.settings.start,w.settings.end).filter(k=>!(w.excludedDates||[]).includes(k)),id=`${w.settings.start.slice(0,4)}-${w.settings.end.slice(0,4)}`;
+ if(!confirm(`Laatste controle\n\nWeet je zeker dat je “${w.settings.name}” definitief wilt aanmaken?\n\nHet huidige seizoen wordt gearchiveerd en blijft volledig bewaard.`))return;
+ m.textContent='Nieuw seizoen wordt aangemaakt…';m.className='message';
+ try{
+   const exists=await getDoc(doc(db,'seasons',id));if(exists.exists()){m.textContent=`Er bestaat al een seizoen met id ${id}. Kies andere data of controleer het archief.`;m.className='message error';return}
+   const fixed=w.people.filter(p=>p.newRole==='fixed'),reserves=w.people.filter(p=>p.newRole==='reserve'),groups=[...fixed.reduce((map,p)=>{const n=Number(p.coupleNo);if(!map.has(n))map.set(n,[]);map.get(n).push(p);return map},new Map()).entries()].sort((a,b)=>a[0]-b[0]);
+   const batch=writeBatch(db),settings={name:w.settings.name,active:true,startDate:w.settings.start,endDate:w.settings.end,startTime:w.settings.startTime,endTime:w.settings.endTime,defaultCourts:w.settings.courts,defaultCloseDay:w.settings.closeDay,defaultCloseTime:w.settings.closeTime,createdAt:serverTimestamp(),updatedAt:serverTimestamp()};
+   batch.set(doc(db,'seasons',w.oldSeasonId),{active:false,archivedAt:serverTimestamp(),archivedBy:user.uid,updatedAt:serverTimestamp()},{merge:true});
+   batch.set(doc(db,'seasons',id),settings,{merge:false});
+   const safeId=p=>p.id.startsWith('new_')?`p_${String(p.name||'speler').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,32)}_${String(p.id).slice(-6)}`:p.id;
+   const idMap=new Map();
+   fixed.forEach(p=>{const pid=safeId(p);idMap.set(p.id,pid);batch.set(doc(db,'seasons',id,'players',pid),{name:p.name||'',email:p.email||'',phone:p.phone||'',strength:Number(p.strength||5),singlesAllowed:p.singlesAllowed===true,status:'active',updatedAt:serverTimestamp()},{merge:true})});
+   reserves.forEach(p=>{const rid=safeId(p);idMap.set(p.id,rid);batch.set(doc(db,'seasons',id,'reserves',rid),{name:p.name||'',email:p.email||'',phone:p.phone||'',strength:Number(p.strength||5),singlesAllowed:p.singlesAllowed===true,status:'active',updatedAt:serverTimestamp()},{merge:true})});
+   groups.forEach(([n,g])=>{const cid=`c${String(n).padStart(2,'0')}`,ids=g.map(p=>idMap.get(p.id)||p.id);batch.set(doc(db,'seasons',id,'couples',cid),{number:n,name:g.map(p=>p.name||p.id).join(' – '),memberIds:ids,status:'active',updatedAt:serverTimestamp()},{merge:true})});
+   sats.forEach(k=>batch.set(doc(db,'seasons',id,'playDates',k),{dateKey:k,startTime:settings.startTime,endTime:settings.endTime,courtCount:settings.defaultCourts,status:'active',closeAt:closeAtWith(k,settings.defaultCloseDay,settings.defaultCloseTime),updatedAt:serverTimestamp()}));
+   const us=await getDocs(collection(db,'users')),byEmail=new Map(w.people.filter(p=>p.email).map(p=>[String(p.email).trim().toLowerCase(),p]));
+   us.docs.forEach(u=>{const d=u.data(),p=byEmail.get(String(d.email||'').trim().toLowerCase());if(!p)return;const data={updatedAt:serverTimestamp()};if(p.newRole==='fixed'){data.participantType='fixed';data.coupleId=`c${String(Number(p.coupleNo)).padStart(2,'0')}`;data.playerId=idMap.get(p.id)||p.id;data.reserveId=''}else if(p.newRole==='reserve'){data.participantType='reserve';data.coupleId='';data.reserveId=idMap.get(p.id)||p.id;data.playerId=''}else{data.participantType='inactive';data.coupleId='';data.playerId='';data.reserveId=''}batch.update(u.ref,data)});
+   await batch.commit();season={id,...settings};const meEmail=String(user?.email||profile?.email||'').trim().toLowerCase(),mePerson=w.people.find(p=>String(p.email||'').trim().toLowerCase()===meEmail);if(mePerson){profile={...profile,participantType:mePerson.newRole==='fixed'?'fixed':mePerson.newRole==='reserve'?'reserve':'inactive',coupleId:mePerson.newRole==='fixed'?`c${String(Number(mePerson.coupleNo)).padStart(2,'0')}`:'',playerId:mePerson.newRole==='fixed'?(idMap.get(mePerson.id)||mePerson.id):'',reserveId:mePerson.newRole==='reserve'?(idMap.get(mePerson.id)||mePerson.id):''}}try{await syncPublicRoster()}catch(e){console.warn('Publieke spelerslijst kon niet worden bijgewerkt',e)}newSeasonWizard=null;m.textContent=`✓ ${settings.name} is aangemaakt. Het vorige seizoen staat veilig in het archief.`;setTimeout(renderSeasonAdmin,700)
+ }catch(e){console.error(e);m.textContent='Nieuw seizoen aanmaken is niet gelukt. Controleer de Firestore-regels en probeer opnieuw.';m.className='message error'}
+}
+async function savePlayDates(){
+ const checks=[...document.querySelectorAll('.pd-check')],disabled=checks.filter(c=>c.dataset.original==='active'&&!c.checked),changed=checks.filter(c=>(c.checked?'active':'cancelled')!==c.dataset.original);
+ if(disabled.length){const names=disabled.map(c=>dateText(c.dataset.date)).join('\n');if(!confirm(`Speeldag${disabled.length===1?'':'en'} uitschakelen?\n\n${names}\n\nDeze wijziging wordt pas nu opgeslagen. Bestaande keuzes/indelingen voor uitgeschakelde dagen blijven in Firestore staan, maar worden niet meer als actieve speeldag gebruikt.\n\nDoorgaan?`))return}
+ const b=$('saveDates'),m=$('dateMsg'),day=$('closeDay').value,time=$('closeTime').value,courts=Number($('courts').value||2),finalSaturdayEnabled=$('finalSaturdayEnabled')?.checked===true,activeKeys=checks.filter(c=>c.checked).map(c=>c.dataset.date).sort(),finalDateKey=finalSaturdayEnabled?(activeKeys.at(-1)||''):'';b.disabled=true;m.textContent='Bezig met opslaan…';try{const sid=seasonId(),batch=writeBatch(db);batch.set(doc(db,'seasons',sid),{defaultCloseDay:day,defaultCloseTime:time,defaultCourts:courts,finalSaturdayEnabled,finalDateKey,updatedAt:serverTimestamp()},{merge:true});checks.forEach(c=>{const key=c.dataset.date;batch.set(doc(db,'seasons',sid,'playDates',key),{status:c.checked?'active':'cancelled',closeAt:closeAtWith(key,day,time),updatedAt:serverTimestamp()},{merge:true})});await batch.commit();checks.forEach(c=>c.dataset.original=c.checked?'active':'cancelled');season={...season,defaultCloseDay:day,defaultCloseTime:time,defaultCourts:courts,finalSaturdayEnabled,finalDateKey};m.textContent=`✓ Algemene instellingen opgeslagen${changed.length?` · ${changed.length} speeldag${changed.length===1?'':'en'} aangepast`:''}. Planning sluit ${closeDayNl(day)} om ${time}.${finalSaturdayEnabled&&finalDateKey?` Finalezaterdag: ${dateText(finalDateKey,false)}.`:''}`;m.className='message'}catch(e){console.error(e);m.textContent='Opslaan lukt niet. Controleer de Firestore-regels.';m.className='message error'}finally{b.disabled=false}}
 
-  weekmenuHousehold.innerHTML=allowed.length
-    ? allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("")
-    : `<option value="">Geen huishouden gekoppeld</option>`;
-  weekmenuHousehold.value=currentWeekmenuHousehold;
-
-  addWeekMealBtn.disabled=!currentWeekmenuHousehold;
-  copyWeekmenuBtn.disabled=!currentWeekmenuHousehold;
-  weekmenuGroceriesBtn.disabled=!currentWeekmenuHousehold;
+async function renderPlayersAdmin(){
+ const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Spelers & koppels</h2><p>Laden…</p></div>';const [ps,cs,rs,us]=await Promise.all([getDocs(collection(db,'seasons',seasonId(),'players')),getDocs(collection(db,'seasons',seasonId(),'couples')),getDocs(collection(db,'seasons',seasonId(),'reserves')),getDocs(collection(db,'users'))]),players=ps.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'nl')),couples=cs.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b)),reserves=rs.docs.map(x=>({id:x.id,...x.data()})).sort((a,b)=>String(a.name).localeCompare(String(b.name),'nl')),users=us.docs.map(x=>({id:x.id,...x.data()}));
+ const norm=v=>String(v||'').trim().toLowerCase(),accountStatus=email=>{const u=users.find(x=>norm(x.email)===norm(email));if(!u)return '<span class="account-state">⚪ Nog niet geactiveerd</span>';if(u.status==='active')return '<span class="account-state active">🟢 Account geactiveerd</span>';if(u.status==='pending')return '<span class="account-state pending">🟠 Wacht op goedkeuring</span>';if(u.status==='rejected')return '<span class="account-state rejected">🔴 Aanvraag geweigerd</span>';return '<span class="account-state">⚪ Nog niet geactiveerd</span>'};
+ host.innerHTML=`<div class="admin-card"><h2>Spelers & koppels</h2><div class="notice"><b>🔒 Speelsterkte is alleen zichtbaar voor beheerders.</b><br><small>Schaal 1–9: 1 = sterkst, 9 = minst sterk. De speelsterkte wordt gebruikt voor de automatische indeling en wordt niet gepubliceerd bij de spelers.</small></div><div class="notice"><b>🔐 Accountstatus</b><br><small>Je ziet hieronder meteen wie zijn account heeft geactiveerd en wie nog niet.</small>${head()?'<br><button id="syncAccessEmailsBtn" class="secondary compact-action">🔄 E-mailtoegang vernieuwen</button>':''}</div><div class="import-summary"><div><b>${players.length}</b>vaste spelers</div><div><b>${couples.length}</b>koppels</div><div><b>${reserves.length}</b>reserves</div></div><div class="export-wrap"><button id="nawExport" class="secondary compact-action">📤 Exporteren</button><div id="nawExportChoices" class="export-choices hidden"><button id="nawExcel" class="secondary">📊 Excel</button><button id="nawWhatsApp" class="secondary">📱 WhatsApp</button></div></div><h3>Vaste spelers</h3>${players.map(p=>`<div class="person-card"><div><b>${esc(p.name||p.id)}</b><small>${esc(p.email||'Geen e-mail')} · ${esc(p.phone||'Geen telefoon')} · speelsterkte ${Number(p.strength||5)} · enkelspel: ${p.singlesAllowed===true?'ja':'nee'}</small>${accountStatus(p.email)}</div><button class="secondary edit-mini" data-editp="${esc(p.id)}">✏️ Bewerken</button></div>`).join('')}<h3>Koppels</h3><div class="couple-grid">${couples.map(c=>{const names=String(c.name||'').split(' – ');return `<div class="couple-card"><span>Koppel ${esc(coupleNumber(c.id,c))}</span>${names.map(n=>`<b>${esc(n)}</b>`).join('')}</div>`}).join('')}</div><div class="section-head"><h3>Reserves</h3><button id="addReserve" class="compact-action">+ Nieuwe reserve</button></div>${reserves.map(r=>`<div class="person-card"><div><b>${esc(r.name||r.id)}</b><small>${esc(r.email||'Geen e-mail')} · ${esc(r.phone||'Geen telefoon')} · speelsterkte ${Number(r.strength||5)} · enkelspel: ${r.singlesAllowed===true?'ja':'nee'}</small>${accountStatus(r.email)}</div><button class="secondary edit-mini" data-editr="${esc(r.id)}">✏️ Bewerken</button></div>`).join('')}</div>`;
+ if($('addReserve'))$('addReserve').onclick=()=>newReserve();if($('syncAccessEmailsBtn'))$('syncAccessEmailsBtn').onclick=async()=>{const b=$('syncAccessEmailsBtn');b.disabled=true;b.textContent='Bezig…';try{const n=await syncAccessEmails();b.textContent=`✓ ${n} e-mailadressen bijgewerkt`}catch(e){console.error(e);b.textContent='❌ Bijwerken mislukt'}finally{setTimeout(()=>{if(b){b.disabled=false;b.textContent='🔄 E-mailtoegang vernieuwen'}},1800)}};host.querySelectorAll('[data-editp]').forEach(b=>b.onclick=()=>editPerson('players',players.find(p=>p.id===b.dataset.editp)));host.querySelectorAll('[data-editr]').forEach(b=>b.onclick=()=>editPerson('reserves',reserves.find(r=>r.id===b.dataset.editr)));const nawRows=[...players.map(p=>[p.name||'',playerCoupleLabel(p.id,couples),p.email||'',p.phone||'','Vaste speler',Number(p.strength||5)]),...reserves.map(r=>[r.name||'','',r.email||'',r.phone||'','Reserve',Number(r.strength||5)])];$('nawExport').onclick=()=>$('nawExportChoices').classList.toggle('hidden');$('nawExcel').onclick=()=>exportExcel('Wildenhorst-spelers-en-reserves.xls',['Naam','Koppel','E-mail','Telefoon','Type','Speelsterkte'],nawRows);$('nawWhatsApp').onclick=()=>{const lines=['🎾 Wildenhorst – spelerslijst','','Vaste spelers'];couples.forEach(c=>{lines.push('',`Koppel ${coupleNumber(c.id,c)}`);(c.memberIds||[]).forEach(pid=>{const p=players.find(x=>x.id===pid);if(p){lines.push(p.name||'');if(p.email)lines.push(p.email);if(p.phone)lines.push(p.phone)}})});lines.push('','Reserves');reserves.forEach(r=>{lines.push('',r.name||r.id);if(r.email)lines.push(r.email);if(r.phone)lines.push(r.phone)});waOpen(lines.join('\n'))}
+}
+function newReserve(){
+ let dlg=$('personEditDialog');if(!dlg){dlg=document.createElement('dialog');dlg.id='personEditDialog';document.body.appendChild(dlg)}
+ dlg.innerHTML=`<div class="dialog person-edit-dialog"><h2>Nieuwe reserve</h2><div class="formgrid"><div><label>Naam</label><input id="nrName" placeholder="Voor- en achternaam"></div><div><label>E-mailadres</label><input id="nrEmail" type="email"></div><div><label>Telefoonnummer</label><input id="nrPhone" type="tel"></div><div><label>Enkelspel</label><select id="nrSingles"><option value="no" selected>Nee</option><option value="yes">Ja</option></select></div><div><label>Speelsterkte (alleen beheerders)</label><select id="nrStrength">${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${n===5?'selected':''}>${n}</option>`).join('')}</select><small>1 = sterkst, 9 = minst sterk</small></div></div><div class="dialog-actions"><button id="nrSave">Reserve toevoegen</button><button id="nrCancel" class="secondary">Annuleren</button></div><div id="nrMsg"></div></div>`;
+ $('nrCancel').onclick=()=>dlg.close();$('nrSave').onclick=async()=>{const name=$('nrName').value.trim(),email=$('nrEmail').value.trim().toLowerCase(),msg=$('nrMsg');if(!name){msg.textContent='Vul de naam van de reserve in.';msg.className='message error';return}try{const base=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,32)||'reserve',rid=`r_${base}_${Date.now().toString(36).slice(-6)}`;await setDoc(doc(db,'seasons',seasonId(),'reserves',rid),{name,email,phone:$('nrPhone').value.trim(),singlesAllowed:$('nrSingles').value==='yes',strength:Number($('nrStrength').value||5),status:'active',updatedAt:serverTimestamp()});if(head())await syncAccessEmails();await syncPublicRoster();msg.textContent='✓ Reserve toegevoegd en spelerslijst bijgewerkt';msg.className='message';setTimeout(()=>{dlg.close();renderPlayersAdmin()},500)}catch(e){console.error(e);msg.textContent='Reserve toevoegen lukt niet.';msg.className='message error'}};dlg.showModal()
+}
+function editPerson(kind,p){
+ let dlg=$('personEditDialog');if(!dlg){dlg=document.createElement('dialog');dlg.id='personEditDialog';document.body.appendChild(dlg)}
+ dlg.innerHTML=`<div class="dialog person-edit-dialog"><h2>Gegevens wijzigen</h2><h3>${esc(p.name||p.id)}</h3><div class="formgrid"><div><label>Naam</label><input id="epName" value="${esc(p.name||'')}"></div><div><label>E-mailadres</label><input id="epEmail" type="email" value="${esc(p.email||'')}"></div><div><label>Telefoonnummer</label><input id="epPhone" type="tel" value="${esc(p.phone||'')}"></div><div><label>Enkelspel</label><select id="epSingles"><option value="no" ${p.singlesAllowed!==true?'selected':''}>Nee</option><option value="yes" ${p.singlesAllowed===true?'selected':''}>Ja</option></select></div><div><label>Speelsterkte (alleen beheerders)</label><select id="epStrength">${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${Number(p.strength||5)===n?'selected':''}>${n}</option>`).join('')}</select><small>1 = sterkst, 9 = minst sterk</small></div></div><div class="dialog-actions"><button id="epSave">Opslaan</button><button id="epCancel" class="secondary">Annuleren</button></div><div id="epMsg"></div></div>`;
+ $('epCancel').onclick=()=>dlg.close();$('epSave').onclick=async()=>{const oldEmail=String(p.email||'').trim().toLowerCase(),newEmail=$('epEmail').value.trim().toLowerCase();if(newEmail!==oldEmail){$('epMsg').textContent='E-mailadres niet gewijzigd. Het inlogadres moet eerst veilig in Firebase Authentication worden aangepast door de beheerder. Alleen hier wijzigen kan de toegang blokkeren.';$('epMsg').className='message error';return}try{await updateDoc(doc(db,'seasons',seasonId(),kind,p.id),{name:$('epName').value.trim(),email:$('epEmail').value.trim().toLowerCase(),phone:$('epPhone').value.trim(),singlesAllowed:$('epSingles').value==='yes',strength:Number($('epStrength').value||5),updatedAt:serverTimestamp()});if(head())await syncAccessEmails();$('epMsg').textContent='✓ Opgeslagen en e-mailtoegang bijgewerkt';$('epMsg').className='message';setTimeout(()=>{dlg.close();renderPlayersAdmin()},500)}catch(e){console.error(e);$('epMsg').textContent='Opslaan lukt niet.';$('epMsg').className='message error'}};dlg.showModal()
 }
 
-function renderWeekmenu(){
-  if(!window.weekmenuList) return;
-  fillWeekmenuHouseholds();
-
-  const weekNumber=getIsoWeek(currentWeekStart);
-  weekmenuWeekLabel.textContent=`Week ${weekNumber}`;
-  weekmenuDateRange.textContent=formatWeekRange();
-
-  if(!currentWeekmenuHousehold){
-    weekmenuList.innerHTML=`<div class="card muted">Je account is nog niet gekoppeld aan een huishouden.</div>`;
-    return;
-  }
-
-  weekmenuList.innerHTML=WEEK_DAYS.map((day,index)=>{
-    const meal=getMealForDay(index);
-    const actualDate=addDays(currentWeekStart,index);
-    const dateLabel=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"}).format(actualDate);
-
-    return `<article class="card weekmenu-day ${meal?"has-meal":""}">
-      <div class="weekmenu-day-head">
-        <div><span>${dateLabel}</span><h3>${day}</h3></div>
-        ${meal?`<button class="mini-btn danger-mini" type="button" onclick="deleteWeekMeal('${meal.id}')">Verwijder</button>`:""}
-      </div>
-      ${meal?`
-        <button class="weekmenu-meal" type="button" onclick="editWeekMeal('${meal.id}')">
-          <strong>${meal.recipeId?"📖":"🍽️"} ${recipeMealName(meal)}</strong>
-          ${meal.note?`<span>${escapeHtml(meal.note)}</span>`:""}
-          <small>Tik om te wijzigen</small>
-        </button>
-        <div class="eaters-block">
-          <div class="eaters-title"><strong>👥 Wie eet mee? (${attendeeCount(meal)})</strong><button class="mini-btn" type="button" onclick="openAttendees('${meal.id}')">Aanpassen</button></div>
-          <div class="chips">${mealAttendees(meal).map(a=>`<span class="chip">${a.type==="guest"?"Gast: ":""}${escapeHtml(a.name)}</span>`).join("") || `<span class="muted">Niemand geselecteerd</span>`}</div>
-        </div>
-      `:`
-        <button class="weekmenu-empty" type="button" onclick="openWeekMealForDay(${index})">+ Gerecht toevoegen</button>
-      `}
-    </article>`;
-  }).join("");
+async function renderLineupAdmin(){
+ const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Baanindeling</h2><p>Laden…</p></div>';const ds=await playDates(),now=new Date(),sel=nextPlayDate(ds,now)||ds.at(-1);host.innerHTML=`<div class="admin-card"><h2>Baanindeling</h2><p>Kies een zaterdag. De automatische indeling gebruikt de speelsterkte op de achtergrond; speelsterktes worden niet gepubliceerd.</p><label>Speeldag</label><select id="lineupDate">${ds.map(d=>`<option value="${esc(d.id)}" ${d.id===sel?.id?'selected':''}>${esc(dateText(d.dateKey))}</option>`).join('')}</select><div id="lineupBody"></div></div>`;$('lineupDate').onchange=()=>loadLineupDate(ds.find(d=>d.id===$('lineupDate').value));if(sel)loadLineupDate(sel)
 }
-
-function showWeekMealFields(){
-  const manual=weekMealType.value==="manual";
-  weekMealManualLabel.classList.toggle("hidden",!manual);
-  weekMealRecipeLabel.classList.toggle("hidden",manual);
-  weekMealManual.required=manual;
-  weekMealRecipe.required=!manual;
-}
-
-function fillWeekMealRecipes(){
-  weekMealRecipe.innerHTML=data.recipes.length
-    ? data.recipes.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")
-    : `<option value="">Nog geen recepten beschikbaar</option>`;
-}
-
-function openWeekMealDialog(dayIndex=0,meal=null){
-  if(!currentWeekmenuHousehold) return;
-  weekMealForm.reset();
-  fillWeekMealRecipes();
-  weekMealDay.value=String(dayIndex);
-  weekMealEditId.value=meal?.id || "";
-
-  if(meal){
-    weekMealType.value=meal.recipeId ? "recipe" : "manual";
-    weekMealRecipe.value=meal.recipeId || "";
-    weekMealManual.value=meal.name || "";
-    weekMealForm.elements.note.value=meal.note || "";
-  }else{
-    weekMealType.value=data.recipes.length ? "recipe" : "manual";
-  }
-
-  showWeekMealFields();
-  weekMealDialog.showModal();
-}
-
-function scaledIngredientText(ingredient,recipeServings,householdSize){
-  const i=normalizeIngredient(ingredient);
-  const factor=householdSize/Math.max(1,Number(recipeServings)||1);
-  const amount=formatScaledAmount(i.amount,factor);
-  return [amount,i.unit,i.name].filter(Boolean).join(" ");
-}
-
-function loadPrivateEvents(){
-  try{
-    const all=JSON.parse(localStorage.getItem(PRIVATE_AGENDA_KEY) || "{}");
-    return Array.isArray(all[currentUser?.uid]) ? all[currentUser.uid] : [];
-  }catch(e){
-    return [];
-  }
-}
-
-function savePrivateEvents(events){
-  try{
-    const all=JSON.parse(localStorage.getItem(PRIVATE_AGENDA_KEY) || "{}");
-    if(currentUser?.uid) all[currentUser.uid]=events;
-    localStorage.setItem(PRIVATE_AGENDA_KEY,JSON.stringify(all));
-  }catch(e){
-    console.warn("Privé-agenda opslaan mislukt",e);
-  }
-}
-
-function userHouseholdIds(){
-  const person=currentPersonName();
-  return data.households.filter(h=>h.members.includes(person)).map(h=>h.id);
-}
-
-function canSeeSharedEvent(event){
-  if(event.visibility==="family") return true;
-  if(event.visibility==="household") return userHouseholdIds().includes(event.householdId);
-  if(event.visibility==="selected") return Array.isArray(event.visibleTo) && event.visibleTo.includes(currentPersonName());
-  return false;
-}
-
-function formatAgendaDate(event){
-  const date=new Date(event.date+"T12:00:00");
-  const dateText=new Intl.DateTimeFormat("nl-NL",{
-    weekday:"short",day:"numeric",month:"short",year:"numeric"
-  }).format(date);
-  const times=[event.startTime,event.endTime].filter(Boolean).join(" – ");
-  return times ? `${dateText} · ${times}` : dateText;
-}
-
-function agendaScopeLabel(event){
-  if(event.visibility==="private") return "🔒 Privé";
-  if(event.visibility==="family") return "👨‍👩‍👧‍👦 Familie";
-  if(event.visibility==="selected") return `👥 ${Array.isArray(event.visibleTo)?event.visibleTo.join(", "):"Gekozen personen"}`;
-  const household=data.households.find(h=>h.id===event.householdId);
-  return `🏡 ${household?.name || "Huishouden"}`;
-}
-
-function getVisibleAgendaEvents(){
-  const privateEvents=loadPrivateEvents().map(e=>({...e,visibility:"private"}));
-  const sharedEvents=(data.events || []).filter(canSeeSharedEvent);
-  return [...privateEvents,...sharedEvents];
-}
-
-function agendaEventHasPassed(event){
-  const now=new Date();
-  const endTime=event.endTime || event.startTime || "23:59";
-  return new Date(`${event.date}T${endTime}:00`) < now;
-}
-function agendaDayLabel(dateIso){
-  const today=new Date(); today.setHours(0,0,0,0);
-  const date=new Date(dateIso+"T12:00:00"); date.setHours(0,0,0,0);
-  const diff=Math.round((date-today)/86400000);
-  if(diff===0) return "Vandaag";
-  if(diff===1) return "Morgen";
-  if(diff===-1) return "Gisteren";
-  return new Intl.DateTimeFormat("nl-NL",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(date);
-}
-function renderAgenda(){
-  if(!window.agendaList) return;
-  const type=agendaTypeFilter.value || "";
-  const householdId=agendaHouseholdFilter.value || "";
-  agendaHouseholdFilter.innerHTML=`<option value="">Alle huishoudens</option>`+data.households.filter(h=>userHouseholdIds().includes(h.id)).map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
-  agendaHouseholdFilter.value=householdId;
-  let rows=getVisibleAgendaEvents().filter(e=>(!type||e.visibility===type)&&(!householdId||e.householdId===householdId));
-  rows=rows.filter(e=>showPastAgenda ? agendaEventHasPassed(e) : !agendaEventHasPassed(e));
-  rows.sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")));
-  if(showPastAgenda) rows.reverse();
-  if(window.togglePastAgendaBtn) togglePastAgendaBtn.textContent=showPastAgenda?"Toekomstige afspraken":"Eerdere afspraken";
-  const groups={}; rows.forEach(e=>(groups[e.date]||=[]).push(e));
-  agendaList.innerHTML=rows.length?Object.entries(groups).map(([date,events])=>`<section class="agenda-day-group"><h3 class="agenda-day-title">${agendaDayLabel(date)}</h3>${events.map(e=>`<article class="item-card agenda-card agenda-card-clickable" role="button" tabindex="0" onclick="openAgendaDetails('${e.id}','${e.visibility}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openAgendaDetails('${e.id}','${e.visibility}')}" aria-label="Open afspraak ${escapeHtml(e.title)}">
-    <div class="agenda-card-head"><div><span class="agenda-scope">${agendaScopeLabel(e)}</span><h3>${escapeHtml(e.title)}</h3><div class="meta">${formatAgendaDate(e)}</div></div><div class="agenda-card-actions"><button class="mini-btn" type="button" onclick="event.stopPropagation();addToCalendar('${e.id}','${e.visibility}')">📅 Toevoegen</button><button class="mini-btn danger-mini" type="button" onclick="event.stopPropagation();deleteAgendaEvent('${e.id}','${e.visibility}')">Verwijderen</button></div></div>
-    ${e.location?`<p>📍 ${escapeHtml(e.location)}</p>`:""}${e.photo?`<img class="agenda-card-photo" src="${e.photo}" alt="Foto bij ${escapeHtml(e.title)}">`:""}${e.note?`<p>${escapeHtml(e.note).replaceAll("\\n","<br>")}</p>`:""}<small class="agenda-tap-hint">Tik om te bekijken of wijzigen</small></article>`).join("")}</section>`).join(""):`<div class="card muted">${showPastAgenda?"Geen eerdere afspraken.":"Geen komende afspraken."}</div>`;
-}
-function fillAgendaHouseholds(){
-  const allowed=data.households.filter(h=>userHouseholdIds().includes(h.id));
-  agendaHousehold.innerHTML=allowed.map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
-  agendaHouseholdLabel.classList.toggle("hidden",agendaVisibility.value!=="household");
-  if(window.agendaSelectedPeopleField){
-    agendaSelectedPeopleField.classList.toggle("hidden",agendaVisibility.value!=="selected");
-    if(agendaVisibility.value==="selected" && !agendaSelectedPeopleChecks.children.length){
-      agendaSelectedPeopleChecks.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" name="visibleTo" value="${escapeHtml(p.name)}"><span>${escapeHtml(p.name)}</span></label>`).join("");
-    }
-  }
-}
-
-function navigate(page){
-  if(page==="dagboek" && !isDiaryOwner()){ alert("Het dagboek is alleen beschikbaar voor Rinze."); return; }
-  if(page==="samen-ideeen" && !isVaultPerson()){ alert("Deze ideeën zijn alleen beschikbaar voor Rinze en Christa."); return; }
-  if(page==="meer"){ document.querySelector("#moreDialog").showModal(); return; }
-  document.querySelectorAll(".page").forEach(x=>x.classList.toggle("active",x.dataset.page===page));
-  document.querySelectorAll(".bottom-nav button").forEach(x=>x.classList.toggle("active",x.dataset.nav===page));
-  window.scrollTo({top:0,behavior:"smooth"});
-}
-function bindNav(){
-  document.addEventListener("click",e=>{
-    const nav=e.target.closest("[data-nav]"); if(nav) navigate(nav.dataset.nav);
-    const go=e.target.closest("[data-go]"); if(go){ closeDialogs(); navigate(go.dataset.go); }
-    const close=e.target.closest("[data-close]"); if(close) close.closest("dialog").close();
-  });
-}
-function closeDialogs(){ document.querySelectorAll("dialog[open]").forEach(d=>d.close()); }
-
-function renderFamily(){
-  const admin=isAdmin();
-  familyList.innerHTML=data.family.map(p=>`<article class="item-card">
-    <div class="family-card-head">
-      <div><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar${p.email?`<br>${p.email}`:""}</div></div>
-      ${admin?`<button class="mini-btn" type="button" onclick="openFamilyEditor('${p.name.replaceAll("'","\\'")}')">Bewerken</button>`:""}
-    </div>
-  </article>`).join("");
-}
-function renderHouseholds(){
-  const admin=isAdmin();
-  const visibleHouseholds=admin ? data.households : accessibleHouseholds();
-
-  householdList.innerHTML=visibleHouseholds.length ? visibleHouseholds.map(h=>`<article class="item-card">
-    <div class="family-card-head">
-      <div>
-        <h3>🏡 ${h.name}</h3>
-        <div class="chips">${h.members.map(m=>`<span class="chip">${m}</span>`).join("")}</div>
-      </div>
-      ${admin?`<button class="mini-btn" type="button" onclick="openHouseholdEditor('${h.id}')">Bewerken</button>`:""}
-    </div>
-  </article>`).join("") : `<div class="card muted">Je bent nog niet aan een huishouden gekoppeld.</div>`;
-
-  addHouseholdBtn.classList.toggle("hidden",!admin);
-  groceryHousehold.innerHTML=accessibleHouseholds().map(h=>`<option value="${h.id}">${h.name}</option>`).join("");
-
-  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)){
-    currentHousehold=accessibleHouseholds()[0]?.id||"";
-  }
-  groceryHousehold.value=currentHousehold;
-  fillWeekmenuHouseholds();
-}
-
-function resetRecipePhoto(){
-  recipePhotoData.value="";
-  recipeCameraInput.value="";
-  recipeGalleryInput.value="";
-  recipePhotoPreview.removeAttribute("src");
-  recipePhotoPreviewWrap.classList.add("hidden");
-}
-
-function setRecipePhoto(dataUrl){
-  recipePhotoData.value=dataUrl;
-  recipePhotoPreview.src=dataUrl;
-  recipePhotoPreviewWrap.classList.remove("hidden");
-}
-
-function processRecipePhoto(file){
-  if(!file) return;
-  if(!file.type.startsWith("image/")){
-    alert("Kies een geldige afbeelding.");
-    return;
-  }
-  if(file.size>10*1024*1024){
-    alert("Kies een foto kleiner dan 10 MB.");
-    return;
-  }
-
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=1200;
-      const scale=Math.min(1,max/Math.max(img.width,img.height));
-      const canvas=document.createElement("canvas");
-      canvas.width=Math.max(1,Math.round(img.width*scale));
-      canvas.height=Math.max(1,Math.round(img.height*scale));
-      const ctx=canvas.getContext("2d");
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      setRecipePhoto(canvas.toDataURL("image/jpeg",0.82));
-    };
-    img.onerror=()=>alert("Deze foto kon niet worden geopend.");
-    img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-recipeCameraInput.onchange=()=>processRecipePhoto(recipeCameraInput.files?.[0]);
-recipeGalleryInput.onchange=()=>processRecipePhoto(recipeGalleryInput.files?.[0]);
-removeRecipePhotoBtn.onclick=resetRecipePhoto;
-
-function renderRecipes(){
-  const q=recipeSearch.value?.toLowerCase()||"";
-  const rows=data.recipes
-    .filter(r=>(r.name+" "+r.ingredients.map(i=>normalizeIngredient(i).name).join(" ")).toLowerCase().includes(q))
-    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"nl",{sensitivity:"base"}));
-  recipeList.innerHTML=rows.length?rows.map(r=>`<article class="item-card">
-    ${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
-    <h3>${escapeHtml(r.name)}</h3><div class="meta">Voor ${r.servings} personen · door ${escapeHtml(r.author||"Onbekend")}${r.updatedAt?`<br>Laatst gewijzigd ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(r.updatedAt))}${r.updatedBy?` door ${escapeHtml(r.updatedBy)}`:""}`:""}</div>
-    <div class="recipe-actions"><button class="secondary-btn" onclick="openRecipe('${r.id}')">Bekijken</button><button class="secondary-btn" onclick="editRecipe('${r.id}')">Bewerken</button><button class="secondary-btn" onclick="addRecipeToGroceries('${r.id}')">Naar lijst</button></div>
-  </article>`).join(""):`<div class="card muted">Nog geen recepten. Voeg je eerste recept toe.</div>`;
-}
-function productLabel(p){
-  return [p.brand,p.name,p.amount,p.unit].filter(Boolean).join(" ");
-}
-function productStores(p){
-  return [p.store,...String(p.otherStores||"").split(",").map(x=>x.trim())].filter(Boolean);
-}
-function renderGroceries(){
-  const rows=data.groceries.filter(g=>g.householdId===currentHousehold && !g.done);
-  const grouped={};
-  rows.forEach(g=>{
-    const store=(g.store||"Geen winkel opgegeven").trim();
-    (grouped[store] ||= []).push(g);
-  });
-  const stores=Object.keys(grouped).sort((a,b)=>a.localeCompare(b,"nl"));
-  groceryList.innerHTML=rows.length?stores.map(store=>`<section class="grocery-store-group">
-    <h3 class="grocery-store-title">🏪 ${escapeHtml(store)} <small>${grouped[store].filter(g=>!g.done).length} open</small></h3>
-    ${grouped[store].sort((a,b)=>Number(a.done)-Number(b.done)).map(g=>`<div class="check-row ${g.done?"done":""}">
-      <input type="checkbox" ${g.done?"checked":""} onchange="toggleGrocery('${g.id}')">
-      <span><strong>${escapeHtml(g.text)}</strong>${g.addedBy||g.source||g.note?`<small class="grocery-meta">${[g.source,g.note,g.addedBy?`door ${g.addedBy}`:""].filter(Boolean).map(escapeHtml).join(" · ")}</small>`:""}</span>
-      <div class="row-actions"><button onclick="editGrocery('${g.id}')" aria-label="Bewerken">✏️</button><button onclick="deleteGrocery('${g.id}')" aria-label="Verwijderen">🗑️</button></div>
-    </div>`).join("")}
-  </section>`).join(""):`<div class="muted" style="padding:18px 2px">Nog niets op deze boodschappenlijst.</div>`;
-}
-function renderProducts(){
-  if(!window.productList) return;
-  data.products=Array.isArray(data.products)?data.products:[];
-data.outings=Array.isArray(data.outings)?data.outings:[];
-  const q=(productSearch.value||"").toLowerCase();
-  const store=productStoreFilter.value||"";
-  const category=productCategoryFilter.value||"";
-  const stores=[...new Set([...data.stores,...data.products.flatMap(productStores)])].filter(Boolean).sort((a,b)=>a.localeCompare(b,"nl"));
-  const categories=[...new Set(data.products.map(p=>p.category).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"nl"));
-  const oldStore=productStoreFilter.value, oldCat=productCategoryFilter.value;
-  productStoreFilter.innerHTML='<option value="">Alle winkels</option>'+stores.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
-  productCategoryFilter.innerHTML='<option value="">Alle categorieën</option>'+categories.map(x=>`<option>${escapeHtml(x)}</option>`).join("");
-  productStoreFilter.value=stores.includes(oldStore)?oldStore:"";
-  productCategoryFilter.value=categories.includes(oldCat)?oldCat:"";
-  refreshStoreOptions();
-  const rows=data.products.filter(p=>{
-    const hay=[p.name,p.brand,p.category,p.store,p.otherStores,p.note].join(" ").toLowerCase();
-    return (!q||hay.includes(q)) && (!store||productStores(p).includes(store)) && (!category||p.category===category);
-  }).sort((a,b)=>(Number(b.favorite)-Number(a.favorite)) || (Number(b.timesUsed||0)-Number(a.timesUsed||0)) || String(a.name).localeCompare(String(b.name),"nl"));
-  const fav=data.products.filter(p=>p.favorite).slice().sort((a,b)=>Number(b.timesUsed||0)-Number(a.timesUsed||0)).slice(0,6);
-  const frequent=data.products.filter(p=>Number(p.timesUsed||0)>0).slice().sort((a,b)=>Number(b.timesUsed||0)-Number(a.timesUsed||0)).slice(0,6);
-  const recent=data.products.filter(p=>p.lastUsedAt).slice().sort((a,b)=>String(b.lastUsedAt).localeCompare(String(a.lastUsedAt))).slice(0,6);
-  const quick=(title,items)=>items.length?`<section class="quick-products"><h3>${title}</h3><div class="quick-product-row">${items.map(p=>`<button onclick="addProductToGroceries('${p.id}')">${escapeHtml(p.name)}</button>`).join("")}</div></section>`:"";
-  productQuickSections.innerHTML=!q&&!store&&!category?quick("⭐ Favorieten",fav)+quick("🕘 Recent gebruikt",recent)+quick("📈 Vaak gekocht",frequent):"";
-  productList.innerHTML=rows.length?rows.map(p=>`<article class="item-card product-card">
-    ${p.photo?`<img class="product-card-photo" src="${p.photo}" alt="">`:""}
-    <div class="product-card-head"><div><h3>${p.favorite?"⭐ ":""}${escapeHtml(p.name)}</h3><div class="meta">${[p.brand,p.amount&&p.unit?`${p.amount} ${p.unit}`:p.amount||p.unit,p.category].filter(Boolean).map(escapeHtml).join(" · ")}</div></div><button class="mini-btn" onclick="editProduct('${p.id}')">Bewerk</button></div>
-    ${p.store?`<p class="product-store">🏪 Meestal bij <strong>${escapeHtml(p.store)}</strong>${p.otherStores?`<br><small>Ook: ${escapeHtml(p.otherStores)}</small>`:""}</p>`:""}
-    <p class="product-stock ${Number(p.stock||0)<=Number(p.minStock||0)?"stock-low":""}">📦 Voorraad: <strong>${Number(p.stock||0)}</strong>${Number(p.minStock||0)>0?` · minimum ${Number(p.minStock)}`:""}${Number(p.stock||0)<=Number(p.minStock||0)?" · bijna op":""}</p>
-    ${p.price?`<p>€ ${Number(p.price).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2})}</p>`:""}
-    ${p.note?`<p class="muted">${escapeHtml(p.note)}</p>`:""}
-    <button class="primary-btn wide" onclick="addProductToGroceries('${p.id}')">+ Naar boodschappenlijst</button>
-  </article>`).join(""):`<div class="card muted">Nog geen producten gevonden. Voeg een product toe.</div>`;
-}
-
-function resetWishPhoto(){
-  wishPhotoData.value="";
-  wishCameraInput.value="";
-  wishGalleryInput.value="";
-  wishPhotoPreview.removeAttribute("src");
-  wishPhotoPreviewWrap.classList.add("hidden");
-}
-
-function setWishPhoto(dataUrl){
-  wishPhotoData.value=dataUrl;
-  wishPhotoPreview.src=dataUrl;
-  wishPhotoPreviewWrap.classList.remove("hidden");
-}
-
-function processWishPhoto(file){
-  if(!file) return;
-  if(!file.type.startsWith("image/")){
-    alert("Kies een geldige foto of screenshot.");
-    return;
-  }
-  if(file.size>10*1024*1024){
-    alert("Kies een afbeelding kleiner dan 10 MB.");
-    return;
-  }
-
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=1200;
-      const scale=Math.min(1,max/Math.max(img.width,img.height));
-      const canvas=document.createElement("canvas");
-      canvas.width=Math.max(1,Math.round(img.width*scale));
-      canvas.height=Math.max(1,Math.round(img.height*scale));
-      const ctx=canvas.getContext("2d");
-      ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      setWishPhoto(canvas.toDataURL("image/jpeg",0.82));
-    };
-    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");
-    img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-wishCameraInput.onchange=()=>processWishPhoto(wishCameraInput.files?.[0]);
-wishGalleryInput.onchange=()=>processWishPhoto(wishGalleryInput.files?.[0]);
-removeWishPhotoBtn.onclick=resetWishPhoto;
-
-function renderWishes(){
-  const selected=wishPersonFilter.value||"";
-  const occasion=wishOccasionFilter.value||"";
-  const rows=data.wishes.filter(w=>(!selected||w.person===selected)&&(!occasion||w.occasion===occasion));
-  wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
-  wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
-  wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
-}
-
-function privateGiftIdeasCollection(){
-  return db && currentUser ? db.collection("privateGiftIdeas").doc(currentUser.uid).collection("ideas") : null;
-}
-function subscribePrivateGiftIdeas(){
-  if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
-  privateGiftIdeas=[];
-  const collection=privateGiftIdeasCollection();
-  if(!collection) return;
-  privateGiftIdeasUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(snap=>{
-    privateGiftIdeas=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
-    renderGiftEvents();
-    renderPrivateGiftIdeasPage();
-  },err=>{ console.error("Cadeautjes voor anderen laden mislukt",err); });
-}
-
-function privateIdeaRecipients(idea){
-  if(Array.isArray(idea?.recipients)) return idea.recipients;
-  return idea?.person ? [idea.person] : [];
-}
-function privateIdeaStatusLabel(status){
-  return ({idea:"💡 Idee",reserved:"🛒 Gereserveerd",bought:"✅ Gekocht",wrapped:"🎁 Ingepakt"})[status] || "💡 Idee";
-}
-function renderPrivateGiftIdeasPage(){
-  if(!window.privateGiftIdeaList) return;
-  const q=(privateGiftIdeaSearch?.value||"").trim().toLowerCase();
-  const filtered=(privateGiftIdeas||[]).filter(i=>[i.title,i.note,i.link,...privateIdeaRecipients(i)].join(" ").toLowerCase().includes(q));
-  const groups=data.family.map(p=>({person:p.name,ideas:filtered.filter(i=>privateIdeaRecipients(i).includes(p.name))})).filter(g=>g.ideas.length);
-  privateGiftIdeaList.innerHTML=groups.length?groups.map(g=>`<section class="card private-person-group">
-    <button class="private-person-summary" type="button" onclick="this.nextElementSibling.classList.toggle('hidden')"><strong>🎁 Cadeaus ${escapeHtml(g.person)}</strong><span>${g.ideas.length} idee${g.ideas.length===1?'':'ën'} ▾</span></button>
-    <div class="private-person-ideas">${g.ideas.sort((a,b)=>Number(b.favorite)-Number(a.favorite)).map(i=>`<article class="private-idea-card">
-      <div class="private-idea-head"><div><h3>${i.favorite?'⭐ ':''}${escapeHtml(i.title)}</h3><div class="private-idea-people">${privateIdeaRecipients(i).map(x=>`<span class="chip">${escapeHtml(x)}</span>`).join('')}</div></div><span class="private-idea-status">${privateIdeaStatusLabel(i.status)}</span></div>
-      ${i.price?`<div class="meta">€ ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2})}</div>`:''}
-      ${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}
-      ${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}
-      <div class="private-idea-actions"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('', '${i.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div>
-    </article>`).join('')}</div>
-  </section>`).join(''):`<div class="card muted private-idea-empty">${q?'Geen cadeautjes gevonden.':'Je hebt nog geen cadeautjes voor anderen.'}</div>`;
-}
-function privateTodosCollection(){
-  return db && currentUser ? db.collection("privateTodos").doc(currentUser.uid).collection("items") : null;
-}
-function subscribePrivateTodos(){
-  if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
-  // To-do's en de privé ideeën hebben elk hun eigen listener.
-  // Stop hier alleen de to-do-listener; anders kan het laden van to-do's
-  // onbedoeld de camping- en boekenlijst uitschakelen.
-  privateTodos=[];
-  const collection=privateTodosCollection();
-  if(!collection){ renderPrivateTodos(); return; }
-
-  const applySnapshot=(snap)=>{
-    privateTodos=snap.docs.map(doc=>({id:doc.id,...doc.data()}));
-    renderPrivateTodos();
-    renderHome();
-  };
-
-  privateTodosUnsubscribe=collection.orderBy("createdAt","desc").onSnapshot(
-    applySnapshot,
-    err=>{
-      console.warn("Geordende to-do-query mislukt; opnieuw zonder sortering.",err);
+async function loadLineupDate(d){
+ const host=$('lineupBody');
+ const timeoutMs=8000;
+ host.innerHTML=`<div class="load-check"><b>Gegevens voor ${esc(dateText(d.dateKey))} laden…</b>
+   <div id="load-plans">⏳ Spelerskeuzes laden…</div>
+   <div id="load-players">⏳ Vaste spelers laden…</div>
+   <div id="load-reserves">⏳ Reserves laden…</div>
+   <div id="load-couples">⏳ Koppels laden…</div>
+   <div id="load-published">⏳ Gepubliceerde indeling laden…</div>
+   <div id="load-build">⏳ Baanindeling opbouwen…</div>
+ </div>`;
+ const timed=(label,promise,id)=>new Promise((resolve,reject)=>{
+   let done=false;
+   const timer=setTimeout(()=>{if(done)return;done=true;const e=new Error(`${label} reageert niet binnen ${timeoutMs/1000} seconden`);e.code='timeout';const el=$(id);if(el)el.innerHTML=`❌ ${esc(label)}: geen antwoord van Firebase`;reject(e)},timeoutMs);
+   promise.then(v=>{if(done)return;done=true;clearTimeout(timer);const el=$(id);if(el)el.innerHTML=`✅ ${esc(label)} geladen`;resolve(v)}).catch(e=>{if(done)return;done=true;clearTimeout(timer);const el=$(id);if(el)el.innerHTML=`❌ ${esc(label)}: ${esc(e?.code||e?.message||'fout')}`;reject(e)})
+ });
+ try{
+   const requests={
+     plans:timed('Spelerskeuzes',getDocs(collection(db,'seasons',seasonId(),'playDates',d.id,'couplePlans')),'load-plans'),
+     ps:timed('Vaste spelers',getDocs(collection(db,'seasons',seasonId(),'players')),'load-players'),
+     rs:timed('Reserves',getDocs(collection(db,'seasons',seasonId(),'reserves')),'load-reserves'),
+     cps:timed('Koppels',getDocs(collection(db,'seasons',seasonId(),'couples')),'load-couples'),
+     pub:timed('Gepubliceerde indeling',getDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'public','lineup')),'load-published')
+   };
+   const keys=Object.keys(requests),settled=await Promise.allSettled(keys.map(k=>requests[k])),data={};
+   const failed=[];settled.forEach((r,i)=>{if(r.status==='fulfilled')data[keys[i]]=r.value;else failed.push({key:keys[i],error:r.reason})});
+   if(failed.length){
+     const names={plans:'Spelerskeuzes',ps:'Vaste spelers',rs:'Reserves',cps:'Koppels',pub:'Gepubliceerde indeling'};
+     console.error('Baanindeling deels niet geladen',failed);
+     const build=$('load-build');if(build)build.innerHTML='⏸️ Baanindeling niet opgebouwd';
+     host.innerHTML+=`<div class="message error"><b>Baanindeling kan nog niet volledig worden opgebouwd.</b><br>Probleem bij: ${failed.map(f=>esc(names[f.key])).join(', ')}.<br><small>Dit ligt niet aan het aantal aangemelde spelers.</small><br><button id="retryLineup" class="secondary">Opnieuw proberen</button></div>`;
+     $('retryLineup').onclick=()=>loadLineupDate(d);return
+   }
+   const {plans,ps,rs,cps,pub}=data;
+   const normIds=v=>Array.isArray(v)?v:(v==null?[]:[v]);
+   const couples=cps.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive').map(c=>({...c,memberIds:normIds(c.memberIds)})).sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b));
+   const all=ps.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive').map(p=>({...p,coupleId:couples.find(c=>normIds(c.memberIds).includes(p.id))?.id||p.coupleId||''})).sort((a,b)=>String(a.name||a.id).localeCompare(String(b.name||b.id),'nl'));
+   const reserves=rs.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive').sort((a,b)=>String(a.name||a.id).localeCompare(String(b.name||b.id),'nl'));
+   const pm=new Map(all.map(x=>[x.id,x])),planMap=new Map(plans.docs.map(x=>[x.id,{...x.data()}])),playing=[];
+   plans.docs.forEach(x=>{const p=x.data()||{};if(p.member1Status==='speelt')playing.push(pm.get(p.member1Id)||{id:p.member1Id||`m1-${x.id}`,name:p.member1Id||'Onbekende speler',coupleId:x.id,strength:5});if(p.member2Status==='speelt')playing.push(pm.get(p.member2Id)||{id:p.member2Id||`m2-${x.id}`,name:p.member2Id||'Onbekende speler',coupleId:x.id,strength:5});if(p.substituteName&&p.substituteApproval!=='pending'&&p.substituteApproval!=='rejected')playing.push({id:p.substituteId||`sub-${x.id}`,name:p.substituteName,singlesAllowed:false,strength:Number(p.substituteStrength||5),coupleId:x.id,substitute:true})});
+   const filled=couples.filter(c=>{const p=planMap.get(c.id);return p&&validPair(p.member1Status,p.member2Status)}),missingCouples=couples.filter(c=>!filled.includes(c)),needSubs=couples.filter(c=>{const p=planMap.get(c.id);return p?.member1Status==='afwezig'&&p?.member2Status==='afwezig'&&(!p?.substituteName||p?.substituteApproval==='rejected')}),pendingSubs=couples.filter(c=>{const p=planMap.get(c.id);return p?.member1Status==='afwezig'&&p?.member2Status==='afwezig'&&p?.substituteName&&p?.substituteApproval==='pending'});
+   let history={team:{},opponent:{},dates:0,names:{}};
+   try{
+     const ds=await playDates(),past=ds.filter(x=>String(x.dateKey||'')<String(d.dateKey||''));
+     const snaps=await Promise.all(past.map(x=>getDoc(doc(db,'seasons',seasonId(),'playDates',x.id,'public','lineup'))));
+     all.forEach(x=>{history.names[x.id]=x.name||x.id});reserves.forEach(x=>{history.names[x.id]=x.name||x.id});
+     const key=(a,b)=>[String(a||''),String(b||'')].sort().join('|');
+     const bump=(obj,a,b)=>{if(!a||!b||a===b)return;const k=key(a,b);obj[k]=(obj[k]||0)+1};
+     snaps.forEach(snap=>{if(!snap.exists()||snap.data()?.published!==true)return;history.dates++;(snap.data().courts||[]).forEach(c=>{if(c.mode==='Niet gebruiken')return;const a=(c.teamAIds||[]).filter(Boolean),b=(c.teamBIds||[]).filter(Boolean);(c.teamA||[]).forEach((n,i)=>{if(a[i])history.names[a[i]]=n||a[i]});(c.teamB||[]).forEach((n,i)=>{if(b[i])history.names[b[i]]=n||b[i]});for(let i=0;i<a.length;i++)for(let j=i+1;j<a.length;j++)bump(history.team,a[i],a[j]);for(let i=0;i<b.length;i++)for(let j=i+1;j<b.length;j++)bump(history.team,b[i],b[j]);a.forEach(x=>b.forEach(y=>bump(history.opponent,x,y)))})})
+   }catch(e){console.warn('Historie voor eerlijke indeling niet geladen',e)}
+   let finalRanks=[];if(isFinalPlayDate(d)){try{finalRanks=(await standingsBeforeDate(d.dateKey,couples)).map(r=>r.coupleId)}catch(e){console.warn('Finalestand kon niet worden geladen',e)}}lineupState={date:d,players:playing,allPlayers:all,allNames:[...all,...reserves].map(x=>x.name||x.id).filter(Boolean),selected:null,courtCount:Number(d.courtCount??season?.defaultCourts??2),modes:{},history,isFinal:isFinalPlayDate(d),finalRanks,published:pub.exists()&&pub.data()?.published===true};
+   // v1.26: bewaar en herstel de laatst gemaakte baanindeling ook wanneer publicatie is ingetrokken.
+   if(pub.exists()&&Array.isArray(pub.data()?.courts)&&pub.data().courts.length){const saved=pub.data().courts,source=[...playing,...all,...reserves],restored=[];saved.forEach(c=>{lineupState.modes[Number(c.number)||restored.length+1]=c.mode||'Dubbel';const add=(names,ids)=>{(ids||[]).forEach((id,i)=>{const found=source.find(x=>String(x.id)===String(id));restored.push(found||{id:String(id||`saved-${restored.length}`),name:(names||[])[i]||String(id||'Speler'),strength:5})})};add(c.teamA,c.teamAIds);add(c.teamB,c.teamBIds)});if(restored.length){lineupState.players=restored;lineupState.courtCount=Math.max(lineupState.courtCount,...saved.map(c=>Number(c.number)||0));lineupState.hasMadeLineup=true}}
+   const approvedSubs=couples.filter(c=>{const p=planMap.get(c.id);return p?.member1Status==='afwezig'&&p?.member2Status==='afwezig'&&p?.substituteName&&p?.substituteApproval!=='pending'&&p?.substituteApproval!=='rejected'});
+   const lineupDuplicates=duplicatePlayerEntries(playing),duplicateWarning=lineupDuplicates.length?`<div class="message error"><b>⚠️ Indeling niet goed:</b> ${lineupDuplicates.map(x=>esc(compactName(x.name||x.id,[...all,...reserves].map(p=>p.name||p.id)))).join(', ')} ${lineupDuplicates.length===1?'staat':'staan'} meer dan één keer bij de spelers. Los dit eerst op voordat je publiceert.</div>`:'';
+   const adminStatusHtml=`<div class="admin-card lineup-status-card">${isFinalPlayDate(d)?'<div class="notice"><b>🏆 Finalezaterdag</b><br><small>Automatische indeling: 1+4 tegen 2+3 en 5+8 tegen 6+7 op basis van de stand na de vorige speeldag. Punten tellen dubbel; alleen een volledig afwezig koppel met invaller blijft maximaal 2 punten.</small></div>':''}<h3>👥 Overzicht ${esc(dateText(d.dateKey,false))}</h3><div class="lineup-status-grid"><button type="button" class="lineup-stat-btn" data-lineup-stat="playing"><b>${playing.length}</b><span>spelers definitief</span></button><button type="button" class="lineup-stat-btn" data-lineup-stat="missing"><b>${missingCouples.length}</b><span>koppels nog invullen</span></button><button type="button" class="lineup-stat-btn" data-lineup-stat="need"><b>${needSubs.length}</b><span>invaller nodig</span></button><button type="button" class="lineup-stat-btn" data-lineup-stat="pending"><b>${pendingSubs.length}</b><span>wacht op goedkeuring</span></button></div><div id="lineupStatDetail"></div>${approvedSubs.length?`<div class="sub-status-list">${approvedSubs.map(c=>{const p=planMap.get(c.id)||{};return `<span>✅ ${esc(coupleLabel(c.id,c))}: ${esc(p.substituteName||'invaller')} geregeld</span>`}).join('')}</div>`:''}${needSubs.length?`<div class="sub-status-list warning">${needSubs.map(c=>`<span>⚠️ ${esc(coupleLabel(c.id,c))}: beide afwezig · invaller nog niet geregeld</span>`).join('')}</div>`:''}${pendingSubs.length?`<div class="sub-status-list pending">${pendingSubs.map(c=>{const p=planMap.get(c.id)||{};return `<span>⏳ ${esc(coupleLabel(c.id,c))}: ${esc(p.substituteName||'invaller')} wacht op goedkeuring</span>`}).join('')}</div>`:''}</div>`;
+   const coupleEditOptions=couples.map(c=>`<option value="${esc(c.id)}">${esc(coupleLabel(c.id,c))}</option>`).join('');
+   const coupleEditHtml=`<div class="admin-card admin-couple-editor"><h3>✏️ Koppel aanpassen</h3><p><small>Kies een koppel om de huidige spelerskeuze voor deze zaterdag aan te passen.</small></p><select id="adminCoupleSelect"><option value="">Kies een koppel…</option>${coupleEditOptions}</select><div id="adminCoupleEditBody"></div><div id="adminCoupleEditMsg"></div></div>`;
+   const fixedOptions=all.filter(p=>!playing.some(x=>x.id===p.id)).map(p=>`<option value="p:${esc(p.id)}">${esc(p.name||p.id)}${playerCoupleLabel(p.id,couples)?` · ${esc(playerCoupleLabel(p.id,couples))}`:''}</option>`).join(''),reserveOptions=reserves.map(p=>`<option value="r:${esc(p.id)}">${esc(p.name||p.id)} · reserve</option>`).join('');
+   const approvalHtml=pendingSubs.length?`<div class="admin-card pending-approval"><h3>⏳ Vervangers ter goedkeuring</h3>${pendingSubs.map(c=>{const p=planMap.get(c.id)||{};return `<div class="approval-row"><div><b>${esc(coupleLabel(c.id,c))}</b><span>Voorgesteld: <b>${esc(p.substituteName||'')}</b>${p.substituteType==='fixed'?' · vaste speler':p.substituteType==='reserve'?' · reserve':' · andere vervanger'}</span></div><div class="approval-actions"><button data-approvesub="${esc(c.id)}">✅ Goedkeuren</button><button class="secondary" data-rejectsub="${esc(c.id)}">❌ Afwijzen / wijzigen</button></div></div>`}).join('')}<div id="approvalMsg"></div></div>`:'';
+   const subHtml=needSubs.length?`<div class="admin-card"><h3>🔄 Vervanger nodig</h3>${needSubs.map(c=>`<div class="sub-row"><b>${esc(coupleLabel(c.id,c))}</b><select data-subsel="${esc(c.id)}"><option value="">Kies vaste speler of reserve…</option><optgroup label="Vaste spelers">${fixedOptions}</optgroup><optgroup label="Reserves">${reserveOptions}</optgroup></select><button data-assignsub="${esc(c.id)}">Vervanger vastleggen</button><div class="external-sub"><input data-extname="${esc(c.id)}" placeholder="Andere vervanger: voor- en achternaam"><select data-extstrength="${esc(c.id)}">${[1,2,3,4,5,6,7,8,9].map(n=>`<option value="${n}" ${n===5?'selected':''}>sterkte ${n}</option>`).join('')}</select><button class="secondary" data-assignext="${esc(c.id)}">Andere vervanger vastleggen</button></div></div>`).join('')}<div id="subMsg"></div></div>`:'';
+   const missingText=missingCouples.map(c=>coupleLabel(c.id,c)).join('\n');
+   host.innerHTML=`${adminStatusHtml}${coupleEditHtml}${duplicateWarning}<div class="message">${playing.length} spelers die spelen · ${missingCouples.length} koppels nog niet ingevuld.</div>${approvalHtml}${subHtml}<div class="admin-actions"><button id="autoLineup" ${playing.length<2?'disabled':''}>🎾 Indeling maken</button></div><div id="courtDraft"></div><div class="admin-actions"><button id="publishLineup" ${playing.length<2?'disabled':''}>✓ ${pub.exists()&&pub.data().published?'Wijzigingen zichtbaar maken voor iedereen':'Indeling zichtbaar maken voor iedereen'}</button>${pub.exists()&&pub.data().published?'<button id="unpublishLineup" class="secondary">↩ Publicatie ongedaan maken</button>':''}</div><div id="lineupMsg">${pub.exists()&&pub.data().published?'Er staat al een gepubliceerde indeling. Wijzigingen worden pas zichtbaar nadat je ze opnieuw publiceert.':''}</div><details class="admin-card history-details"><summary>📊 Speelhistorie</summary>${historyDetailsHtml()}</details><details class="admin-card history-details"><summary>💡 Waarom deze indeling?</summary><div id="lineupWhy">Maak eerst een automatische indeling.</div></details><div class="whatsapp-box whatsapp-hub"><h3>📱 WhatsApp – ${esc(dateText(d.dateKey,false))}</h3><p><small>Alle WhatsApp-berichten voor deze zaterdag staan hier bij elkaar. Je krijgt altijd eerst een voorbeeld dat je nog kunt aanpassen.</small></p><div class="wa-hub-actions"><button id="inviteWa" class="secondary">📣 Uitnodiging sturen</button><button id="subSearchWa" class="secondary">📢 Invaller gezocht</button>${missingCouples.length?`<button id="missingWa" class="secondary">⏰ ${missingCouples.length} ${missingCouples.length===1?'koppel':'koppels'} herinneren</button>`:''}</div><textarea id="inviteText" class="hidden" rows="9"></textarea><div id="lineupShare">${pub.exists()&&pub.data().published?`<button id="publishedLineupWa" class="secondary">🎾 ${pub.data().changedAfterPublish?'Gewijzigde baanindeling':'Baanindeling'} versturen</button>`:'<button class="secondary" disabled>🎾 Baanindeling versturen · eerst publiceren</button>'}</div></div><div class="compact-setting"><b>Banen: <span id="courtCountText">${lineupState.courtCount}</span></b> <button id="toggleCourts" class="link">Wijzigen</button><div id="courtChooser" class="hidden"><select id="dayCourts">${[0,1,2,3,4].map(n=>`<option value="${n}" ${n===lineupState.courtCount?'selected':''}>${n} ${n===1?'baan':'banen'}</option>`).join('')}</select> <button id="saveCourts" class="secondary">Opslaan</button></div></div><details class="manual-pick"><summary>Spelers handmatig aanwijzen / testen</summary><p><small>Als beheerder kun je hier bijvoorbeeld 8 spelers aanvinken om de baanindeling te testen. Dit verandert hun eigen spelerskeuze niet.</small></p><div class="manual-grid">${all.map(p=>`<label><input type="checkbox" data-manual="${esc(p.id)}" ${playing.some(x=>x.id===p.id)?'checked':''}> ${esc(p.name||p.id)}</label>`).join('')}</div><button id="applyManual">Geselecteerde spelers gebruiken</button></details>`;
+   const renderAdminCoupleEditor=()=>{const sel=$('adminCoupleSelect'),body=$('adminCoupleEditBody');if(!sel||!body)return;const cid=sel.value,c=couples.find(x=>x.id===cid);if(!c){body.innerHTML='';return}const p=planMap.get(cid)||{},mids=normIds(c.memberIds),members=mids.map(id=>pm.get(id)||{id,name:id}),status=(n)=>p[`member${n}Status`]||'',buttons=(n)=>['speelt','reserve','afwezig'].map(st=>`<button type="button" class="secondary admin-status-btn ${status(n)===st?'selected':''}" data-admin-member="${n}" data-admin-status="${st}">${st==='speelt'?'Speelt':st==='reserve'?'Reserve':'Afwezig'}</button>`).join('');body.innerHTML=`<div class="admin-couple-current"><b>${esc(coupleLabel(cid,c))}</b><div class="admin-member-edit"><strong>${esc(members[0]?.name||'Speler 1')}</strong><div>${buttons(1)}</div></div><div class="admin-member-edit"><strong>${esc(members[1]?.name||'Speler 2')}</strong><div>${buttons(2)}</div></div><button type="button" id="saveAdminCouple">💾 Keuze opslaan</button>${status(1)==='afwezig'&&status(2)==='afwezig'?`<div class="admin-inline-sub"><b>Beide afwezig</b><span>Je kunt hieronder direct een vervanger vastleggen.</span><select id="adminInlineSub"><option value="">Kies vaste speler of reserve…</option><optgroup label="Vaste spelers">${fixedOptions}</optgroup><optgroup label="Reserves">${reserveOptions}</optgroup></select><button type="button" id="adminInlineSubSave" class="secondary">Vervanger vastleggen</button></div>`:''}</div>`;body.querySelectorAll('[data-admin-status]').forEach(b=>b.onclick=()=>{const n=b.dataset.adminMember,st=b.dataset.adminStatus;p[`member${n}Status`]=st;if(st==='speelt'){p[`member${n==='1'?'2':'1'}Status`]=p[`member${n==='1'?'2':'1'}Status`]==='afwezig'?'afwezig':'reserve'}if(st==='reserve')p[`member${n==='1'?'2':'1'}Status`]='speelt';planMap.set(cid,p);renderAdminCoupleEditor()});$('saveAdminCouple')?.addEventListener('click',async()=>{const a=p.member1Status||'',b=p.member2Status||'',msg=$('adminCoupleEditMsg');if(!validPair(a,b)){if(msg){msg.textContent='Kies voor beide spelers Speelt, Reserve of Afwezig.';msg.className='message error'}return}try{await setDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',cid),{coupleId:cid,member1Id:mids[0]||'',member1Status:a,member2Id:mids[1]||'',member2Status:b,updatedBy:user.uid,updatedAt:serverTimestamp(),adminAdjustedBy:user.uid,adminAdjustedAt:serverTimestamp()},{merge:true});if(msg){msg.textContent='✓ Spelerskeuze aangepast. Het koppel ziet dat de beheerder dit heeft gewijzigd.';msg.className='message'}setTimeout(()=>loadLineupDate(d),650)}catch(e){console.error(e);if(msg){msg.textContent='Aanpassen lukt niet.';msg.className='message error'}}});$('adminInlineSubSave')?.addEventListener('click',async()=>{const val=$('adminInlineSub')?.value||'';if(!val)return;const[kind0,id]=val.split(':'),person=(kind0==='p'?all:reserves).find(x=>x.id===id);if(!person)return;try{await setDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',cid),{coupleId:cid,member1Id:mids[0]||'',member1Status:p.member1Status||'afwezig',member2Id:mids[1]||'',member2Status:p.member2Status||'afwezig',updatedBy:user.uid,updatedAt:serverTimestamp(),adminAdjustedBy:user.uid,adminAdjustedAt:serverTimestamp()},{merge:true});await assign(cid,person,kind0==='p'?'fixed':'reserve',person.strength)}catch(e){console.error(e);const msg=$('adminCoupleEditMsg');if(msg){msg.textContent='Vervanger vastleggen lukt niet.';msg.className='message error'}}})};
+   $('adminCoupleSelect')?.addEventListener('change',renderAdminCoupleEditor);
+   host.querySelectorAll('[data-lineup-stat]').forEach(btn=>btn.addEventListener('click',()=>{const detail=$('lineupStatDetail'),type=btn.dataset.lineupStat;if(!detail)return;const wasOpen=detail.dataset.open===type;host.querySelectorAll('[data-lineup-stat]').forEach(x=>x.classList.remove('detail-open'));if(wasOpen){detail.innerHTML='';detail.dataset.open='';return}detail.dataset.open=type;btn.classList.add('detail-open');const row=x=>`<div class="simple-row">${x}</div>`;if(type==='playing')detail.innerHTML=`<div class="stat-detail compact-admin-detail"><h4>Spelers definitief</h4>${playing.length?playing.map(p=>row(esc(p.name||p.id))).join(''):'<p>Er zijn nog geen definitieve spelers.</p>'}</div>`;if(type==='missing')detail.innerHTML=`<div class="stat-detail compact-admin-detail"><h4>Koppels nog invullen</h4>${missingCouples.length?missingCouples.map(c=>row(esc(coupleLabel(c.id,c)))).join(''):'<p>Alle koppels hebben ingevuld.</p>'}</div>`;if(type==='need')detail.innerHTML=`<div class="stat-detail compact-admin-detail"><h4>Invaller nodig</h4>${needSubs.length?needSubs.map(c=>row(`${esc(coupleLabel(c.id,c))} · beide afwezig`)).join(''):'<p>Geen koppel heeft een invaller nodig.</p>'}</div>`;if(type==='pending')detail.innerHTML=`<div class="stat-detail compact-admin-detail"><h4>Wacht op goedkeuring</h4>${pendingSubs.length?pendingSubs.map(c=>{const p=planMap.get(c.id)||{};return row(`${esc(coupleLabel(c.id,c))} · ${esc(p.substituteName||'invaller')}`)}).join(''):'<p>Er wachten geen invallers op goedkeuring.</p>'}</div>`;detail.scrollIntoView({behavior:'smooth',block:'nearest'})}));
+   const refreshInvite=()=>{$('inviteText').value=`Wildenhorst zaterdagcompetitie\n\nBeste tennissers,\n\n${dateText(d.dateKey)} spelen we weer!\n\nTijd: ${d.startTime||season?.startTime||'10:00'} tot ${d.endTime||season?.endTime||'12:00'} uur.\n\nLaat via de app weten wie van jullie koppel speelt.\n\nEr hebben zich al ${lineupState.players.length} spelers aangemeld.\n${missingCouples.length?`Nog ${missingCouples.length} koppels moeten hun keuze doorgeven.\n`:''}\nOpen de app:\nhttps://hogeterp.github.io/Wildenhorst/`};refreshInvite();
+    $('subSearchWa')?.addEventListener('click',async()=>{
+      const btn=$('subSearchWa');if(btn)btn.disabled=true;
       try{
-        privateTodosUnsubscribe=collection.onSnapshot(
-          applySnapshot,
-          err2=>{
-            console.error("Privé to-do's laden mislukt",err2);
-            showSaveWarning("Je to-do's konden niet worden geladen.");
-          }
-        );
-      }catch(err2){
-        console.error("To-do fallback kon niet starten",err2);
-        showSaveWarning("Je to-do's konden niet worden geladen.");
-      }
-    }
-  );
-}
-function normalizeTodoPriority(priority){
-  const value=String(priority||"normal").trim().toLowerCase();
-  const aliases={
-    urgent:"urgent",dringend:"urgent","🚨 dringend":"urgent",
-    high:"high",hoog:"high","🔴 hoog":"high",
-    normal:"normal",normaal:"normal","🟡 normaal":"normal",
-    low:"low",laag:"low","🟢 laag":"low"
-  };
-  return aliases[value] || "normal";
-}
-function todoPriorityLabel(priority){ return ({urgent:"🚨 Dringend",high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[normalizeTodoPriority(priority)]; }
-function todoPriorityRank(priority){ return ({urgent:0,high:1,normal:2,low:3})[normalizeTodoPriority(priority)]; }
-function compareTodosByPriorityThenDate(a,b){
-  const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
-  if(priorityOrder!==0) return priorityOrder;
-  const ad=(a.date||"9999-12-31")+" "+(a.time||"");
-  const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-  return ad.localeCompare(bd);
-}
-function renderPrivateTodos(){
-  if(!window.todoList) return;
-  const showCompleted=window.todoShowCompleted?.checked ?? true;
-  const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>{
-    if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
-    return compareTodosByPriorityThenDate(a,b);
-  });
-  todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
-    <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
-    ${t.note?`<p>${escapeHtml(t.note).replaceAll("\n","<br>")}</p>`:""}
-    ${t.photo?`<img class="todo-photo" src="${escapeHtml(t.photo)}" alt="Foto bij ${escapeHtml(t.title||"taak")}">`:""}
-    <div class="todo-actions"><button class="secondary-btn" type="button" onclick="openTodoDialog('${t.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deletePrivateTodo('${t.id}')">Verwijderen</button></div>
-  </article>`).join(""):`<div class="card muted">Je hebt nog geen persoonlijke taken.</div>`;
-}
-let todoPhotoObjectUrl="";
-function resetTodoPhoto(){
-  todoPhotoData.value=""; todoCameraInput.value=""; todoGalleryInput.value="";
-  todoPhotoPreview.removeAttribute("src"); todoPhotoPreviewWrap.classList.add("hidden");
-  if(todoPhotoObjectUrl){URL.revokeObjectURL(todoPhotoObjectUrl);todoPhotoObjectUrl="";}
-}
-function setTodoPhoto(dataUrl){
-  todoPhotoData.value=dataUrl||"";
-  if(dataUrl){todoPhotoPreview.src=dataUrl;todoPhotoPreviewWrap.classList.remove("hidden");}
-  else resetTodoPhoto();
-}
-function processTodoPhoto(file){
-  if(!file)return;
-  if(!file.type.startsWith("image/")){alert("Kies een geldige foto of afbeelding.");return;}
-  if(file.size>12*1024*1024){alert("Kies een afbeelding kleiner dan 12 MB.");return;}
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=900,scale=Math.min(1,max/Math.max(img.width,img.height));
-      const canvas=document.createElement("canvas");
-      canvas.width=Math.max(1,Math.round(img.width*scale));
-      canvas.height=Math.max(1,Math.round(img.height*scale));
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      setTodoPhoto(canvas.toDataURL("image/jpeg",0.68));
-    };
-    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");
-    img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-if(window.todoCameraInput) todoCameraInput.onchange=()=>processTodoPhoto(todoCameraInput.files?.[0]);
-if(window.todoGalleryInput) todoGalleryInput.onchange=()=>processTodoPhoto(todoGalleryInput.files?.[0]);
-if(window.removeTodoPhotoBtn) removeTodoPhotoBtn.onclick=resetTodoPhoto;
-
-window.openTodoDialog=(id="")=>{
-  todoForm.reset(); resetTodoPhoto(); todoEditId.value=id; todoDialogTitle.textContent=id?"Taak wijzigen":"Taak toevoegen";
-  const item=(privateTodos||[]).find(t=>t.id===id);
-  if(item){
-    todoTitle.value=item.title||""; todoNote.value=item.note||""; todoDate.value=item.date||""; todoTime.value=item.time||""; todoPriority.value=item.priority||"normal";
-    setTodoPhoto(item.photo||"");
-  } else todoPriority.value="normal";
-  todoDialog.showModal();
-};
-window.togglePrivateTodo=async(id,completed)=>{
-  const item=(privateTodos||[]).find(t=>t.id===id); if(!item)return;
-  try{ await privateTodosCollection().doc(id).set({...item,completed,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true}); }
-  catch(error){ console.error(error); showSaveWarning(`Taak aanpassen mislukt${error?.message?`: ${error.message}`:""}.`); }
-};
-window.deletePrivateTodo=async id=>{
-  if(!confirm("Deze taak verwijderen?"))return;
-  try{ await privateTodosCollection().doc(id).delete(); showSaveWarning("✓ Taak verwijderd"); }
-  catch(error){ console.error(error); showSaveWarning(`Taak verwijderen mislukt${error?.message?`: ${error.message}`:""}.`); }
-};
-
-function giftEventCanManage(event){
-  return isAdmin() || event.createdByUid===currentUser?.uid;
-}
-function giftEventVisible(event){
-  const person=currentPersonName();
-  return giftEventCanManage(event) || (event.recipients||[]).includes(person) || (event.buyers||[]).includes(person);
-}
-function giftWishStatus(event,wish){
-  return (event.claims||{})[wish.id] || null;
-}
-function giftStatusLabel(status){
-  if(status==="wrapped") return "🎁 Ingepakt";
-  if(status==="bought") return "✅ Gekocht";
-  return "🛒 Gereserveerd";
-}
-function renderGiftEvents(){
-  if(!window.giftEventList) return;
-  const person=currentPersonName();
-  const events=(data.giftEvents||[]).filter(giftEventVisible).slice().sort((a,b)=>String(a.date||"").localeCompare(String(b.date||"")));
-  giftEventList.innerHTML=events.length?events.map(event=>{
-    const canBuy=(event.buyers||[]).includes(person);
-    const recipients=event.recipients||[];
-    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
-    const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>privateIdeaRecipients(i).some(x=>recipients.includes(x)) && (!i.eventId || i.eventId===event.id));
-    const publicCard=w=>{
-      const ownWish=w.person===person, claim=giftWishStatus(event,w); let actions="";
-      if(canBuy&&!ownWish){ if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`; else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`; }
-      return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||'')}${w.price?` · € ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
-    };
-    const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
-    const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
-    const privateCards=myPrivateIdeas.length?myPrivateIdeas.map(privateCard).join(''):`<p class="muted">Je hebt nog geen cadeautjes voor anderen voor dit evenement.</p>`;
-    const peopleLabel=event.occasion==='Verjaardag'?`<span class="chip">🎂 Jarige: ${escapeHtml(recipients[0]||'')}</span>`:`<span class="chip">🎁 Voor: ${recipients.map(escapeHtml).join(', ')}</span>`;
-    return `<section class="item-card gift-event-card"><div class="gift-event-head"><div><h3>${escapeHtml(event.name)}</h3><div class="meta">${fmtDate(event.date)} · ${escapeHtml(event.occasion||'Overig')}${event.budget?` · budget € ${Number(event.budget).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${giftEventCanManage(event)?`<button class="mini-btn" onclick="openGiftEventDialog('${event.id}')">Bewerken</button>`:''}</div><div class="chips">${peopleLabel}</div><section class="gift-section"><h4>🎁 Openbare wensen</h4><div class="gift-wishes">${publicCards}</div></section>${canBuy?`<section class="gift-section private-gift-section"><h4>🎁 Mijn cadeautjes voor anderen</h4><p class="muted private-gift-help">Alleen jij kunt deze ideeën zien.</p><div class="gift-wishes">${privateCards}</div><button class="secondary-btn wide" type="button" onclick="openGiftIdeaDialog('${event.id}')">+ Cadeautje toevoegen</button></section>`:''}</section>`;
-  }).join(''):`<div class="card muted">Nog geen cadeau-evenementen. Iedere gebruiker kan er één aanmaken.</div>`;
-}
-function fillGiftMemberChecks(container,selected=[]){
-  container.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.includes(p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
-}
-function updateGiftRecipientMode(){
-  const birthday=giftEventOccasion.value==="Verjaardag";
-  giftBirthdayRecipientLabel.classList.toggle("hidden",!birthday);
-  giftMultipleRecipients.classList.toggle("hidden",birthday);
-  if(birthday){
-    giftBirthdayRecipient.innerHTML=data.family.map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
-  }
-}
-window.openGiftEventDialog=id=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===id);
-  if(event && !giftEventCanManage(event)) return;
-  giftEventForm.reset(); giftEventEditId.value=event?.id||""; giftEventDialogTitle.textContent=event?"Cadeau-evenement bewerken":"Cadeau-evenement maken";
-  giftEventName.value=event?.name||""; giftEventOccasion.value=event?.occasion||"Verjaardag"; giftEventDate.value=event?.date||new Date().toISOString().slice(0,10); giftEventBudget.value=event?.budget||""; updateGiftRecipientMode(); giftBirthdayRecipient.value=event?.recipients?.[0]||data.family[0]?.name||"";
-  fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
-  giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
-};
-window.claimGiftWish=(eventId,wishId,status)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
-  const person=currentPersonName(); if(!(event.buyers||[]).includes(person))return;
-  event.claims=event.claims||{}; const current=event.claims[wishId];
-  if(current && current.byUid!==currentUser?.uid){ alert("Deze wens is al door iemand anders gereserveerd."); return; }
-  event.claims[wishId]={byUid:currentUser?.uid||"",byName:person,status,updatedAt:new Date().toISOString()}; saveData();
-};
-window.releaseGiftWish=(eventId,wishId)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); const claim=event?.claims?.[wishId];
-  if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
-};
-
-
-function outingStatusLabel(status){
-  return status==="done"?"✅ Geweest":status==="want"?"❤️ Willen we heen":"💡 Idee";
-}
-function renderOutings(){
-  if(!window.outingList) return;
-  const q=(outingSearch?.value||"").trim().toLowerCase();
-  const category=outingCategoryFilter?.value||"";
-  const status=outingStatusFilter?.value||"";
-  const rows=(data.outings||[]).filter(o=>
-    (!category||o.category===category)&&(!status||o.status===status)&&
-    (!q||[o.title,o.place,o.note,o.category].join(" ").toLowerCase().includes(q))
-  ).sort((a,b)=>{
-    const rank={want:0,idea:1,done:2};
-    return (rank[a.status]??1)-(rank[b.status]??1) || String(a.title||"").localeCompare(String(b.title||""),"nl");
-  });
-  outingList.innerHTML=rows.length?rows.map(o=>`<article class="item-card outing-card"><div class="outing-card-head"><div><h3>${escapeHtml(o.title)}</h3><div class="meta">${escapeHtml(o.category||"Overig")}${o.place?` · 📍 ${escapeHtml(o.place)}`:""}</div></div><span class="outing-status">${outingStatusLabel(o.status)}</span></div>${o.note?`<p>${escapeHtml(o.note).replaceAll("\n","<br>")}</p>`:""}${o.link?`<a href="${escapeHtml(o.link)}" target="_blank" rel="noopener">Website bekijken</a>`:""}<div class="outing-actions"><button class="secondary-btn" type="button" onclick="openOutingDialog('${o.id}')">Bewerken</button><button class="secondary-btn" type="button" onclick="deleteOuting('${o.id}')">Verwijderen</button></div></article>`).join(""):`<div class="card muted">Nog geen dagjes-uit-ideeën.</div>`;
-}
-window.openOutingDialog=(id="")=>{
-  const o=(data.outings||[]).find(x=>x.id===id);
-  outingForm.reset(); outingEditId.value=o?.id||""; outingDialogTitle.textContent=o?"Dagje uit bewerken":"Dagje uit toevoegen";
-  outingTitle.value=o?.title||""; outingCategory.value=o?.category||"Pretpark"; outingPlace.value=o?.place||""; outingStatus.value=o?.status||"idea"; outingLink.value=o?.link||""; outingNote.value=o?.note||"";
-  deleteOutingBtn.classList.toggle("hidden",!o); outingDialog.showModal();
-};
-window.deleteOuting=id=>{
-  const o=(data.outings||[]).find(x=>x.id===id); if(!o)return;
-  if(!confirm(`Dagje uit “${o.title}” verwijderen?`)) return;
-  data.outings=data.outings.filter(x=>x.id!==id); saveData();
-};
-
-function readStorageUsageCache(){
-  try{return JSON.parse(localStorage.getItem(STORAGE_USAGE_CACHE_KEY)||"null");}catch(_){return null;}
-}
-function writeStorageUsageCache(bytes,count){
-  const value={bytes,count,updatedAt:new Date().toISOString()};
-  localStorage.setItem(STORAGE_USAGE_CACHE_KEY,JSON.stringify(value)); return value;
-}
-function updateStorageUsageCard(value,error=""){
-  const card=document.getElementById("dashboardStorageCard"); if(!card)return;
-  const allowed=isAdmin(); card.classList.toggle("hidden",!allowed); if(!allowed)return;
-  if(error){ storageUsageText.textContent="Opslag kon niet worden berekend"; storageUsagePercent.textContent="—"; storageUsageRemaining.textContent="—"; storageUsageWarning.textContent=error; storageUsageWarning.classList.remove("hidden"); return; }
-  if(!value){ storageUsageText.textContent="Opslag berekenen…"; return; }
-  const bytes=Number(value.bytes||0), pct=bytes/STORAGE_LIMIT_BYTES*100;
-  storageUsageText.textContent=`${formatBytes(bytes)} van 5,00 GB`;
-  storageUsagePercent.textContent=`${pct.toLocaleString("nl-NL",{maximumFractionDigits:1})}% gebruikt`;
-  storageUsageRemaining.textContent=`${formatBytes(Math.max(0,STORAGE_LIMIT_BYTES-bytes))} beschikbaar`;
-  storageUsageBar.style.width=`${Math.min(100,pct)}%`; storageUsageBar.className=pct>100?"danger":"";
-  storageUsageWarning.classList.toggle("hidden",bytes<=STORAGE_LIMIT_BYTES);
-  storageUsageWarning.textContent=bytes>STORAGE_LIMIT_BYTES?"⚠️ Meer dan 5,00 GB gebruikt. Controleer Firebase Storage en je kosten.":"";
-  const updated=value.updatedAt?new Date(value.updatedAt):null;
-  storageUsageUpdated.textContent=updated?`Laatst berekend: ${updated.toLocaleString("nl-NL")} · ${Number(value.count||0)} bestanden`:"";
-}
-async function calculateStorageUsageRef(ref){
-  const result=await ref.listAll(); let bytes=0,count=0;
-  const metas=await Promise.all(result.items.map(item=>item.getMetadata()));
-  metas.forEach(m=>{bytes+=Number(m.size||0);count++;});
-  for(const prefix of result.prefixes){const sub=await calculateStorageUsageRef(prefix);bytes+=sub.bytes;count+=sub.count;}
-  return {bytes,count};
-}
-async function refreshStorageUsage(force=false){
-  if(!isAdmin()||!storage||storageUsageLoading)return;
-  const cached=readStorageUsageCache();
-  if(cached) updateStorageUsageCard(cached);
-  if(!force&&cached&&Date.now()-new Date(cached.updatedAt).getTime()<6*60*60*1000)return;
-  storageUsageLoading=true; if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.disabled=true;
-  try{ const usage=await calculateStorageUsageRef(storage.ref()); updateStorageUsageCard(writeStorageUsageCache(usage.bytes,usage.count)); }
-  catch(e){ console.error("Opslaggebruik berekenen mislukt",e); updateStorageUsageCard(cached,e?.message||"Controleer of de nieuwe Storage-regels zijn gepubliceerd."); }
-  finally{storageUsageLoading=false;if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.disabled=false;}
-}
-
-function renderHome(){
-  statFamily.textContent=data.family.length;
-  statHouseholds.textContent=data.households.length;
-  statRecipes.textContent=data.recipes.length;
-  statWishes.textContent=data.wishes.filter(w=>w.person===currentPersonName()).length;
-
-  const now=new Date();
-  const todayIso=isoDate(now);
-  const person=currentPersonName() || "familielid";
-  dashboardWelcome.textContent=`Hallo ${person}`;
-  dashboardDate.textContent=new Intl.DateTimeFormat("nl-NL",{
-    weekday:"long",day:"numeric",month:"long",year:"numeric"
-  }).format(now);
-
-  const b=getNextBirthday();
-  document.getElementById("nextBirthday").innerHTML=b
-    ? `<div class="birthday-icon">🎂</div><div><strong>${b.name}</strong><div class="muted">${b.days===0?"Vandaag jarig!":`over ${b.days} dagen`} · wordt ${ageFor(b.birth)+1}</div></div>`
-    : `<div class="muted">Geen verjaardag gevonden.</div>`;
-
-  const houses=accessibleHouseholds();
-  const friday=isoDate(getFriday(now));
-  const dayIndex=(now.getDay()-5+7)%7;
-  const meals=(data.weekMenus || []).filter(m=>
-    houses.some(h=>h.id===m.householdId) &&
-    m.weekStart===friday &&
-    Number(m.dayIndex)===dayIndex
-  );
-
-  dashboardMeals.innerHTML=meals.length ? meals.map(meal=>{
-    const house=data.households.find(h=>h.id===meal.householdId);
-    return `<div class="dashboard-row"><div><strong>${recipeMealName(meal)}</strong><span>${house?.name || ""}</span></div></div>`;
-  }).join("") : `<p class="muted">Voor vandaag staat nog niets gepland.</p>`;
-
-  const visibleAgenda=getVisibleAgendaEvents()
-    .filter(e=>e.date>=todayIso)
-    .sort((a,b)=>(a.date+" "+(a.startTime||"")).localeCompare(b.date+" "+(b.startTime||"")))
-    .slice(0,4);
-
-  dashboardAgenda.innerHTML=visibleAgenda.length ? visibleAgenda.map(e=>`
-    <div class="dashboard-row">
-      <div><strong>${e.title}</strong><span>${formatAgendaDate(e)} · ${agendaScopeLabel(e)}</span></div>
-    </div>
-  `).join("") : `<p class="muted">Geen komende afspraken.</p>`;
-
-  const groceryRows=(data.groceries || []).filter(g=>
-    houses.some(h=>h.id===g.householdId) && !g.done
-  );
-  const groceryByHouse=houses.map(h=>({
-    house:h,
-    count:groceryRows.filter(g=>g.householdId===h.id).length
-  })).filter(x=>x.count>0);
-
-  dashboardGroceries.innerHTML=groceryByHouse.length ? groceryByHouse.map(x=>`
-    <div class="dashboard-row">
-      <div><strong>${x.count} ${x.count===1?"product":"producten"}</strong><span>${x.house.name}</span></div>
-    </div>
-  `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
-
-  if(window.dashboardTodos){
-    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>{
-      const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
-      if(priorityOrder!==0) return priorityOrder;
-      const ad=(a.date||"9999-12-31")+" "+(a.time||"");
-      const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-      return ad.localeCompare(bd);
-    }).slice(0,5);
-    dashboardTodos.innerHTML=upcoming.length ? upcoming.map(t=>`<div class="dashboard-row"><div><strong>${escapeHtml(t.title)}</strong><span>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</span></div></div>`).join("") : `<p class="muted">Geen openstaande taken.</p>`;
-  }
-
-  if(window.dashboardDiarySummary && isDiaryOwner()){
-    const latest=diaryEntries.slice().sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||"")))[0];
-    dashboardDiarySummary.textContent=latest ? `Laatste notitie: ${diaryDateLabel(latest.date)}` : "Open je dagboek om een notitie toe te voegen.";
-  }
-  if(isAdmin()){updateStorageUsageCard(readStorageUsageCache()); setTimeout(()=>refreshStorageUsage(false),0);} else updateStorageUsageCard(null);
-}
-function fillSelects(){
-  const opts=data.family.map(p=>`<option>${p.name}</option>`).join("");
-  recipeAuthor.innerHTML=opts;
-
-  const safeName=currentPersonName() || "Familielid";
-  wishPerson.innerHTML=`<option>${safeName}</option>`;
-  wishPerson.value=safeName;
-  wishPerson.disabled=true;
-  wishPersonFilter.innerHTML=`<option value="">Alle familieleden</option>`+data.family.map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
-  if(!wishPersonFilter.value) wishPersonFilter.value=safeName;
-}
-function renderProfile(){
-  const name=currentUser?.displayName || currentUser?.name || "Niet ingelogd";
-  const email=currentUser?.email || "";
-  profileName.textContent=name;
-  profileEmail.textContent=email;
-
-  const savedPhoto=localStorage.getItem(PROFILE_PHOTO_KEY);
-  if(savedPhoto && currentUser){
-    profileAvatar.textContent="";
-    profileAvatar.style.backgroundImage=`url("${savedPhoto}")`;
-    profileAvatar.classList.add("has-photo");
-  }else{
-    profileAvatar.style.backgroundImage="";
-    profileAvatar.classList.remove("has-photo");
-    profileAvatar.textContent=initials(name);
-  }
-
-  profileBtn.textContent=initials(name);
-  topGreeting.textContent=currentUser ? `Hallo ${name}` : "Familie-app";
-  const houses=data.households.filter(h=>h.members.includes(currentPersonName()));
-  profileHouseholds.innerHTML=houses.map(h=>`<span class="chip">${h.name}</span>`).join("") || `<span class="muted">Nog niet aan een huishouden gekoppeld</span>`;
-}
-function renderAll(){
-  renderNotifications(); renderHome(); renderFamily(); renderHouseholds(); renderRecipes(); renderGroceries(); renderProducts(); renderOutings(); renderCoupleIdeas(); renderWishes(); renderGiftEvents(); renderPrivateGiftIdeasPage(); renderPrivateTodos(); renderAgenda(); renderWeekmenu(); fillSelects(); renderProfile(); renderAccountManagement(); renderVault(); renderDiary(); }
-
-function parseNumberValue(value){
-  const raw=String(value||"").trim().replace(",",".");
-  if(!raw) return null;
-
-  // Ondersteunt gehele getallen, decimalen en eenvoudige breuken zoals 1/2.
-  if(/^\d+\s*\/\s*\d+$/.test(raw)){
-    const [a,b]=raw.split("/").map(Number);
-    return b ? a/b : null;
-  }
-  if(/^\d+(?:\.\d+)?$/.test(raw)) return Number(raw);
-  return null;
-}
-
-
-function escapeHtml(value){
-  return String(value ?? "")
-    .replaceAll("&","&amp;")
-    .replaceAll("<","&lt;")
-    .replaceAll(">","&gt;")
-    .replaceAll('"',"&quot;")
-    .replaceAll("'","&#039;");
-}
-
-const INGREDIENT_UNITS=[
-  ["","Geen eenheid"],
-  ["g","g"],
-  ["kg","kg"],
-  ["ml","ml"],
-  ["l","liter"],
-  ["tl","tl"],
-  ["el","el"],
-  ["stuk","stuk"],
-  ["stuks","stuks"],
-  ["blik","blik"],
-  ["pak","pak"],
-  ["zakje","zakje"],
-  ["snufje","snufje"],
-  ["teen","teen"],
-  ["tenen","tenen"],
-  ["bosje","bosje"],
-  ["kopje","kopje"]
-];
-
-function ingredientUnitOptions(selected=""){
-  return INGREDIENT_UNITS.map(([value,label])=>
-    `<option value="${value}" ${value===selected?"selected":""}>${label}</option>`
-  ).join("");
-}
-
-function addIngredientRow(ingredient={amount:"",unit:"",name:""}){
-  const row=document.createElement("div");
-  row.className="ingredient-entry";
-  row.innerHTML=`
-    <div class="ingredient-entry-top">
-      <span>Ingrediënt</span>
-      <button class="ingredient-remove" type="button" aria-label="Ingrediënt verwijderen">🗑️</button>
-    </div>
-    <input class="ingredient-name" type="text" placeholder="Bijvoorbeeld: slagroom" value="${escapeHtml(ingredient.name||"")}">
-    <div class="ingredient-amount-row">
-      <label>
-        <span>Hoeveelheid</span>
-        <input class="ingredient-amount" type="text" inputmode="decimal" placeholder="Bijv. 0,5" value="${escapeHtml(String(ingredient.amount||""))}">
-      </label>
-      <label>
-        <span>Eenheid</span>
-        <select class="ingredient-unit">${ingredientUnitOptions(ingredient.unit||"")}</select>
-      </label>
-    </div>
-  `;
-
-  row.querySelector(".ingredient-remove").onclick=()=>{
-    row.remove();
-    if(!ingredientRows.children.length) addIngredientRow();
-    updateIngredientRemoveButtons();
-  };
-
-  ingredientRows.appendChild(row);
-  updateIngredientRemoveButtons();
-}
-
-function updateIngredientRemoveButtons(){
-  const buttons=[...ingredientRows.querySelectorAll(".ingredient-remove")];
-  buttons.forEach(button=>{
-    button.disabled=buttons.length===1;
-    button.title=buttons.length===1 ? "Minimaal één ingrediënt nodig" : "Ingrediënt verwijderen";
-  });
-}
-
-function resetIngredientEditor(ingredients=[]){
-  ingredientRows.innerHTML="";
-  const rows=ingredients.length ? ingredients : [{amount:"",unit:"",name:""}];
-  rows.forEach(addIngredientRow);
-  ingredientError.textContent="";
-}
-
-function collectIngredientRows(){
-  const rows=[...ingredientRows.querySelectorAll(".ingredient-entry")].map(row=>({
-    name:row.querySelector(".ingredient-name").value.trim(),
-    amount:row.querySelector(".ingredient-amount").value.trim().replace(".",","),
-    unit:row.querySelector(".ingredient-unit").value
-  }));
-
-  return rows.filter(item=>item.name || item.amount || item.unit);
-}
-
-function validateIngredientRows(ingredients){
-  if(!ingredients.length){
-    ingredientError.textContent="Voeg minimaal één ingrediënt toe.";
-    return false;
-  }
-
-  if(ingredients.some(item=>!item.name)){
-    ingredientError.textContent="Vul bij ieder ingrediënt een naam in.";
-    return false;
-  }
-
-  const invalidAmount=ingredients.find(item=>
-    item.amount && parseNumberValue(item.amount)===null
-  );
-  if(invalidAmount){
-    ingredientError.textContent=`"${invalidAmount.amount}" is geen geldige hoeveelheid. Gebruik bijvoorbeeld 0,5 of 1/2.`;
-    return false;
-  }
-
-  ingredientError.textContent="";
-  return true;
-}
-
-function parseIngredientLine(line){
-  const clean=String(line||"").trim();
-  if(!clean) return null;
-
-  // Oude/instructie-indeling: 250 | gram | bloem
-  if(clean.includes("|")){
-    const parts=clean.split("|").map(x=>x.trim());
-    return {
-      amount:parts[0]||"",
-      unit:parts[1]||"",
-      name:parts.slice(2).join(" | ")||parts[1]||parts[0]
-    };
-  }
-
-  // Eenvoudige invoer werkt nu ook: 250 gram bloem
-  // of: 1/2 theelepel zout
-  const match=clean.match(/^(\d+(?:[.,]\d+)?|\d+\s*\/\s*\d+)\s+(\S+)\s+(.+)$/);
-  if(match){
-    return {amount:match[1],unit:match[2],name:match[3]};
-  }
-
-  // Zonder hoeveelheid blijft de tekst gewoon staan.
-  return {amount:"",unit:"",name:clean};
-}
-
-function normalizeIngredient(ingredient){
-  if(!ingredient) return {amount:"",unit:"",name:""};
-
-  // Herstel recepten die in een oudere versie als één hele regel zijn opgeslagen.
-  if(ingredient.amount && !ingredient.unit && ingredient.name===ingredient.amount){
-    return parseIngredientLine(ingredient.amount) || ingredient;
-  }
-  return ingredient;
-}
-
-function formatScaledAmount(value, factor){
-  const number=parseNumberValue(value);
-  if(number===null) return value || "";
-
-  const scaled=number*factor;
-  return scaled.toLocaleString("nl-NL",{
-    maximumFractionDigits:2
-  });
-}
-
-function parseIngredients(text){
-  return text.split("\\n")
-    .map(parseIngredientLine)
-    .filter(Boolean);
-}
-
-
-
-addWeekMealBtn.onclick=()=>openWeekMealDialog(0);
-weekMealType.onchange=showWeekMealFields;
-weekmenuHousehold.onchange=()=>{
-  currentWeekmenuHousehold=weekmenuHousehold.value;
-  renderWeekmenu();
-};
-
-previousWeekBtn.onclick=()=>{
-  currentWeekStart=addDays(currentWeekStart,-7);
-  renderWeekmenu();
-};
-
-nextWeekBtn.onclick=()=>{
-  currentWeekStart=addDays(currentWeekStart,7);
-  renderWeekmenu();
-};
-
-weekMealForm.onsubmit=async e=>{
-  e.preventDefault();
-  if(!currentWeekmenuHousehold) return;
-
-  const f=new FormData(weekMealForm);
-  const dayIndex=Number(f.get("day"));
-  const mealType=f.get("mealType");
-  const recipeId=mealType==="recipe" ? String(f.get("recipeId")||"") : "";
-  const manualName=mealType==="manual" ? String(f.get("manualName")||"").trim() : "";
-
-  if(mealType==="recipe" && !recipeId){
-    alert("Voeg eerst een recept toe of kies 'Zelf gerecht typen'.");
-    return;
-  }
-  if(mealType==="manual" && !manualName){
-    alert("Vul een gerecht in.");
-    return;
-  }
-
-  data.weekMenus=data.weekMenus || [];
-  const editId=String(f.get("editId")||"");
-  const existing=data.weekMenus.find(m=>m.id===editId);
-  const sameDay=data.weekMenus.find(m=>
-    m.householdId===currentWeekmenuHousehold &&
-    m.weekStart===weekMenuKey() &&
-    Number(m.dayIndex)===dayIndex &&
-    m.id!==editId
-  );
-
-  // v1.3.45: verplaatsen is een update van hetzelfde Firestore-document.
-  // Sla eerst veilig op; verwijder pas daarna een eventueel gerecht op de doeldag.
-  // Bewaar het bestaande ID, zodat een dagwissel geen nieuw document vereist.
-  const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
-  const record={
-    id:existing?.id || stableWeekMenuId,
-    householdId:currentWeekmenuHousehold,
-    weekStart:weekMenuKey(),
-    dayIndex,
-    recipeId,
-    name:manualName,
-    note:String(f.get("note")||"").trim(),
-    updatedBy:currentPersonName(),
-    updatedAt:new Date().toISOString(),
-    attendees:existing?.attendees || (householdById(currentWeekmenuHousehold)?.members || []).map(name=>({type:"family",name}))
-  };
-  const beforeValue=existing?{...existing}:null;
-  const saveButton=weekMealForm.querySelector('[type="submit"]');
-  if(saveButton) saveButton.disabled=true;
-  try{
-    // Eerst opslaan. Bij een netwerkfout blijven alle oude maaltijden intact.
-    await saveWeekMenuRecord(record,beforeValue);
-    if(sameDay){
-      try{
-        await deleteWeekMenuRecord(sameDay);
-      }catch(deleteError){
-        // Het nieuwe gerecht is opgeslagen; laat een oude maaltijd nooit
-        // onzichtbaar verdwijnen door lokaal te doen alsof verwijderen lukte.
-        console.error("Bestaand gerecht op doeldag verwijderen mislukt",deleteError);
-        showSaveWarning("Het gerecht is verplaatst, maar het oude gerecht op de doeldag kon niet worden verwijderd. Controleer het weekmenu.");
-      }
-    }
-    // De realtime Firestore-listener verwerkt de definitieve gegevens.
-    // Geen lokale arraymutaties die een onbedoelde her-migratie veroorzaken.
-    addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
-    saveData();
-    weekMealDialog.close();
-  }catch(error){
-    console.error(error);
-    showSaveWarning("Het weekmenu is niet opgeslagen. Het bestaande gerecht is behouden; probeer opnieuw.");
-  }finally{
-    if(saveButton) saveButton.disabled=false;
-  }
-};
-
-
-window.openAttendees=id=>{
-  const meal=(data.weekMenus||[]).find(m=>m.id===id);
-  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  attendeesMealId.value=id;
-  const selected=mealAttendees(meal);
-  attendeeFamilyChecks.innerHTML=data.family.map(p=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(p.name)}" ${selected.some(a=>a.type==="family"&&a.name===p.name)?"checked":""}><span>${escapeHtml(p.name)}</span></label>`).join("");
-  attendeeGuests.value=selected.filter(a=>a.type==="guest").map(a=>a.name).join("\n");
-  attendeesDialog.showModal();
-};
-attendeesForm.onsubmit=async e=>{
-  e.preventDefault();
-  const meal=(data.weekMenus||[]).find(m=>m.id===attendeesMealId.value); if(!meal)return;
-  const family=[...attendeeFamilyChecks.querySelectorAll('input:checked')].map(x=>({type:"family",name:x.value}));
-  const guests=attendeeGuests.value.split("\n").map(x=>x.trim()).filter(Boolean).map(name=>({type:"guest",name}));
-  const beforeValue={...meal,attendees:[...(meal.attendees||[])]};
-  meal.attendees=[...family,...guests]; meal.updatedBy=currentPersonName(); meal.updatedAt=new Date().toISOString();
-  try{
-    await saveWeekMenuRecord(meal,beforeValue);
-    addNotification({householdId:meal.householdId,text:`${currentPersonName()} heeft de mee-eters voor ${WEEK_DAYS[meal.dayIndex].toLowerCase()} aangepast (${meal.attendees.length} eters).`});
-    attendeesDialog.close(); saveData();
-  }catch(error){ Object.assign(meal,beforeValue); renderWeekmenu(); showSaveWarning("De mee-eters zijn niet opgeslagen."); }
-};
-
-window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
-
-window.editWeekMeal=id=>{
-  const meal=(data.weekMenus || []).find(m=>m.id===id);
-  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  openWeekMealDialog(meal.dayIndex,meal);
-};
-
-window.deleteWeekMeal=async id=>{
-  const meal=(data.weekMenus || []).find(m=>m.id===id);
-  if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  if(!confirm(`"${recipeMealName(meal)}" uit het weekmenu verwijderen?`)) return;
-  data.weekMenus=data.weekMenus.filter(m=>m.id!==id); renderWeekmenu();
-  try{ await deleteWeekMenuRecord(meal); }
-  catch(error){ data.weekMenus.push(meal); renderWeekmenu(); showSaveWarning("Verwijderen mislukt. Het gerecht is teruggezet."); }
-};
-
-copyWeekmenuBtn.onclick=async ()=>{
-  const source=getWeekMeals();
-  if(!source.length){
-    alert("Deze week bevat nog geen gerechten.");
-    return;
-  }
-
-  const nextStart=isoDate(addDays(currentWeekStart,7));
-  const existingNext=(data.weekMenus || []).filter(m=>
-    m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart
-  );
-
-  if(existingNext.length && !confirm("De volgende week bevat al gerechten. Deze vervangen?")){
-    return;
-  }
-
-  const previous=[...existingNext];
-  const copies=source.map(meal=>({
-    ...meal,id:`${currentWeekmenuHousehold}__${nextStart}__${meal.dayIndex}`.replaceAll("/","-"),weekStart:nextStart,
-    updatedBy:currentPersonName(),updatedAt:new Date().toISOString()
-  }));
-  try{
-    setSyncStatus("Weekmenu kopiëren…");
-    const batch=db.batch();
-    previous.forEach(row=>batch.delete(db.collection(WEEK_MENUS_COLLECTION).doc(row.id)));
-    copies.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
-    await batch.commit();
-    data.weekMenus=(data.weekMenus||[]).filter(m=>!(m.householdId===currentWeekmenuHousehold&&m.weekStart===nextStart)).concat(copies);
-    renderWeekmenu(); setSyncStatus("✓ Weekmenu gekopieerd en opgeslagen");
-    alert("Het weekmenu is naar de volgende week gekopieerd en opgeslagen.");
-  }catch(error){ console.error(error); showSaveWarning("Kopiëren is niet opgeslagen. Probeer opnieuw."); }
-};
-
-weekmenuGroceriesBtn.onclick=()=>{
-  const household=data.households.find(h=>h.id===currentWeekmenuHousehold);
-  const meals=getWeekMeals();
-  const recipeMeals=meals.filter(m=>m.recipeId);
-
-  if(!meals.length){
-    alert("Deze week bevat nog geen gerechten.");
-    return;
-  }
-  if(!recipeMeals.length){
-    alert("Er zijn alleen handmatig ingevulde gerechten. Daarvan zijn geen ingrediënten bekend.");
-    return;
-  }
-
-  let added=0;
-  const householdSize=Math.max(1,household?.members?.length || 1);
-
-  recipeMeals.forEach(meal=>{
-    const recipe=data.recipes.find(r=>r.id===meal.recipeId);
-    if(!recipe) return;
-
-    recipe.ingredients.forEach(ingredient=>{
-      data.groceries.push({
-        id:crypto.randomUUID(),
-        householdId:currentWeekmenuHousehold,
-        text:scaledIngredientText(ingredient,recipe.servings,attendeeCount(meal)),
-        done:false,
-        source:`Weekmenu ${weekMenuKey()}`,
-        addedBy:currentPersonName(),
-        addedAt:new Date().toISOString()
-      });
-      added++;
+        const [freshPlans,freshReserves,freshCouples,freshPlayers,adminUsers]=await Promise.all([
+          getDocs(collection(db,'seasons',seasonId(),'playDates',d.id,'couplePlans')),
+          getDocs(collection(db,'seasons',seasonId(),'reserves')),
+          getDocs(collection(db,'seasons',seasonId(),'couples')),
+          getDocs(collection(db,'seasons',seasonId(),'players')),
+          getDocs(collection(db,'users'))
+        ]);
+        const cp=freshCouples.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive').sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b));
+        const plans=new Map(freshPlans.docs.map(x=>[x.id,x.data()]));
+        const fixed=freshPlayers.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive');
+        const registered=freshReserves.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive');
+        const names=[...fixed,...registered].map(x=>x.name||x.id);
+        const missing=cp.filter(c=>{const x=plans.get(c.id);return x?.member1Status==='afwezig'&&x?.member2Status==='afwezig'&&(!x.substituteName||x.substituteApproval==='rejected')});
+        const assigned=cp.filter(c=>{const x=plans.get(c.id);return !!x?.substituteName&&x.substituteApproval!=='rejected'}).map(c=>({couple:c,plan:plans.get(c.id)}));
+        const usedIds=new Set(assigned.map(x=>String(x.plan.substituteId||'')));
+        const usedNames=new Set(assigned.map(x=>String(x.plan.substituteName||'').trim().toLocaleLowerCase('nl')));
+        const used=r=>usedIds.has(String(r.id))||usedNames.has(String(r.name||'').trim().toLocaleLowerCase('nl'));
+        const availableFixed=[];
+        cp.forEach(c=>{const x=plans.get(c.id)||{};const ids=c.memberIds||[];[1,2].forEach(n=>{const id=x[`member${n}Id`]||ids[n-1];if(x[`member${n}Status`]==='reserve'&&id){const p=fixed.find(y=>String(y.id)===String(id));if(p&&!used(p))availableFixed.push(p)}})});
+        // Alleen vaste spelers met de expliciete dagstatus Reserve zijn beschikbaar.
+        // Geregistreerde reservespelers hebben geen dagstatus in couplePlans en
+        // mogen daarom niet automatisch als beschikbaar worden gepresenteerd.
+        const assignedReserves=assigned.filter(a=>a.plan.substituteType==='reserve'||registered.some(r=>String(r.id)===String(a.plan.substituteId)||String(r.name||'').trim().toLocaleLowerCase('nl')===String(a.plan.substituteName||'').trim().toLocaleLowerCase('nl')));
+        const short=n=>compactName(n,names);
+        const available=[...new Map(availableFixed.map(r=>[String(r.name||r.id).trim().toLocaleLowerCase('nl'),r])).values()];
+        const uniqueAssigned=[...new Map(assignedReserves.map(a=>[String(a.plan.substituteId||a.plan.substituteName).trim().toLocaleLowerCase('nl'),a])).values()];
+        // De beheerders van dit WhatsApp-bericht zijn expliciet afgesproken.
+        const adminNames=['Eric Rijkers','Carl ter Beek','Rinze Hogeterp'];
+        const admins=adminNames;
+        const lines=[
+          '🎾 *Wildenhorst – Invaller gezocht*',
+          `📅 ${dateText(d.dateKey)} | ${d.startTime||season?.startTime||'10:00'}–${d.endTime||season?.endTime||'12:00'}`,
+          '',
+          '🔎 *Invaller nodig*',
+          ...(missing.length?missing.map(c=>`Koppel ${coupleNumber(c.id,c)} – ${String(c.name||'').split(' – ').map(short).join(' & ')}`):['Geen openstaande invallers']),
+          '',
+          '🟢 *Beschikbare reserves (status Reserve)*',
+          ...(available.length?available.map(r=>`• ${short(r.name||r.id)}`):['Geen']),
+          '',
+          '✅ *Reserves die al invallen*',
+          ...(uniqueAssigned.length?uniqueAssigned.map(a=>`• ${short(a.plan.substituteName)} → Koppel ${coupleNumber(a.couple.id,a.couple)}${a.plan.substituteApproval==='pending'?' (wacht op goedkeuring)':''}`):['Geen']),
+          '',
+          '📢 *Aan het koppel:* Jullie zoeken zelf een invaller. Lukt dit niet? Geef bij de beheerders aan dat jullie hulp nodig hebben.',
+          '',
+          '🎾 *Aan de reserves:* Sta je op Reserve, dan ben je beschikbaar. Kun je niet spelen? Wijzig je status in de app naar Afwezig.',
+          '',
+          `👥 *Beheerders:* ${admins.length?admins.join(', '):'Zie de app'}`
+        ];
+        waOpen(lines.join('\n'));
+      }catch(e){console.error('Invallerbericht laden mislukt',e);alert('Het actuele invallersoverzicht kon niet worden geladen. Probeer het opnieuw.')}
+      finally{if(btn)btn.disabled=false}
     });
-  });
-
-  addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft ${added} ingrediënten uit het weekmenu toegevoegd aan de boodschappenlijst.`});
-  currentHousehold=currentWeekmenuHousehold;
-  saveData();
-  navigate("boodschappen");
-  alert(`${added} ingrediënten zijn toegevoegd aan de boodschappenlijst van ${household?.name || "het huishouden"}.`);
-};
-
-function icsEscape(value=""){
-  return String(value).replaceAll("\\","\\\\").replaceAll(";","\\;").replaceAll(",","\\,").replaceAll("\n","\\n");
+   $('missingWa')?.addEventListener('click',()=>waOpen(`🎾 Wildenhorst – spelerskeuze ${dateText(d.dateKey,false)}\n\nDe volgende koppels moeten hun spelerskeuze nog invullen:\n\n${missingText}\n\nWillen jullie even aangeven wie er zaterdag speelt? 🎾`));$('publishedLineupWa')?.addEventListener('click',()=>waOpen(lineupWhatsApp(pub.data().courts||[],pub.data().changedAfterPublish===true)));
+   const assign=async(cid,person,kind,strength)=>{const msg=$('subMsg'),target=couples.find(x=>x.id===cid),source=kind==='fixed'?couples.find(c=>normIds(c.memberIds).includes(person.id)):null;if(!confirm(`${person.name} als vervanger vastleggen voor ${coupleLabel(cid,target)}?\n\nNa bevestigen wordt deze vervanger direct goedgekeurd.`))return;try{await updateDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',cid),{substituteId:person.id||`external-${Date.now()}`,substituteName:person.name,substituteType:kind,substituteStrength:Number(strength||person.strength||5),substituteSourceCoupleId:source?.id||'',substituteSourceCoupleLabel:source?coupleLabel(source.id,source):'',substituteApproval:'approved',substituteApprovedBy:user.uid,substituteApprovedAt:serverTimestamp(),updatedAt:serverTimestamp()});if(source&&source.id!==cid){const sourceRef=doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',source.id),sourceSnap=await getDoc(sourceRef),extra={substituteForCoupleId:cid,substituteForCoupleLabel:coupleLabel(cid,target),substitutePlayerId:person.id,substitutePlayerName:person.name,updatedAt:serverTimestamp()};if(sourceSnap.exists()){const sp=sourceSnap.data()||{},mids=normIds(source.memberIds);if(mids[0]===String(person.id)&&sp.member2Status==='speelt')extra.member1Status='reserve';if(mids[1]===String(person.id)&&sp.member1Status==='speelt')extra.member2Status='reserve';await updateDoc(sourceRef,extra);}else await setDoc(sourceRef,extra,{merge:true})}if(msg){msg.textContent=`✓ ${person.name} vastgelegd als vervanger voor ${coupleLabel(cid,target)}.`;msg.className='message'}setTimeout(()=>loadLineupDate(d),500)}catch(e){console.error(e);if(msg){msg.textContent='Vervanger vastleggen lukt niet.';msg.className='message error'}}};
+   host.querySelectorAll('[data-approvesub]').forEach(btn=>btn.onclick=async()=>{const cid=btn.dataset.approvesub,p=planMap.get(cid),m=$('approvalMsg');try{let strength=5,source=null;if(p?.substituteType==='reserve'&&p?.substituteId){const r=reserves.find(x=>x.id===p.substituteId);if(r)strength=Number(r.strength||5)}if(p?.substituteType==='fixed'&&p?.substituteId){const fp=all.find(x=>x.id===p.substituteId);if(fp){strength=Number(fp.strength||5);source=couples.find(c=>normIds(c.memberIds).includes(fp.id))||null}}const target=couples.find(x=>x.id===cid),extra={substituteApproval:'approved',substituteStrength:strength,substituteApprovedBy:user.uid,substituteApprovedAt:serverTimestamp(),updatedAt:serverTimestamp()};if(source){extra.substituteSourceCoupleId=source.id;extra.substituteSourceCoupleLabel=coupleLabel(source.id,source)}await updateDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',cid),extra);if(source&&source.id!==cid){const sourceRef=doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',source.id),sourceSnap=await getDoc(sourceRef),mark={substituteForCoupleId:cid,substituteForCoupleLabel:coupleLabel(cid,target),substitutePlayerId:p.substituteId,substitutePlayerName:p.substituteName,updatedAt:serverTimestamp()};if(sourceSnap.exists()){const sp=sourceSnap.data()||{},mids=normIds(source.memberIds);if(mids[0]===String(p.substituteId)&&sp.member2Status==='speelt')mark.member1Status='reserve';if(mids[1]===String(p.substituteId)&&sp.member1Status==='speelt')mark.member2Status='reserve';await updateDoc(sourceRef,mark);}else await setDoc(sourceRef,mark,{merge:true})}if(m){m.textContent=`✓ ${p?.substituteName||'Vervanger'} is goedgekeurd.`;m.className='message'}setTimeout(()=>loadLineupDate(d),400)}catch(e){console.error(e);if(m){m.textContent='Goedkeuren lukt niet.';m.className='message error'}}});
+   host.querySelectorAll('[data-rejectsub]').forEach(btn=>btn.onclick=async()=>{const cid=btn.dataset.rejectsub,p=planMap.get(cid),m=$('approvalMsg');try{await updateDoc(doc(db,'seasons',seasonId(),'playDates',d.id,'couplePlans',cid),{substituteApproval:'rejected',substituteRejectedBy:user.uid,substituteRejectedAt:serverTimestamp(),updatedAt:serverTimestamp()});if(m){m.textContent=`${p?.substituteName||'Vervanger'} is afgewezen. Het koppel kan een nieuwe vervanger doorgeven.`;m.className='message'}setTimeout(()=>loadLineupDate(d),400)}catch(e){console.error(e);if(m){m.textContent='Afwijzen lukt niet.';m.className='message error'}}});
+   host.querySelectorAll('[data-assignsub]').forEach(btn=>btn.onclick=()=>{const cid=btn.dataset.assignsub,sel=host.querySelector(`[data-subsel="${cid}"]`),val=sel?.value||'';if(!val)return;const[kind0,id]=val.split(':'),person=(kind0==='p'?all:reserves).find(x=>x.id===id);if(person)assign(cid,person,kind0==='p'?'fixed':'reserve',person.strength)});
+   host.querySelectorAll('[data-assignext]').forEach(btn=>btn.onclick=()=>{const cid=btn.dataset.assignext,name=host.querySelector(`[data-extname="${cid}"]`)?.value.trim()||'',strength=Number(host.querySelector(`[data-extstrength="${cid}"]`)?.value||5);if(!name){const m=$('subMsg');if(m){m.textContent='Vul de naam van de andere vervanger in.';m.className='message error'}return}assign(cid,{id:`external-${Date.now()}`,name},'external',strength)});
+   $('inviteWa')?.addEventListener('click',()=>waOpen($('inviteText')?.value||''));$('toggleCourts')?.addEventListener('click',()=>$('courtChooser')?.classList.toggle('hidden'));if($('dayCourts'))$('dayCourts').onchange=()=>{lineupState.courtCount=Number($('dayCourts').value);if($('courtCountText'))$('courtCountText').textContent=lineupState.courtCount;paintCourts()};if($('saveCourts'))$('saveCourts').onclick=async()=>{await updateDoc(doc(db,'seasons',seasonId(),'playDates',d.id),{courtCount:lineupState.courtCount,updatedAt:serverTimestamp()});if($('lineupMsg')){$('lineupMsg').textContent='✓ Aantal banen voor deze zaterdag opgeslagen.';$('lineupMsg').className='message'}};
+   if($('applyManual'))$('applyManual').onclick=()=>{lineupState.players=[...host.querySelectorAll('[data-manual]:checked')].map(ch=>lineupState.allPlayers.find(p=>p.id===ch.dataset.manual)).filter(Boolean);paintCourts();refreshLineupWhy();refreshInvite();if($('publishLineup'))$('publishLineup').disabled=lineupState.players.length<2;if($('lineupMsg')){$('lineupMsg').textContent=`✓ ${lineupState.players.length} spelers handmatig geselecteerd voor deze testindeling.`;$('lineupMsg').className='message'}};
+   if($('autoLineup'))$('autoLineup').onclick=()=>{if(lineupState.hasMadeLineup&&!confirm('Nieuwe indeling maken?\n\nDe huidige baanindeling wordt vervangen door een nieuwe automatische indeling.'))return;automaticLineup()};
+   paintCourts();
+   if($('publishLineup'))$('publishLineup').onclick=()=>publishLineup(lineupState.published===true);if($('unpublishLineup'))$('unpublishLineup').onclick=()=>unpublishLineup();
+ }catch(e){
+   console.error('Baanindeling opbouwen mislukt',e);
+   const msg=String(e?.message||e||'Onbekende fout');
+   const build=$('load-build');if(build)build.innerHTML=`❌ Baanindeling opbouwen mislukt: ${esc(msg)}`;
+   host.innerHTML+=`<div class="message error"><b>De gegevens zijn geladen, maar het scherm kon niet worden opgebouwd.</b><br><small>Fout: ${esc(msg)}</small><br><button id="retryLineup" class="secondary">Opnieuw proberen</button></div>`;
+   $('retryLineup')?.addEventListener('click',()=>loadLineupDate(d));
+ }
 }
-function icsDatePart(date,time=""){
-  const day=String(date||"").replaceAll("-","");
-  return time ? `${day}T${String(time).replace(":","")}00` : day;
+function historyPairCount(kind,a,b){
+ const k=[String(a?.id||''),String(b?.id||'')].sort().join('|');
+ return k==='|'?0:Number(lineupState.history?.[kind]?.[k]||0)
 }
-function agendaEventById(id,visibility){
-  return getVisibleAgendaEvents().find(x=>x.id===id && x.visibility===visibility);
+function historyCountByIds(kind,a,b){const k=[String(a||''),String(b||'')].sort().join('|');return k==='|'?0:Number(lineupState.history?.[kind]?.[k]||0)}
+function historyDetailsHtml(){
+ const h=lineupState.history||{},names=h.names||{},ids=[...new Set([...(lineupState.allPlayers||[]).map(x=>x.id),...Object.keys(names)])],allNames=Object.values(names);
+ const label=id=>compactName(names[id]||lineupState.allPlayers?.find(x=>x.id===id)?.name||id,allNames);
+ const itemsFor=(kind,id)=>ids.filter(x=>x!==id).map(x=>({id:x,n:historyCountByIds(kind,id,x)})).filter(x=>x.n>0).sort((a,b)=>b.n-a.n||label(a.id).localeCompare(label(b.id),'nl')).map(x=>`${esc(label(x.id))} ${x.n}×`).join(' · ')||'nog niemand';
+ const rows=(lineupState.allPlayers||[]).map(p=>`<div class="history-person"><b>${esc(label(p.id))}</b><span><strong>Met:</strong> ${itemsFor('team',p.id)}</span><span><strong>Tegen:</strong> ${itemsFor('opponent',p.id)}</span></div>`).join('');
+ return `<p><small>Gebaseerd op eerdere gepubliceerde baanindelingen van dit seizoen (${Number(h.dates||0)} speeldag${Number(h.dates||0)===1?'':'en'}). Dit is dezelfde historie die de automatische indeling gebruikt.</small></p><div class="history-list">${rows||'<p>Nog geen historie beschikbaar.</p>'}</div>`
 }
-function calendarEnd(event){
-  if(event.endTime) return icsDatePart(event.date,event.endTime);
-  if(event.startTime){
-    const d=new Date(`${event.date}T${event.startTime}:00`); d.setHours(d.getHours()+1);
-    return `${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}T${String(d.getHours()).padStart(2,"0")}${String(d.getMinutes()).padStart(2,"0")}00`;
+function lineupWhyHtml(){
+ const cs=courtModel().filter(c=>c.mode!=='Niet gebruiken'&&c.players.length>=2),allNames=Object.values(lineupState.history?.names||{});
+ if(!cs.length)return 'Maak eerst een automatische indeling.';
+ const nm=p=>compactName(p?.name||p?.id||'',allNames);
+ return cs.map(c=>{const a=c.mode==='Dubbel'?c.players.slice(0,2):c.players.slice(0,1),b=c.mode==='Dubbel'?c.players.slice(2,4):c.players.slice(1,2);let bits=[];if(c.mode==='Dubbel'&&a.length===2){bits.push(`${esc(nm(a[0]))} + ${esc(nm(a[1]))}: ${historyPairCount('team',a[0],a[1])}× eerder samen`)}if(c.mode==='Dubbel'&&b.length===2){bits.push(`${esc(nm(b[0]))} + ${esc(nm(b[1]))}: ${historyPairCount('team',b[0],b[1])}× eerder samen`)}let opp=0;a.forEach(x=>b.forEach(y=>opp+=historyPairCount('opponent',x,y)));bits.push(`onderlinge tegenstander-combinaties samen: ${opp}× eerder`);return `<div class="why-court"><b>Baan ${c.number} · ${esc(c.mode)}</b><span>${bits.join(' · ')}</span></div>`}).join('')+`<p><small>De app weegt herhaling van teamgenoten het zwaarst, daarna herhaling van tegenstanders en vervolgens het verschil in speelsterkte.</small></p>`
+}
+function refreshLineupWhy(){const el=$('lineupWhy');if(el)el.innerHTML=lineupWhyHtml()}
+function doubleArrangementScore(a,b,c,d){
+ const repeatTeam=(historyPairCount('team',a,b)+historyPairCount('team',c,d))*12;
+ const repeatOpp=(historyPairCount('opponent',a,c)+historyPairCount('opponent',a,d)+historyPairCount('opponent',b,c)+historyPairCount('opponent',b,d))*5;
+ const balance=Math.abs((Number(a.strength||5)+Number(b.strength||5))-(Number(c.strength||5)+Number(d.strength||5)))*2;
+ return repeatTeam+repeatOpp+balance
+}
+function bestFourArrangement(g){
+ if(g.length!==4)return {players:g,score:9999};
+ const pairs=[
+  [g[0],g[1],g[2],g[3]],
+  [g[0],g[2],g[1],g[3]],
+  [g[0],g[3],g[1],g[2]]
+ ];
+ return pairs.map(x=>({players:x,score:doubleArrangementScore(...x)+Math.random()*0.05})).sort((a,b)=>a.score-b.score)[0]
+}
+function combinations(arr,n){
+ const out=[];const walk=(start,pick)=>{if(pick.length===n){out.push([...pick]);return}for(let i=start;i<=arr.length-(n-pick.length);i++){pick.push(arr[i]);walk(i+1,pick);pick.pop()}};walk(0,[]);return out
+}
+function fairArrangeDoubles(players){
+ const p=[...players];
+ if(p.length<4)return p;
+ if(p.length===4)return bestFourArrangement(p).players;
+ if(p.length===8){
+  let best=null;
+  for(const g1 of combinations(p,4)){
+   if(!g1.includes(p[0]))continue;
+   const ids=new Set(g1.map(x=>x.id)),g2=p.filter(x=>!ids.has(x.id));
+   const a=bestFourArrangement(g1),b=bestFourArrangement(g2),score=a.score+b.score;
+   if(!best||score<best.score)best={score,players:[...a.players,...b.players]}
   }
-  const d=new Date(`${event.date}T12:00:00`); d.setDate(d.getDate()+1);
-  return `${String(d.getFullYear())}${String(d.getMonth()+1).padStart(2,"0")}${String(d.getDate()).padStart(2,"0")}`;
-}
-function getCalendarPreference(){
-  try{return localStorage.getItem(CALENDAR_PREF_KEY)||"";}catch(_){return "";}
-}
-function setCalendarPreference(value){
-  try{localStorage.setItem(CALENDAR_PREF_KEY,value||"");}catch(_){}
-  updateCalendarPreferenceUi();
-}
-function calendarPreferenceLabel(value){
-  return value==="apple"?"Apple Agenda":value==="google"?"Google Agenda":value==="ics"?"ICS-bestand":"Nog niet gekozen";
-}
-function updateCalendarPreferenceUi(){
-  if(window.defaultCalendarSelect) defaultCalendarSelect.value=getCalendarPreference();
-  if(window.defaultCalendarHelp){
-    const pref=getCalendarPreference();
-    defaultCalendarHelp.textContent=pref==="google"
-      ? "Google Agenda gebruikt zijn eigen standaardherinnering; Hogeterpjes toont daarvoor geen herinneringskeuze."
-      : pref ? `Gekozen: ${calendarPreferenceLabel(pref)}. Bij Apple en ICS kun je per afspraak maximaal twee herinneringen kiezen.` : "Bij de eerste afspraak vraagt Hogeterpjes welke agenda je gebruikt.";
+  return best?.players||p
+ }
+ const out=[],left=[...p];
+ while(left.length>=4){
+  let best=null;
+  for(const g of combinations(left,4)){
+   const a=bestFourArrangement(g);
+   if(!best||a.score<best.score)best={...a,group:g}
   }
+  out.push(...best.players);const ids=new Set(best.group.map(x=>x.id));for(let i=left.length-1;i>=0;i--)if(ids.has(left[i].id))left.splice(i,1)
+ }
+ return [...out,...left]
 }
-function selectedReminderMinutes(){
-  return [Number(calendarReminder1.value),Number(calendarReminder2.value)].filter((x,i,a)=>x>=0&&a.indexOf(x)===i);
+function bestSinglesPair(players){
+ let best=null;
+ for(const pair of combinations(players.filter(x=>x.singlesAllowed===true),2)){
+  const score=historyPairCount('opponent',pair[0],pair[1])*5+Math.abs(Number(pair[0].strength||5)-Number(pair[1].strength||5))*2+Math.random()*0.05;
+  if(!best||score<best.score)best={pair,score}
+ }
+ return best?.pair||[]
 }
-function createIcs(event,reminders=[]){
-  const start=icsDatePart(event.date,event.startTime);
-  const end=calendarEnd(event);
-  const allDay=!event.startTime;
-  const lines=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Hogeterpjes//NL","CALSCALE:GREGORIAN","METHOD:PUBLISH","BEGIN:VEVENT",`UID:${event.id}@hogeterpjes`,`DTSTAMP:${new Date().toISOString().replace(/[-:]/g,"").replace(/\.\d{3}Z$/,"Z")}`,`${allDay?"DTSTART;VALUE=DATE":"DTSTART"}:${start}`,`${allDay?"DTEND;VALUE=DATE":"DTEND"}:${end}`,`SUMMARY:${icsEscape(event.title||"Afspraak")}`,`DESCRIPTION:${icsEscape(event.note||"")}`,`LOCATION:${icsEscape(event.location||"")}`];
-  reminders.forEach(reminder=>lines.push("BEGIN:VALARM",`TRIGGER:${reminder===0?"PT0M":`-PT${reminder}M`}`,"ACTION:DISPLAY",`DESCRIPTION:${icsEscape(event.title||"Afspraak")}`,"END:VALARM"));
-  lines.push("END:VEVENT","END:VCALENDAR");
-  return lines.join("\r\n");
-}
-function downloadIcs(event,openInstead=false,reminders=[]){
-  const blob=new Blob([createIcs(event,reminders)],{type:"text/calendar;charset=utf-8"});
-  const url=URL.createObjectURL(blob);
-  if(openInstead){ window.location.href=url; }
-  else{
-    const a=document.createElement("a"); a.href=url; a.download=`${safeFileName(event.title||"afspraak")}.ics`; document.body.appendChild(a); a.click(); a.remove();
+function automaticLineup(){
+ lineupState.hasMadeLineup=true;
+ let p=[...lineupState.players];lineupState.modes={};
+ if(lineupState.isFinal){
+  const ranks=lineupState.finalRanks||[],byCouple=new Map(p.map(x=>[String(x.coupleId||''),x]));
+  if(p.length===8&&ranks.length>=8&&ranks.slice(0,8).every(cid=>byCouple.has(String(cid)))){
+   const r=n=>byCouple.get(String(ranks[n-1]));
+   lineupState.players=[r(1),r(4),r(2),r(3),r(5),r(8),r(6),r(7)];lineupState.modes={1:'Dubbel',2:'Dubbel'};paintCourts();refreshLineupWhy();$('lineupMsg').innerHTML='🏆 <b>Finale-indeling gemaakt op basis van de stand na de voorlaatste speeldag:</b><br>Baan 1: nr. 1 + nr. 4 tegen nr. 2 + nr. 3<br>Baan 2: nr. 5 + nr. 8 tegen nr. 6 + nr. 7.';$('lineupMsg').className='message';return
   }
-  setTimeout(()=>URL.revokeObjectURL(url),5000);
-}
-function openGoogleCalendar(event){
-  const allDay=!event.startTime;
-  const dates=allDay ? `${icsDatePart(event.date)}/${calendarEnd(event)}` : `${icsDatePart(event.date,event.startTime)}/${calendarEnd(event)}`;
-  const params=new URLSearchParams({action:"TEMPLATE",text:event.title||"Afspraak",dates,details:event.note||"",location:event.location||""});
-  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`,"_blank","noopener");
-}
-let calendarEventId="",calendarEventVisibility="",calendarReminderMode="";
-function continueAddToCalendar(preference){
-  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
-  if(preference==="google"){ openGoogleCalendar(event); return; }
-  calendarReminderMode=preference;
-  calendarEventTitle.textContent=event.title||"Afspraak";
-  calendarReminder1.value="30"; calendarReminder2.value="-1";
-  calendarReminderConfirmBtn.textContent=preference==="apple"?"Toevoegen aan Apple Agenda":"ICS-bestand maken";
-  calendarReminderDialog.showModal();
-}
-window.addToCalendar=(id,visibility)=>{
-  const event=agendaEventById(id,visibility); if(!event) return;
-  calendarEventId=id; calendarEventVisibility=visibility;
-  const pref=getCalendarPreference();
-  if(!pref){ calendarChoiceDialog.showModal(); return; }
-  continueAddToCalendar(pref);
-};
-window.chooseCalendarPreference=preference=>{
-  setCalendarPreference(preference);
-  calendarChoiceDialog.close();
-  continueAddToCalendar(preference);
-};
-calendarReminderConfirmBtn.onclick=()=>{
-  const event=agendaEventById(calendarEventId,calendarEventVisibility); if(!event)return;
-  downloadIcs(event,calendarReminderMode==="apple",selectedReminderMinutes());
-  calendarReminderDialog.close();
-};
-let agendaPhotoObjectUrl="";
-function resetAgendaPhoto(){
-  agendaPhotoData.value=""; agendaCameraInput.value=""; agendaGalleryInput.value="";
-  agendaPhotoPreview.removeAttribute("src"); agendaPhotoPreviewWrap.classList.add("hidden");
-  if(agendaPhotoObjectUrl){URL.revokeObjectURL(agendaPhotoObjectUrl);agendaPhotoObjectUrl="";}
-}
-function setAgendaPhoto(dataUrl){
-  agendaPhotoData.value=dataUrl||"";
-  if(dataUrl){agendaPhotoPreview.src=dataUrl;agendaPhotoPreviewWrap.classList.remove("hidden");}
-  else resetAgendaPhoto();
-}
-function processAgendaPhoto(file){
-  if(!file)return;
-  if(!file.type.startsWith("image/")){alert("Kies een geldige foto of screenshot.");return;}
-  if(file.size>12*1024*1024){alert("Kies een afbeelding kleiner dan 12 MB.");return;}
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=900,scale=Math.min(1,max/Math.max(img.width,img.height));
-      const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(img.width*scale));canvas.height=Math.max(1,Math.round(img.height*scale));
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      setAgendaPhoto(canvas.toDataURL("image/jpeg",0.68));
-    };
-    img.onerror=()=>alert("Deze afbeelding kon niet worden geopend.");img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-agendaCameraInput.onchange=()=>processAgendaPhoto(agendaCameraInput.files?.[0]);
-agendaGalleryInput.onchange=()=>processAgendaPhoto(agendaGalleryInput.files?.[0]);
-removeAgendaPhotoBtn.onclick=resetAgendaPhoto;
+  $('lineupMsg').textContent='⚠️ Finalezaterdag: de finale-indeling kan alleen automatisch worden gemaakt als alle 8 ranglijstkoppels een speler of goedgekeurde invaller hebben. Regel eerst de ontbrekende speler(s) of pas de indeling handmatig aan.';$('lineupMsg').className='message error';paintCourts();refreshLineupWhy();return
+ }
 
-let agendaDetailId="",agendaDetailVisibility="";
-window.openAgendaDetails=(id,visibility)=>{
-  const event=agendaEventById(id,visibility); if(!event)return;
-  agendaDetailId=id; agendaDetailVisibility=visibility;
-  agendaDetailScope.textContent=agendaScopeLabel(event);
-  agendaDetailTitle.textContent=event.title||"Afspraak";
-  agendaDetailDate.textContent=formatAgendaDate(event);
-  agendaDetailLocation.textContent=event.location?`📍 ${event.location}`:"";
-  agendaDetailLocation.classList.toggle("hidden",!event.location);
-  if(event.photo){agendaDetailPhoto.src=event.photo;agendaDetailPhoto.classList.remove("hidden");}else{agendaDetailPhoto.removeAttribute("src");agendaDetailPhoto.classList.add("hidden");}
-  agendaDetailNote.textContent=event.note||"";
-  agendaDetailNote.classList.toggle("hidden",!event.note);
-  agendaDetailDialog.showModal();
-};
-window.editAgendaFromDetails=()=>{
-  const event=agendaEventById(agendaDetailId,agendaDetailVisibility); if(!event)return;
-  agendaDetailDialog.close();
-  agendaForm.reset();
-  agendaEditId.value=event.id;
-  agendaEditVisibility.value=event.visibility;
-  agendaDialogTitle.textContent="Afspraak wijzigen";
-  agendaForm.elements.title.value=event.title||"";
-  agendaForm.elements.date.value=event.date||"";
-  agendaForm.elements.startTime.value=event.startTime||"";
-  agendaForm.elements.endTime.value=event.endTime||"";
-  agendaForm.elements.visibility.value=event.visibility||"private";
-  fillAgendaHouseholds();
-  agendaForm.elements.householdId.value=event.householdId||"";
-  if(window.agendaSelectedPeopleChecks){
-    const selected=new Set(Array.isArray(event.visibleTo)?event.visibleTo:[]);
-    agendaSelectedPeopleChecks.querySelectorAll('input[name="visibleTo"]').forEach(input=>input.checked=selected.has(input.value));
+ if(p.length===3){const singles=bestSinglesPair(p);if(singles.length===2){const ids=new Set(singles.map(x=>x.id)),left=p.filter(x=>!ids.has(x.id));lineupState.players=[...singles,...left];lineupState.modes={1:'Enkel'};paintCourts();refreshLineupWhy();$('lineupMsg').innerHTML='⚠️ Er zijn 3 spelers. Baan 1 is als enkelspel zo gevarieerd mogelijk ingedeeld; <b>'+esc(left[0]?.name||'1 speler')+'</b> blijft niet ingedeeld. Controleer dit handmatig.';$('lineupMsg').className='message';return}lineupState.players=p;paintCourts();refreshLineupWhy();$('lineupMsg').textContent='⚠️ Er zijn 3 spelers en niet genoeg spelers hebben enkelspel toegestaan. Maak de indeling handmatig of regel een vierde speler.';$('lineupMsg').className='message error';return}
+ if(p.length===6){
+  let best=null;
+  for(const pair of combinations(p.filter(x=>x.singlesAllowed===true),2)){
+   const ids=new Set(pair.map(x=>x.id)),rest=p.filter(x=>!ids.has(x.id)),dbl=bestFourArrangement(rest),singleScore=historyPairCount('opponent',pair[0],pair[1])*5+Math.abs(Number(pair[0].strength||5)-Number(pair[1].strength||5))*2,score=dbl.score+singleScore;
+   if(!best||score<best.score)best={pair,dbl,score}
   }
-  agendaForm.elements.location.value=event.location||"";
-  setAgendaPhoto(event.photo||"");
-  agendaForm.elements.note.value=event.note||"";
-  agendaDialog.showModal();
-};
+  if(best){lineupState.players=[...best.dbl.players,...best.pair];lineupState.modes={1:'Dubbel',2:'Enkel'};paintCourts();refreshLineupWhy();$('lineupMsg').textContent='✓ Automatische indeling gemaakt op basis van speelsterkte én eerdere combinaties. De app probeert herhaling van medespelers en tegenstanders te beperken.';$('lineupMsg').className='message';return}
+ }
+ lineupState.players=fairArrangeDoubles(p);
+ paintCourts();
+ refreshLineupWhy();
+ const hist=lineupState.history?.dates||0;
+ $('lineupMsg').textContent=hist?`✓ Automatische indeling gemaakt met ${hist} eerdere speeldag${hist===1?'':'en'} als historie. Speelsterkte blijft in balans en de app probeert zo veel mogelijk nieuwe medespelers en tegenstanders te kiezen.`:'✓ Automatische indeling gemaakt op basis van speelsterkte. Vanaf de volgende gespeelde/gepubliceerde indelingen gebruikt de app ook de historie voor meer variatie.';
+ $('lineupMsg').className='message'
+}
 
-addAgendaBtn.onclick=()=>{
-  agendaForm.reset();
-  agendaEditId.value="";
-  agendaEditVisibility.value="";
-  agendaDialogTitle.textContent="Afspraak toevoegen";
-  resetAgendaPhoto();
-  agendaForm.elements.date.value=new Date().toISOString().slice(0,10);
-  fillAgendaHouseholds();
-  agendaDialog.showModal();
-};
-
-agendaVisibility.onchange=()=>{
-  fillAgendaHouseholds();
-  if(agendaVisibility.value==="selected"){
-    const checks=[...agendaSelectedPeopleChecks.querySelectorAll('input[name="visibleTo"]')];
-    if(!checks.some(x=>x.checked)){
-      const own=checks.find(x=>x.value===currentPersonName()); if(own) own.checked=true;
-    }
+function courtModel(){
+  const players=lineupState.players.slice(0,lineupState.courtCount*4);
+  const courts=[];
+  for(let i=0;i<players.length && courts.length<lineupState.courtCount;i+=4){
+    const chunk=players.slice(i,i+4);
+    const auto=chunk.length===2?(chunk.every(x=>x?.singlesAllowed===true)?'Enkel':'Nog in te delen'):chunk.length>=4?'Dubbel':'Nog in te delen';
+    const number=courts.length+1;
+    const mode=lineupState.modes[number]||auto;
+    courts.push({number,mode,players:mode==='Enkel'?chunk.slice(0,2):chunk});
   }
-};
-if(window.defaultCalendarSelect){defaultCalendarSelect.onchange=()=>setCalendarPreference(defaultCalendarSelect.value);}
-agendaTypeFilter.onchange=renderAgenda;
-agendaHouseholdFilter.onchange=renderAgenda;
-if(window.togglePastAgendaBtn) togglePastAgendaBtn.onclick=()=>{showPastAgenda=!showPastAgenda;renderAgenda();};
-
-agendaForm.onsubmit=async e=>{
-  e.preventDefault();
-  if(agendaSaveInProgress) return;
-  agendaSaveInProgress=true;
-  const submitBtn=agendaForm.querySelector('button[type="submit"]');
-  const originalSubmitText=submitBtn?.textContent || "Opslaan";
-  if(submitBtn){ submitBtn.disabled=true; submitBtn.textContent="Bezig met opslaan…"; }
-  const f=new FormData(agendaForm);
-  const visibility=f.get("visibility");
-  const visibleTo=visibility==="selected" ? f.getAll("visibleTo").map(String) : [];
-  if(visibility==="selected" && !visibleTo.length){
-    agendaSaveInProgress=false;
-    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent=originalSubmitText; }
-    showSaveWarning("Kies minimaal één persoon die deze afspraak mag zien.");
-    return;
+  while(courts.length<lineupState.courtCount){
+    const number=courts.length+1;
+    courts.push({number,mode:lineupState.modes[number]||'Dubbel',players:[]});
   }
-
-  const editId=agendaEditId.value;
-  const originalVisibility=agendaEditVisibility.value;
-  const original=editId ? agendaEventById(editId,originalVisibility) : null;
-  const event={
-    id:editId || crypto.randomUUID(),
-    title:String(f.get("title")||"").trim(),
-    date:f.get("date"),
-    startTime:f.get("startTime"),
-    endTime:f.get("endTime"),
-    visibility,
-    householdId:visibility==="household" ? f.get("householdId") : "",
-    visibleTo,
-    location:String(f.get("location")||"").trim(),
-    photo:agendaPhotoData.value||"",
-    note:String(f.get("note")||"").trim(),
-    createdBy:original?.createdBy || currentUser?.uid || "",
-    createdByName:original?.createdByName || currentPersonName(),
-    createdAt:original?.createdAt || new Date().toISOString(),
-    updatedAt:new Date().toISOString(),
-    updatedByName:currentPersonName()
-  };
-
-  try{
-    if(visibility==="private"){
-      if(editId && originalVisibility!=="private" && original) await deleteSharedAgendaRecord(original);
-      const privateEvents=loadPrivateEvents().filter(x=>x.id!==editId); privateEvents.push(event); savePrivateEvents(privateEvents); renderAgenda();
-      setSyncStatus("✓ Privé-afspraak opgeslagen op dit toestel");
-    }else{
-      if(editId && originalVisibility==="private") savePrivateEvents(loadPrivateEvents().filter(x=>x.id!==editId));
-      if(editId && originalVisibility!=="private" && originalVisibility!==visibility && original) await deleteSharedAgendaRecord(original);
-      await saveSharedAgendaRecord(event,originalVisibility!=="private"?original:null);
-      data.events=(data.events||[]).filter(x=>x.id!==event.id); data.events.push(event); renderAgenda(); renderHome();
-    }
-    agendaDialog.close(); resetAgendaPhoto();
-    showSaveWarning("✓ Afspraak opgeslagen");
-  }catch(error){
-    console.error(error);
-    showSaveWarning(`De afspraak is niet opgeslagen${error?.message?`: ${error.message}`:""}. Probeer opnieuw.`);
-  }finally{
-    agendaSaveInProgress=false;
-    if(submitBtn){ submitBtn.disabled=false; submitBtn.textContent=originalSubmitText; }
-  }
-};
-
-window.deleteAgendaEvent=async (id,visibility)=>{
-  if(agendaDeleteInProgress.has(id)) return;
-  if(!confirm("Deze afspraak verwijderen?")) return;
-
-  if(visibility==="private"){
-    savePrivateEvents(loadPrivateEvents().filter(e=>e.id!==id));
-    renderAgenda();
-    renderHome();
-    showSaveWarning("✓ Afspraak verwijderd");
-    return;
-  }
-
-  const record=(data.events||[]).find(e=>e.id===id); if(!record)return;
-  agendaDeleteInProgress.add(id);
-  try{
-    await deleteSharedAgendaRecord(record);
-    data.events=(data.events||[]).filter(e=>e.id!==id);
-    localStorage.setItem(KEY,JSON.stringify(data));
-    renderAgenda();
-    renderHome();
-    showSaveWarning("✓ Afspraak verwijderd");
-  }catch(error){
-    console.error("Afspraak verwijderen mislukt",error);
-    showSaveWarning(`Verwijderen mislukt${error?.message?`: ${error.message}`:""}. De afspraak is niet verwijderd.`);
-  }finally{
-    agendaDeleteInProgress.delete(id);
-  }
-};
-
-if(window.addTodoBtn) addTodoBtn.onclick=()=>openTodoDialog();
-if(window.todoShowCompleted) todoShowCompleted.onchange=renderPrivateTodos;
-if(window.todoForm) todoForm.onsubmit=async e=>{
-  e.preventDefault();
-  const id=todoEditId.value || crypto.randomUUID();
-  const original=(privateTodos||[]).find(t=>t.id===id);
-  const record={
-    id,title:todoTitle.value.trim(),note:todoNote.value.trim(),date:todoDate.value,time:todoTime.value,
-    photo:todoPhotoData.value||"",priority:normalizeTodoPriority(todoPriority.value),completed:original?.completed||false,
-    createdAt:original?.createdAt||firebase.firestore.FieldValue.serverTimestamp(),
-    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
-  };
-  const button=todoForm.querySelector('button[type="submit"]'); const label=button.textContent;
-  button.disabled=true; button.textContent="Bezig met opslaan…";
-  try{ await privateTodosCollection().doc(id).set(record,{merge:true}); todoDialog.close(); showSaveWarning("✓ Taak opgeslagen"); }
-  catch(error){ console.error(error); showSaveWarning(`Taak opslaan mislukt${error?.message?`: ${error.message}`:""}.`); }
-  finally{ button.disabled=false; button.textContent=label; }
-};
-
-function openNewRecipeDialog(){
-  recipeForm.reset();
-  recipeEditId.value="";
-  recipeDialogTitle.textContent="Recept toevoegen";
-  recipeSaveBtn.textContent="Recept opslaan";
-  deleteRecipeBtn.classList.add("hidden");
-  resetRecipePhoto();
-  resetIngredientEditor();
-  fillSelects();
-  recipeAuthor.value=currentPersonName() || recipeAuthor.value;
-  recipeDialog.showModal();
+  return courts;
 }
 
-addRecipeBtn.onclick=openNewRecipeDialog;
-function openWishDialog(id=""){
-  fillSelects(); wishForm.reset(); resetWishPhoto();
-  const wish=id ? data.wishes.find(w=>w.id===id) : null;
-  wishEditId.value=wish?.id || ""; wishDialogTitle.textContent=wish ? "Wens bewerken" : "Wens toevoegen"; wishPerson.value=currentPersonName();
-  if(wish && canManageWish(wish)){ wishForm.elements.occasion.value=wish.occasion||"Verjaardag"; wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
-  wishDialog.showModal();
+function paintCourts(){
+ const host=$('courtDraft'),cs=courtModel(),dups=duplicatePlayerEntries(lineupState.players),dupHtml=dups.length?`<div class="message error"><b>⚠️ Indeling niet goed:</b> ${dups.map(x=>esc(compactName(x.name||x.id,lineupState.allNames||[]))).join(', ')} ${dups.length===1?'staat':'staan'} meer dan één keer ingepland.</div>`:'';
+ host.innerHTML=dupHtml+(lineupState.courtCount===0?'<p><b>Deze zaterdag zijn geen banen beschikbaar.</b></p>':cs.map(c=>{
+  const a=c.mode==='Dubbel'?c.players.slice(0,2):c.players.slice(0,1),b=c.mode==='Dubbel'?c.players.slice(2,4):c.players.slice(1,2);
+  const team=x=>x.map(p=>`<button class="compact-player ${lineupState.selected===p.id?'picked':''}" data-pid="${esc(p.id)}"><span>${esc(compactName(p.name||p.displayName||p.id,lineupState.allNames||[]))}</span><small class="strength-badge" title="Speelsterkte">${Number(p.strength||5)}</small></button>`).join(' & ');
+  return `<div class="court-card compact-court"><div class="court-title"><h3>Baan ${c.number} · ${esc(c.mode)}</h3><button class="link" data-modebtn="${c.number}">✏️ Baanindeling wijzigen</button></div><div class="court-edit hidden" id="mode${c.number}"><p><b>Wijzig hier de spelvorm of wissel spelers.</b><br><small>Spelvorm kies je hieronder. Spelers wisselen: tik eerst op een speler en daarna op de speler waarmee je hem wilt omwisselen, ook tussen twee banen.</small></p><label>Spelvorm</label><select data-mode="${c.number}"><option ${c.mode==='Dubbel'?'selected':''}>Dubbel</option><option ${c.mode==='Enkel'?'selected':''}>Enkel</option><option ${c.mode==='Niet gebruiken'?'selected':''}>Niet gebruiken</option></select></div>${c.mode==='Niet gebruiken'?'<p>Deze baan wordt niet gebruikt.</p>':`<div class="compact-match court-teams"><div><small class="team-label">Team A</small>${team(a)||'Nog in te delen'}</div><b>–</b><div><small class="team-label">Team B</small>${team(b)||'Nog in te delen'}</div></div>`}</div>`
+ }).join(''));
+ host.querySelectorAll('[data-pid]').forEach(b=>b.onclick=()=>swapPick(b.dataset.pid));
+ host.querySelectorAll('[data-modebtn]').forEach(b=>b.onclick=()=>{$('mode'+b.dataset.modebtn).classList.toggle('hidden')});
+ host.querySelectorAll('[data-mode]').forEach(sel=>sel.onchange=()=>{lineupState.modes[sel.dataset.mode]=sel.value;paintCourts();refreshLineupWhy()})
 }
-window.openWishDialog=openWishDialog;
-addWishBtn.onclick=openWishDialog;
-document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
-document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
-if(window.addOutingBtn) addOutingBtn.onclick=()=>openOutingDialog();
-const quickOuting=document.querySelector('[data-action="add-outing"]'); if(quickOuting) quickOuting.onclick=()=>setTimeout(()=>openOutingDialog(),150);
-if(window.outingSearch) outingSearch.oninput=renderOutings;
-if(window.outingCategoryFilter) outingCategoryFilter.onchange=renderOutings;
-if(window.outingStatusFilter) outingStatusFilter.onchange=renderOutings;
-if(window.refreshStorageUsageBtn) refreshStorageUsageBtn.onclick=()=>refreshStorageUsage(true);
-if(window.outingForm) outingForm.onsubmit=e=>{
-  e.preventDefault(); data.outings=Array.isArray(data.outings)?data.outings:[]; const id=outingEditId.value; const existing=data.outings.find(x=>x.id===id);
-  const record={id:existing?.id||crypto.randomUUID(),title:outingTitle.value.trim(),category:outingCategory.value,place:outingPlace.value.trim(),status:outingStatus.value,link:outingLink.value.trim(),note:outingNote.value.trim(),createdAt:existing?.createdAt||new Date().toISOString(),createdBy:existing?.createdBy||currentPersonName(),updatedAt:new Date().toISOString(),updatedBy:currentPersonName()};
-  if(existing)Object.assign(existing,record);else data.outings.unshift(record); outingDialog.close(); saveData();
-};
-if(window.deleteOutingBtn) deleteOutingBtn.onclick=()=>{const id=outingEditId.value;if(id)deleteOuting(id);outingDialog.close();};
-
-addIngredientRowBtn.onclick=()=>{
-  addIngredientRow();
-  const newest=ingredientRows.lastElementChild;
-  newest?.scrollIntoView({behavior:"smooth",block:"center"});
-  newest?.querySelector(".ingredient-name")?.focus();
-};
-
-recipeForm.onsubmit=async e=>{
-  e.preventDefault();
-  const f=new FormData(recipeForm);
-  const ingredients=collectIngredientRows();
-
-  if(!validateIngredientRows(ingredients)) return;
-
-  const editId=recipeEditId.value;
-  const existing=editId ? data.recipes.find(r=>r.id===editId) : null;
-  const id=existing?.id || crypto.randomUUID();
-  const now=new Date().toISOString();
-  let photo=recipePhotoData.value;
-  try{
-    if(isInlineImage(photo)){
-      setSyncStatus("Receptfoto uploaden…");
-      photo=await uploadSharedImage(photo,"recipes",id);
-    }
-  }catch(error){
-    console.error(error);
-    showSaveWarning("De receptfoto kon niet naar Firebase Storage worden geüpload. Probeer opnieuw.");
-    return;
-  }
-  const recipe={
-    id,
-    name:String(f.get("name")||"").trim(),
-    servings:Number(f.get("servings")),
-    photo,
-    ingredients,
-    steps:String(f.get("steps")||"").split("\n").map(x=>x.trim()).filter(Boolean),
-    author:f.get("author"),
-    createdAt:existing?.createdAt || now,
-    createdBy:existing?.createdBy || currentPersonName(),
-    updatedAt:now,
-    updatedBy:currentPersonName()
-  };
-
-  if(existing) Object.assign(existing,recipe); else data.recipes.unshift(recipe);
-
-  recipeForm.reset();
-  recipeEditId.value="";
-  resetRecipePhoto();
-  resetIngredientEditor();
-  recipeDialog.close();
-  saveData();
-};
-
-window.editRecipe=id=>{
-  const r=data.recipes.find(x=>x.id===id); if(!r)return;
-  recipeForm.reset();
-  fillSelects();
-  recipeEditId.value=r.id;
-  recipeDialogTitle.textContent="Recept bewerken";
-  recipeSaveBtn.textContent="Wijzigingen opslaan";
-  deleteRecipeBtn.classList.remove("hidden");
-  recipeForm.elements.name.value=r.name || "";
-  recipeForm.elements.servings.value=Number(r.servings)||4;
-  recipeForm.elements.steps.value=(r.steps||[]).join("\n");
-  recipeForm.elements.author.value=r.author || currentPersonName();
-  if(r.photo) setRecipePhoto(r.photo); else resetRecipePhoto();
-  resetIngredientEditor((r.ingredients||[]).map(normalizeIngredient));
-  if(recipeViewDialog.open) recipeViewDialog.close();
-  recipeDialog.showModal();
-};
-
-deleteRecipeBtn.onclick=()=>{
-  const id=recipeEditId.value;
-  const r=data.recipes.find(x=>x.id===id); if(!r)return;
-  if(!confirm(`Recept “${r.name}” definitief verwijderen?`)) return;
-  data.recipes=data.recipes.filter(x=>x.id!==id);
-  recipeDialog.close();
-  recipeForm.reset();
-  recipeEditId.value="";
-  resetRecipePhoto();
-  resetIngredientEditor();
-  saveData();
-};
-wishForm.onsubmit=async e=>{
-  e.preventDefault();
-  const f=new FormData(wishForm);
-  const person=wishPerson.value || currentPersonName();
-  if(!person){ alert("Je account is nog niet aan een familielid gekoppeld."); return; }
-  const editId=wishEditId.value;
-  const existing=editId ? data.wishes.find(w=>w.id===editId) : null;
-  if(existing && !canManageWish(existing)) return;
-  const id=existing?.id||crypto.randomUUID();
-  let photo=wishPhotoData.value;
-  try{
-    if(isInlineImage(photo)){
-      setSyncStatus("Wensfoto uploaden…");
-      photo=await uploadSharedImage(photo,"wishes",id);
-    }
-  }catch(error){
-    console.error(error);
-    showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.45.");
-    return;
-  }
-  const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
-  if(existing) Object.assign(existing,record); else data.wishes.unshift(record);
-  wishForm.reset(); wishEditId.value=""; resetWishPhoto(); wishDialog.close(); saveData();
-};
-
-
-
-if(window.addGiftEventBtn) addGiftEventBtn.onclick=()=>openGiftEventDialog();
-if(window.giftEventOccasion) giftEventOccasion.onchange=updateGiftRecipientMode;
-if(window.giftEventForm) giftEventForm.onsubmit=e=>{
-  e.preventDefault();
-  const recipients=giftEventOccasion.value==='Verjaardag'?[giftBirthdayRecipient.value]:[...giftRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value);
-  const buyers=[...giftBuyerChecks.querySelectorAll('input:checked')].map(x=>x.value);
-  if(!recipients.length){giftEventMessage.textContent="Kies minimaal één persoon voor wie de cadeaus zijn.";return;}
-  const filteredBuyers=buyers.filter(x=>!recipients.includes(x)); if(!filteredBuyers.length){giftEventMessage.textContent="Kies minimaal één koper die zelf geen cadeau krijgt.";return;}
-  data.giftEvents=data.giftEvents||[]; const id=giftEventEditId.value; const existing=data.giftEvents.find(x=>x.id===id);
-  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers:filteredBuyers,claims:existing?.claims||{},ideas:existing?.ideas||[],createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
-  if(existing) Object.assign(existing,record); else data.giftEvents.push(record);
-  giftEventDialog.close(); saveData();
-};
-if(window.deleteGiftEventBtn) deleteGiftEventBtn.onclick=()=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===giftEventEditId.value); if(!event||!giftEventCanManage(event))return;
-  if(!confirm(`Cadeau-evenement “${event.name}” verwijderen?`))return; data.giftEvents=data.giftEvents.filter(x=>x.id!==event.id); giftEventDialog.close(); saveData();
-};
-
-
-function setGiftIdeaPhoto(value=""){
-  giftIdeaPhotoData.value=value;
-  if(value){ giftIdeaPhotoPreview.src=value; giftIdeaPhotoPreviewWrap.classList.remove("hidden"); }
-  else{ giftIdeaPhotoPreview.removeAttribute("src"); giftIdeaPhotoPreviewWrap.classList.add("hidden"); }
+function swapPick(id){if(!lineupState.selected){lineupState.selected=id;paintCourts();return}if(lineupState.selected===id){lineupState.selected=null;paintCourts();return}const a=lineupState.players.findIndex(p=>p.id===lineupState.selected),b=lineupState.players.findIndex(p=>p.id===id);[lineupState.players[a],lineupState.players[b]]=[lineupState.players[b],lineupState.players[a]];lineupState.selected=null;paintCourts();refreshLineupWhy()}
+function lineupWhatsApp(courts,changed){const d=lineupState.date,allNames=[...(lineupState?.allPlayers||[]).map(p=>p.name||p.displayName||'').filter(Boolean)];let t=`🎾 *Wildenhorst – baanindeling*\n\n${changed?'*GEWIJZIGDE INDELING*\n\n':''}${dateText(d.dateKey)}\n`;courts.forEach(c=>{t+=`Baan ${c.number} · ${c.mode||'Dubbel'}: ${compactTeam(c.teamA||[],allNames)} – ${compactTeam(c.teamB||[],allNames)}\n`});t+=`\nTijd: ${d.startTime||season?.startTime||'10:00'}–${d.endTime||season?.endTime||'12:00'} uur.\n\nVeel speelplezier! 🎾`;return t}
+async function publishLineup(changed){
+ const m=$('lineupMsg'),dups=duplicatePlayerEntries(lineupState.players);if(dups.length){m.textContent=`⚠️ Indeling niet goed: ${dups.map(x=>compactName(x.name||x.id,lineupState.allNames||[])).join(', ')} ${dups.length===1?'staat':'staan'} meer dan één keer ingepland. Los dit eerst op.`;m.className='message error';return}const courts=courtModel().filter(c=>(c.mode==='Dubbel'&&c.players.length===4)||(c.mode==='Enkel'&&c.players.length===2)).map(c=>{const a=c.mode==='Dubbel'?c.players.slice(0,2):c.players.slice(0,1),b=c.mode==='Dubbel'?c.players.slice(2,4):c.players.slice(1,2);return {number:c.number,mode:c.mode,teamA:a.map(x=>x?.name),teamB:b.map(x=>x?.name),teamAIds:a.map(x=>x?.id),teamBIds:b.map(x=>x?.id),teamACoupleIds:[...new Set(a.map(x=>x?.coupleId).filter(Boolean))],teamBCoupleIds:[...new Set(b.map(x=>x?.coupleId).filter(Boolean))],teamASubstituteFlags:a.map(x=>x?.substitute===true),teamBSubstituteFlags:b.map(x=>x?.substitute===true)}});
+ const text=lineupWhatsApp(courts,changed);
+ m.textContent='Controleer de baanindeling. De indeling wordt pas zichtbaar voor iedereen wanneer je in het WhatsApp-voorbeeld op “Open WhatsApp” drukt.';m.className='message';
+ waOpen(text,async()=>{try{await setDoc(doc(db,'seasons',seasonId(),'playDates',lineupState.date.id,'public','lineup'),{published:true,changedAfterPublish:!!changed,courts,participantIds:[...new Set(courts.flatMap(c=>[...(c.teamAIds||[]),...(c.teamBIds||[])].filter(Boolean)))],publishedAt:serverTimestamp(),publishedBy:user.uid},{merge:false});lineupState.published=true;m.textContent=changed?'✓ Wijzigingen zijn zichtbaar voor iedereen.':'✓ Baanindeling is zichtbaar voor iedereen.';m.className='message';const publishBtn=$('publishLineup');if(publishBtn){publishBtn.textContent='✓ Wijzigingen zichtbaar maken voor iedereen';publishBtn.onclick=()=>publishLineup(true)}let undo=$('unpublishLineup');if(!undo&&publishBtn){undo=document.createElement('button');undo.id='unpublishLineup';undo.className='secondary';undo.textContent='↩ Publicatie ongedaan maken';publishBtn.parentElement?.appendChild(undo)}if(undo)undo.onclick=()=>unpublishLineup();$('lineupShare').innerHTML=`<button id="lineupWa" class="secondary">🎾 ${changed?'Gewijzigde baanindeling':'Baanindeling'} versturen</button>`;$('lineupWa').onclick=()=>waOpen(lineupWhatsApp(courts,changed))}catch(e){console.error(e);m.textContent='Publiceren is niet gelukt. WhatsApp is niet geopend.';m.className='message error';throw e}})
 }
-function processGiftIdeaPhoto(file){
-  if(!file) return;
-  if(!file.type.startsWith("image/")){ giftIdeaMessage.textContent="Kies een geldige foto of screenshot."; return; }
-  if(file.size>10*1024*1024){ giftIdeaMessage.textContent="Kies een afbeelding kleiner dan 10 MB."; return; }
-  const reader=new FileReader();
-  reader.onload=()=>{ const img=new Image(); img.onload=()=>{ const max=700,scale=Math.min(1,max/Math.max(img.width,img.height)); const canvas=document.createElement("canvas"); canvas.width=Math.max(1,Math.round(img.width*scale)); canvas.height=Math.max(1,Math.round(img.height*scale)); canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height); setGiftIdeaPhoto(canvas.toDataURL("image/jpeg",0.76)); }; img.src=reader.result; };
-  reader.readAsDataURL(file);
+async function unpublishLineup(){const m=$('lineupMsg');if(!confirm('Publicatie ongedaan maken? Spelers zien de baanindeling daarna niet meer. De indeling blijft voor de beheerder bewaard.'))return;try{await updateDoc(doc(db,'seasons',seasonId(),'playDates',lineupState.date.id,'public','lineup'),{published:false,changedAfterPublish:false,unpublishedAt:serverTimestamp(),unpublishedBy:user.uid});lineupState.published=false;m.textContent='✓ Publicatie ongedaan gemaakt. De indeling blijft voor jou als beheerder bewaard.';m.className='message';const publishBtn=$('publishLineup');if(publishBtn){publishBtn.textContent='✓ Indeling zichtbaar maken voor iedereen';publishBtn.onclick=()=>publishLineup(false)}$('unpublishLineup')?.remove();$('lineupShare').innerHTML='<button class="secondary" disabled>🎾 Baanindeling versturen · eerst publiceren</button>'}catch(e){console.error(e);m.textContent='Publicatie ongedaan maken is niet gelukt.';m.className='message error'}}
+function renderTestResultAdmin(entry){
+ let setCount=3,values=Array.from({length:3},()=>({a:'',b:''})),ga='0',gb='0',testCourt='1';
+ const draw=()=>{const opts=v=>['0','15','30','40'].map(x=>`<option ${String(v)===x?'selected':''}>${x}</option>`).join(''),names=testCourt==='1'?['Testspeler A1 & Testspeler A2','Testspeler B1 & Testspeler B2']:['Testspeler C1 & Testspeler C2','Testspeler D1 & Testspeler D2'];entry.innerHTML=`<div class="test-result-box"><div class="notice"><b>🧪 Testdag</b><br><small>Alles wat je hier invult is alleen om de puntentelling te testen. Er wordt niets opgeslagen en de echte stand verandert niet.</small></div><label>Testbaan</label><select id="testCourt"><option value="1" ${testCourt==='1'?'selected':''}>Baan 1 · Dubbel</option><option value="2" ${testCourt==='2'?'selected':''}>Baan 2 · Dubbel</option></select><div class="result-match-card"><div><small>${testCourt==='1'?'Baan 1':'Baan 2'} · Team 1</small><b>${names[0]}</b></div><strong>–</strong><div><small>${testCourt==='1'?'Baan 1':'Baan 2'} · Team 2</small><b>${names[1]}</b></div></div><h3>Setstanden</h3><div class="sets-entry">${values.slice(0,setCount).map((v,i)=>`<div class="set-row result-set-row" data-testrow="${i}"><b>Set ${i+1}</b><input data-ta="${i}" type="number" min="0" max="99" placeholder="A" value="${esc(v.a||'')}"><span>–</span><input data-tb="${i}" type="number" min="0" max="99" placeholder="B" value="${esc(v.b||'')}">${i===setCount-1?`<span class="last-game-inline"><small>game</small><select id="testGa">${opts(ga)}</select><span>–</span><select id="testGb">${opts(gb)}</select></span>`:''}</div>`).join('')}</div><div class="last-game-help">Alleen bij de laatste set: vul zo nodig de stand in de lopende game in.</div><div class="set-buttons"><button id="testAddSet" class="secondary">＋ Set toevoegen</button>${setCount>3?'<button id="testRemoveSet" class="link">Laatste set verwijderen</button>':''}</div><div id="testResultPreview" class="message"></div></div>`;
+  const capture=()=>{values=Array.from({length:setCount},(_,i)=>({a:entry.querySelector(`[data-ta="${i}"]`)?.value||'',b:entry.querySelector(`[data-tb="${i}"]`)?.value||''}));ga=$('testGa')?.value||'0';gb=$('testGb')?.value||'0';testCourt=$('testCourt')?.value||testCourt};
+  const calc=()=>{capture();const c=calculateTennisResult(values,ga,gb,'Dubbel');$('testResultPreview').innerHTML=`<b>Testberekening ${testCourt==='1'?'Baan 1':'Baan 2'}:</b> ${c.scoreText||'vul een setstand in'}<br>${names[0]}: <b>${c.pa}</b> punt · ${names[1]}: <b>${c.pb}</b> punt`};
+  entry.querySelectorAll('input').forEach(x=>x.oninput=calc);$('testGa').onchange=calc;$('testGb').onchange=calc;$('testCourt').onchange=()=>{capture();draw()};$('testAddSet').onclick=()=>{capture();setCount++;values.push({a:'',b:''});draw()};$('testRemoveSet')?.addEventListener('click',()=>{capture();setCount=Math.max(3,setCount-1);values=values.slice(0,setCount);draw()});calc()
+ };draw()
 }
-
-let giftIdeaEventId="";
-window.openGiftIdeaDialog=(eventId="",ideaId="",presetPerson="")=>{
-  const event=eventId?(data.giftEvents||[]).find(x=>x.id===eventId):null;
-  const idea=ideaId?(privateGiftIdeas||[]).find(x=>x.id===ideaId):null;
-  giftIdeaEventId=eventId||idea?.eventId||""; giftIdeaForm.reset(); giftIdeaEditId.value=idea?.id||"";
-  const allowedPeople=event?.recipients?.length?event.recipients:data.family.map(p=>p.name);
-  const selected=idea?privateIdeaRecipients(idea):(presetPerson?[presetPerson]:[]);
-  giftIdeaRecipientChecks.innerHTML=allowedPeople.map(name=>`<label class="member-check"><input type="checkbox" value="${escapeHtml(name)}" ${selected.includes(name)?'checked':''}><span>${escapeHtml(name)}</span></label>`).join('');
-  giftIdeaTitle.value=idea?.title||""; giftIdeaPrice.value=idea?.price||""; giftIdeaLink.value=idea?.link||""; giftIdeaNote.value=idea?.note||""; giftIdeaStatus.value=idea?.status||"idea"; giftIdeaFavorite.checked=!!idea?.favorite; setGiftIdeaPhoto(idea?.photo||"");
-  giftIdeaMessage.textContent=""; giftIdeaDialog.querySelector('h3').textContent=idea?'Cadeautje voor iemand bewerken':'Cadeautje voor iemand toevoegen'; giftIdeaDialog.showModal();
-};
-window.deletePrivateGiftIdea=async id=>{ const collection=privateGiftIdeasCollection(); if(!collection)return; if(!confirm("Dit cadeautje verwijderen?"))return; try{await collection.doc(id).delete();}catch(err){alert(err.message||"Verwijderen mislukt.");} };
-window.setPrivateGiftIdeaStatus=async(id,status)=>{const c=privateGiftIdeasCollection();if(!c)return;try{await c.doc(id).update({status,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(err){alert(err.message||'Status aanpassen mislukt.');}};
-if(window.giftIdeaForm) giftIdeaForm.onsubmit=async e=>{
-  e.preventDefault(); const collection=privateGiftIdeasCollection(); if(!collection){giftIdeaMessage.textContent="Log opnieuw in om een privé-idee op te slaan.";return;}
-  const recipients=[...giftIdeaRecipientChecks.querySelectorAll('input:checked')].map(x=>x.value); if(!recipients.length){giftIdeaMessage.textContent='Kies minimaal één familielid.';return;}
-  const payload={eventId:giftIdeaEventId||"",recipients,person:recipients[0],title:giftIdeaTitle.value.trim(),price:giftIdeaPrice.value,link:giftIdeaLink.value.trim(),photo:giftIdeaPhotoData.value||"",note:giftIdeaNote.value.trim(),status:giftIdeaStatus.value,favorite:giftIdeaFavorite.checked,ownerUid:currentUser.uid,ownerName:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
-  try{ if(giftIdeaEditId.value) await collection.doc(giftIdeaEditId.value).update(payload); else await collection.add({...payload,createdAt:firebase.firestore.FieldValue.serverTimestamp()}); giftIdeaDialog.close(); }catch(err){console.error(err);giftIdeaMessage.textContent=err.message||"Opslaan mislukt.";}
-};
-if(window.giftIdeaCameraInput) giftIdeaCameraInput.onchange=()=>processGiftIdeaPhoto(giftIdeaCameraInput.files?.[0]);
-if(window.giftIdeaGalleryInput) giftIdeaGalleryInput.onchange=()=>processGiftIdeaPhoto(giftIdeaGalleryInput.files?.[0]);
-if(window.removeGiftIdeaPhotoBtn) removeGiftIdeaPhotoBtn.onclick=()=>setGiftIdeaPhoto("");
-if(window.addPrivateGiftIdeaBtn) addPrivateGiftIdeaBtn.onclick=()=>openGiftIdeaDialog();
-if(window.privateGiftIdeaSearch) privateGiftIdeaSearch.oninput=renderPrivateGiftIdeasPage;
-
-function normalizeProductKey(p){
-  return [p.name,p.brand,p.amount,p.unit].map(x=>String(x||"").trim().toLowerCase()).join("|");
+async function renderResultsAdmin(){
+ const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Uitslagen</h2><p>Laden…</p></div>';
+ const ds=await playDates(),now=new Date(),prev=previousPlayDate(ds,now)||ds[0],csSnap=await getDocs(collection(db,'seasons',seasonId(),'couples'));
+ const couples=csSnap.docs.map(c=>({id:c.id,...c.data()})).sort((a,b)=>coupleNumber(a.id,a)-coupleNumber(b.id,b)),coupleMap=new Map(couples.map(c=>[c.id,c]));
+ host.innerHTML=`<div class="admin-card"><h2>Uitslagen</h2><details class="rules-details"><summary>ℹ️ Puntentelling</summary><div class="rule-callout">Gewonnen set = 1 punt. Een niet afgemaakte laatste set levert ½ punt op voor de leider als die minimaal 3 games heeft. Bij gelijke games bepaalt de stand in de lopende game wie leidt; bij exact gelijke games én gamepunten krijgt ieder ¼ punt. Met vervanger maximaal 2 punten. Enkelspel = 0 competitiepunten. Op de geactiveerde finalezaterdag tellen competitiepunten dubbel; een invaller blijft maximaal 2 punten.</div></details><div class="result-date-head"><label>Speeldag</label><button id="openTestDay" class="secondary compact-action">🧪 Testdag</button></div><select id="resultDate"><option value="__test__">🧪 Testdag (wordt niet opgeslagen)</option>${ds.map(d=>`<option value="${esc(d.id)}" ${d.id===prev?.id?'selected':''}>${esc(dateText(d.dateKey))}</option>`).join('')}</select><div id="resultEntry"></div><div id="resultList"></div></div>`;
+ const renderDate=async()=>{const dateId=$('resultDate').value,entry=$('resultEntry');entry.innerHTML='<p>Laden…</p>';if(dateId==='__test__'){renderTestResultAdmin(entry);$('resultList').innerHTML='';return}const ls=await getDoc(doc(db,'seasons',seasonId(),'playDates',dateId,'public','lineup'));if(!ls.exists()||ls.data()?.published!==true){entry.innerHTML='<div class="message error">Voor deze speeldag is nog geen gepubliceerde baanindeling. Publiceer eerst de indeling.</div>';await loadResultList();return}const courts=(ls.data().courts||[]).filter(c=>c.mode!=='Niet gebruiken');if(!courts.length){entry.innerHTML='<div class="message">Er staan geen banen in de gepubliceerde indeling.</div>';await loadResultList();return}entry.innerHTML=`<label>Baan</label><select id="resultCourt">${courts.map(c=>`<option value="${esc(c.number)}">Baan ${esc(c.number)} · ${esc(c.mode||'Dubbel')}</option>`).join('')}</select><div id="courtResultForm"></div>`;
+  const renderCourt=async(saved=null)=>{const court=courts.find(c=>String(c.number)===String($('resultCourt').value))||courts[0],form=$('courtResultForm'),aNames=court.teamA||[],bNames=court.teamB||[],aCids=[...new Set(court.teamACoupleIds||[])],bCids=[...new Set(court.teamBCoupleIds||[])],labels=ids=>ids.map(id=>`Koppel ${coupleNumber(id,coupleMap.get(id)||{})}`).join(' + ')||'geen competitiepunten';let setCount=Math.max(3,Array.isArray(saved?.sets)?saved.sets.length:3);
+   const draw=()=>{const keepSets=Array.from({length:setCount},(_,i)=>saved?.sets?.[i]||{a:'',b:''}),[oldGa='0',oldGb='0']=String(saved?.lastGamePoints||saved?.unfinishedGamePoints||'0-0').split('-'),pointOpts=v=>['0','15','30','40'].map(x=>`<option ${String(v)===x?'selected':''}>${x}</option>`).join('');form.innerHTML=`<div class="result-match-card"><div><small>Team A</small><b>${esc(aNames.join(' & '))}</b><span>${esc(labels(aCids))}</span></div><strong>–</strong><div><small>Team B</small><b>${esc(bNames.join(' & '))}</b><span>${esc(labels(bCids))}</span></div></div><h3>Setstanden</h3><div class="sets-entry" id="dynamicSets">${keepSets.map((v,i)=>`<div class="set-row result-set-row" data-setrow="${i+1}"><b>Set ${i+1}</b><input data-sa="${i+1}" type="number" min="0" max="99" placeholder="A" value="${esc(v.a??'')}"><span>–</span><input data-sb="${i+1}" type="number" min="0" max="99" placeholder="B" value="${esc(v.b??'')}">${i===setCount-1?`<span class="last-game-inline" title="Lopende game"><small>game</small><select id="gpa">${pointOpts(oldGa)}</select><span>–</span><select id="gpb">${pointOpts(oldGb)}</select></span>`:''}</div>`).join('')}</div><div class="last-game-help">Alleen bij de laatste set: vul zo nodig de stand in de lopende game in, bijvoorbeeld <b>4–4 · 15–0</b>.</div><div class="set-buttons"><button id="addSet" class="secondary">＋ Set toevoegen</button>${setCount>3?'<button id="removeSet" class="link">Laatste set verwijderen</button>':''}</div><div id="pointsPreview" class="message"></div><details class="card manual-correction"><summary><b>Handmatige puntencorrectie</b> <small>(alleen beheerder)</small></summary><div class="manual-correction-title"><b>Baan ${esc(court.number)} · ${esc(court.mode||'Dubbel')}</b></div><div class="manual-team-row"><div><small>${esc(aNames.join(' & '))}</small><b id="autoPaLabel">Automatisch: –</b></div><input id="manualPa" type="number" min="0" step="0.25" placeholder="auto" value="${saved?.manualPointsA??''}"></div><div class="manual-team-row"><div><small>${esc(bNames.join(' & '))}</small><b id="autoPbLabel">Automatisch: –</b></div><input id="manualPb" type="number" min="0" step="0.25" placeholder="auto" value="${saved?.manualPointsB??''}"></div><p><small>Laat beide vakken op <b>auto</b> voor de normale berekening. Vul alleen een waarde in als je deze baan achteraf wilt corrigeren.</small></p></details><div class="admin-actions"><button id="saveResult">${saved?'Wijzigingen opslaan':'Uitslag opslaan'}</button></div><div id="resMsg"></div>`;
+    const calc=()=>{const sets=[...form.querySelectorAll('[data-setrow]')].map(r=>({a:r.querySelector('[data-sa]').value,b:r.querySelector('[data-sb]').value})),c=calculateTennisResult(sets,$('gpa').value,$('gpb').value,court.mode||'Dubbel'),mA=$('manualPa').value,mB=$('manualPb').value,pa=(mA===''?c.pa:Number(mA)),pb=(mB===''?c.pb:Number(mB)),alloc={},finale=isFinalPlayDate(ds.find(x=>x.id===dateId));aCids.forEach((id,i)=>alloc[id]=finalCompetitionPoints(pa,(court.teamASubstituteFlags||[])[i]===true,finale));bCids.forEach((id,i)=>alloc[id]=finalCompetitionPoints(pb,(court.teamBSubstituteFlags||[])[i]===true,finale));const allocText=Object.entries(alloc).map(([id,v])=>`Koppel ${coupleNumber(id,coupleMap.get(id)||{})}: ${v}`).join(' · '),manual=(mA!==''||mB!=='');if($('autoPaLabel'))$('autoPaLabel').textContent=`Automatisch: ${c.pa} punt`;if($('autoPbLabel'))$('autoPbLabel').textContent=`Automatisch: ${c.pb} punt`;$('pointsPreview').textContent=court.mode==='Enkel'?`Enkelspel: 0 competitiepunten. Stand ${c.scoreText||'nog niet ingevuld'}`:`${manual?'Handmatige':'Automatische'} punten: ${allocText||'nog geen punten'}`;return{...c,pa,pb,alloc,manualPointsA:mA===''?null:Number(mA),manualPointsB:mB===''?null:Number(mB)}};
+    form.querySelectorAll('.sets-entry input').forEach(x=>x.oninput=calc);$('gpa').onchange=calc;$('gpb').onchange=calc;$('manualPa').oninput=calc;$('manualPb').oninput=calc;$('addSet').onclick=()=>{const sets=[...form.querySelectorAll('[data-setrow]')].map(r=>({a:r.querySelector('[data-sa]').value,b:r.querySelector('[data-sb]').value}));saved={...(saved||{}),sets,lastGamePoints:`${$('gpa').value}-${$('gpb').value}`,manualPointsA:$('manualPa').value,manualPointsB:$('manualPb').value};setCount++;saved.sets.push({a:'',b:''});draw()};$('removeSet')?.addEventListener('click',()=>{const sets=[...form.querySelectorAll('[data-setrow]')].map(r=>({a:r.querySelector('[data-sa]').value,b:r.querySelector('[data-sb]').value}));saved={...(saved||{}),sets:sets.slice(0,Math.max(3,setCount-1)),lastGamePoints:`${$('gpa').value}-${$('gpb').value}`,manualPointsA:$('manualPa').value,manualPointsB:$('manualPb').value};setCount=Math.max(3,setCount-1);draw()});
+    $('saveResult').onclick=async()=>{const c=calc();if(!c.scoreText){$('resMsg').textContent='Vul minimaal één setstand in.';$('resMsg').className='message error';return}const data={courtNumber:court.number,mode:court.mode||'Dubbel',teamA:aNames,teamB:bNames,teamAIds:court.teamAIds||[],teamBIds:court.teamBIds||[],teamACoupleIds:aCids,teamBCoupleIds:bCids,coupleAId:aCids[0]||'',coupleAName:aNames.join(' & '),coupleBId:bCids[0]||'',coupleBName:bNames.join(' & '),scoreText:c.scoreText,pointsA:c.pa,pointsB:c.pb,pointAllocations:c.alloc,gamesA:c.gamesA,gamesB:c.gamesB,sets:c.sets,lastGamePoints:c.lastGamePoints,manualPointsA:c.manualPointsA,manualPointsB:c.manualPointsB,enteredBy:user.uid,enteredAt:serverTimestamp()};try{await setDoc(doc(db,'seasons',seasonId(),'playDates',dateId,'results',`court-${court.number}`),data,{merge:false});await rebuildStandings();$('resMsg').textContent='✓ Uitslag opgeslagen en stand opnieuw berekend.';$('resMsg').className='message';saved=data;loadResultList()}catch(e){console.error(e);$('resMsg').textContent='Opslaan lukt niet. Controleer de Firestore-regels.';$('resMsg').className='message error'}};calc()
+   };draw()};
+  const loadSelectedCourt=async()=>{const court=courts.find(c=>String(c.number)===String($('resultCourt').value))||courts[0],snap=await getDoc(doc(db,'seasons',seasonId(),'playDates',dateId,'results',`court-${court.number}`));await renderCourt(snap.exists()?snap.data():null)};$('resultCourt').onchange=loadSelectedCourt;window.__editResult=async id=>{const snap=await getDoc(doc(db,'seasons',seasonId(),'playDates',dateId,'results',id));if(!snap.exists())return;const r=snap.data();$('resultCourt').value=String(r.courtNumber);await renderCourt(r);$('courtResultForm')?.scrollIntoView({behavior:'smooth',block:'start'})};await loadSelectedCourt();await loadResultList()
+ };
+ $('resultDate').onchange=renderDate;$('openTestDay').onclick=()=>{$('resultDate').value='__test__';renderDate()};await renderDate()
 }
-function refreshStoreOptions(){
-  if(!window.storeOptions) return;
-  storeOptions.innerHTML=(data.stores||[]).map(s=>`<option value="${escapeHtml(s)}"></option>`).join("");
+async function rebuildStandings(){if(!admin())return;const [cs,ds]=await Promise.all([getDocs(collection(db,'seasons',seasonId(),'couples')),playDates()]),couples=cs.docs.map(x=>({id:x.id,...x.data()})).filter(x=>x.status!=='inactive'),agg=new Map(couples.map(c=>[c.id,{points:0,gamesFor:0,gamesAgainst:0,gameDiff:0,coupleName:c.name||'',coupleId:c.id,number:coupleNumber(c.id,c)}]));for(const d of ds){const rs=await getDocs(collection(db,'seasons',seasonId(),'playDates',d.id,'results'));rs.docs.forEach(x=>{const r=x.data(),alloc=r.pointAllocations||{},ga=Number(r.gamesA||0),gb=Number(r.gamesB||0);Object.entries(alloc).forEach(([cid,pts])=>{if(agg.has(cid))agg.get(cid).points+=Number(pts||0)});const aIds=[...new Set(r.teamACoupleIds||[])],bIds=[...new Set(r.teamBCoupleIds||[])];aIds.forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=ga;agg.get(cid).gamesAgainst+=gb}});bIds.forEach(cid=>{if(agg.has(cid)){agg.get(cid).gamesFor+=gb;agg.get(cid).gamesAgainst+=ga}})})}const batch=writeBatch(db);agg.forEach((v,cid)=>{v.gameDiff=v.gamesFor-v.gamesAgainst;batch.set(doc(db,'seasons',seasonId(),'standings',cid),{...v,updatedAt:serverTimestamp()},{merge:true})});await batch.commit()}
+async function loadResultList(){const host=$('resultList'),id=$('resultDate')?.value;if(!host||!id)return;const rs=await getDocs(collection(db,'seasons',seasonId(),'playDates',id,'results'));host.innerHTML=`<h3>Opgeslagen</h3>${rs.empty?'<p>Nog geen uitslagen.</p>':rs.docs.map(x=>`<div class="result-admin"><div>${resultLine(x.data())}${x.data().note?`<small>${esc(x.data().note)}</small>`:''}</div><div class="result-actions"><button class="secondary" data-editres="${esc(x.id)}">✏️ Bewerken</button><button class="danger" data-delres="${esc(x.id)}">Verwijder</button></div></div>`).join('')}`;host.querySelectorAll('[data-editres]').forEach(b=>b.onclick=()=>window.__editResult?.(b.dataset.editres));host.querySelectorAll('[data-delres]').forEach(b=>b.onclick=async()=>{if(!confirm('Deze uitslag verwijderen?'))return;await deleteDoc(doc(db,'seasons',seasonId(),'playDates',id,'results',b.dataset.delres));await rebuildStandings();loadResultList()})}
+
+async function renderPaymentsAdmin(){const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Betalingen</h2><p>Laden…</p></div>';const [ps,pays]=await Promise.all([getDocs(collection(db,'seasons',seasonId(),'players')),getDocs(collection(db,'seasons',seasonId(),'payments'))]),players=ps.docs.filter(x=>x.data().status!=='inactive').map(x=>({id:x.id,...x.data()}));host.innerHTML=`<div class="admin-card"><h2>Betalingen</h2><p>Alleen vaste spelers betalen. Reserves tellen niet mee.</p><div class="formgrid"><div><label>Naam betaling</label><input id="payName" placeholder="bijv. Wintertennis termijn 1"></div><div><label>Totaal bedrag (€)</label><input id="payTotal" type="number" min="0" step="0.01"></div></div><div class="admin-actions"><button id="newPayment">Betaling aanmaken</button><button id="payPdf" class="secondary">📄 Export PDF</button><button id="payExcel" class="secondary">📊 Export Excel</button></div><div id="payMsg"></div><div id="payList"></div></div>`;$('newPayment').onclick=async()=>{const total=Number($('payTotal').value),name=$('payName').value.trim();if(!name||!total){$('payMsg').textContent='Vul een naam en totaalbedrag in.';$('payMsg').className='message error';return}const entries={};players.forEach(p=>entries[p.id]={name:p.name||p.id,paid:false,paidAt:null,note:''});await setDoc(doc(db,'seasons',seasonId(),'payments',`p_${Date.now()}`),{name,totalAmount:total,perPlayer:Number((total/players.length).toFixed(2)),playerCount:players.length,entries,createdAt:serverTimestamp()});$('payName').value='';$('payTotal').value='';$('payMsg').textContent=`✓ Betaling aangemaakt: € ${(total/players.length).toFixed(2)} per speler.`;$('payMsg').className='message';renderPaymentsAdmin()};renderPaymentList(pays,players);const payRows=[];pays.docs.forEach(p=>{const d=p.data(),entries=d.entries||{};players.forEach(x=>{const e=entries[x.id]||{},amt=Number(d.perPlayer||0);payRows.push([d.name||'Betaling',x.name||x.id,amt.toFixed(2),e.paid?'Betaald':'Openstaand',e.paidAt?String(e.paidAt).slice(0,10):''])})});$('payPdf').onclick=()=>exportPdf('Wildenhorst – betalingen',['Betaling','Speler','Bedrag','Status','Betaaldatum'],payRows);$('payExcel').onclick=()=>exportExcel('Wildenhorst-betalingen.xls',['Betaling','Speler','Bedrag','Status','Betaaldatum'],payRows)}
+function renderPaymentList(pays,players){const host=$('payList');if(!host)return;host.innerHTML=pays.empty?'<p>Nog geen betalingen aangemaakt.</p>':pays.docs.map(p=>{const d=p.data(),entries=d.entries||{},paid=Object.values(entries).filter(x=>x.paid).length,count=d.playerCount||players.length,paidAmount=paid*Number(d.perPlayer||0),open=Math.max(0,Number(d.totalAmount||0)-paidAmount),unpaid=players.filter(x=>!(entries[x.id]||{}).paid);return `<div class="payment-card"><div class="date-head"><h3>${esc(d.name||'Betaling')}</h3><span class="status">${paid}/${count} betaald</span></div><div class="payment-summary"><b>${paid} van ${count} betaald</b><span>Betaald: € ${paidAmount.toFixed(2)}</span><span>Openstaand: € ${open.toFixed(2)}</span><span>Nog te betalen: ${unpaid.length} spelers</span></div><progress max="${count}" value="${paid}"></progress><p>Totaal € ${Number(d.totalAmount||0).toFixed(2)} · € ${Number(d.perPlayer||0).toFixed(2)} per speler</p><button class="wa-remind" data-remind="${esc(p.id)}">💬 WhatsApp herinnering openstaande betalingen</button>${players.map(x=>{const e=entries[x.id]||{name:x.name,paid:false};return `<div class="pay-row"><span>${esc(e.name||x.name)}</span><button data-pay="${esc(p.id)}" data-player="${esc(x.id)}" class="${e.paid?'paid':'secondary'}">${e.paid?'✓ Betaald':'Openstaand'}</button></div>`}).join('')}</div>`}).join('');host.querySelectorAll('[data-pay]').forEach(b=>b.onclick=()=>togglePayment(b.dataset.pay,b.dataset.player));host.querySelectorAll('[data-remind]').forEach(b=>b.onclick=()=>{const pd=pays.docs.find(x=>x.id===b.dataset.remind)?.data();if(!pd)return;const unpaid=players.filter(x=>!(pd.entries?.[x.id]||{}).paid),names=unpaid.map(x=>x.name||x.id).join(', ');waOpen(`Wildenhorst zaterdagcompetitie\n\nBeste tennissers,\n\nEen kleine herinnering voor ${pd.name||'de betaling'}.\nVolgens mijn overzicht staat € ${Number(pd.perPlayer||0).toFixed(2)} nog open voor:\n${names}\n\nAlvast bedankt!`)})}
+async function togglePayment(paymentId,playerId){const ref=doc(db,'seasons',seasonId(),'payments',paymentId),s=await getDoc(ref);if(!s.exists())return;const d=s.data(),entries={...(d.entries||{})},e={...(entries[playerId]||{})};e.paid=!e.paid;e.paidAt=e.paid?new Date().toISOString():null;entries[playerId]=e;await updateDoc(ref,{entries,updatedAt:serverTimestamp()});renderPaymentsAdmin()}
+async function renderAdminsAdmin(){
+ const host=$('ap');host.innerHTML='<div class="admin-card"><h2>Beheerders</h2><p>Laden…</p></div>';
+ const [us,ps,rs,cs]=await Promise.all([getDocs(collection(db,'users')),getDocs(collection(db,'seasons',seasonId(),'players')),getDocs(collection(db,'seasons',seasonId(),'reserves')),getDocs(collection(db,'seasons',seasonId(),'couples'))]);
+ const users=us.docs.map(x=>({id:x.id,...x.data()})),players=ps.docs.map(x=>{const p={id:x.id,...x.data()},c=cs.docs.find(c=>Array.isArray(c.data().memberIds)&&c.data().memberIds.includes(x.id));return {...p,coupleId:p.coupleId||c?.id}}),reserves=rs.docs.map(x=>({id:x.id,...x.data()})),pending=users.filter(x=>x.status==='pending');
+ const norm=v=>String(v||'').trim().toLowerCase();
+ host.innerHTML=`<div class="admin-card"><h2>Beheerders</h2><p>De hoofdbeheerder kan accounts goedkeuren en een geactiveerd account beheerder maken. Een reserve mag ook beheerder zijn.</p>${pending.length?`<div class="notice"><b>🔔 ${pending.length} account${pending.length===1?'':'s'} wacht${pending.length===1?'':'en'} op goedkeuring</b></div>${pending.map(d=>`<div class="person-card"><div><b>${esc(d.email||d.id)}</b><small>Account aangevraagd</small></div><div class="row-actions"><button data-approve="${esc(d.id)}">Goedkeuren</button><button class="secondary" data-reject="${esc(d.id)}">Weigeren</button></div></div>`).join('')}`:'<p><small>Geen accounts die op goedkeuring wachten.</small></p>'}<div class="admin-actions"><button id="addAdmin">＋ Beheerder toevoegen</button><button id="testPlayerBtn" class="secondary">🧪 Test als speler</button></div><div id="adminExtra"></div>${users.filter(d=>d.status==='active'&&(d.role==='headAdmin'||d.role==='admin')).map(d=>`<div class="person-card"><div><b>${esc(d.name||d.displayName||d.email||d.id)}</b><small>${esc(d.email||'')} · ${d.role==='headAdmin'?'Hoofdbeheerder':'Beheerder'}</small></div>${d.role==='headAdmin'?'<span class="status green">Hoofdbeheerder</span>':`<button data-removeadmin="${esc(d.id)}">Rechten intrekken</button>`}</div>`).join('')}<div id="adminMsg"></div></div>`;
+ host.querySelectorAll('[data-approve]').forEach(b=>b.onclick=async()=>{const u=users.find(x=>x.id===b.dataset.approve),email=norm(u?.email),p=players.find(x=>norm(x.email)===email),r=reserves.find(x=>norm(x.email)===email),match=p||r,msg=$('adminMsg');if(!match){msg.textContent='Dit e-mailadres staat niet bij de vaste spelers of reserves. Controleer eerst het e-mailadres bij Beheer → Spelers.';msg.className='message error';return}const data={name:match.name||match.displayName||u.email,email:u.email,phone:match.phone||'',singlesAllowed:!!match.singlesAllowed,participantType:p?'fixed':'reserve',role:'player',status:'active',updatedAt:serverTimestamp()};if(p){data.playerId=p.id;if(p.coupleId)data.coupleId=p.coupleId}else data.reserveId=r.id;await updateDoc(doc(db,'users',u.id),data);renderAdminsAdmin()});
+ host.querySelectorAll('[data-reject]').forEach(b=>b.onclick=async()=>{const u=users.find(x=>x.id===b.dataset.reject);if(!u)return;if(!confirm(`Accountaanvraag van ${u.email||'dit e-mailadres'} weigeren?`))return;await updateDoc(doc(db,'users',u.id),{status:'rejected',updatedAt:serverTimestamp()});renderAdminsAdmin()});
+ $('addAdmin').onclick=()=>{$('adminExtra').innerHTML=`<div class="edit-panel"><label>Kies een geactiveerd account</label><select id="adminPick"><option value="">Kies…</option>${users.filter(d=>d.status==='active'&&d.role!=='headAdmin'&&d.role!=='admin').map(d=>`<option value="${esc(d.id)}">${esc(d.name||d.displayName||d.email||d.id)}</option>`).join('')}</select><button id="adminGrant">Beheerder maken</button><p><small>Staat iemand hier niet tussen, keur het account dan eerst hierboven goed.</small></p></div>`;$('adminGrant').onclick=async()=>{const uid=$('adminPick').value;if(!uid)return;await updateDoc(doc(db,'users',uid),{role:'admin'});renderAdminsAdmin()}};
+ $('testPlayerBtn').onclick=()=>{$('adminExtra').innerHTML=`<div class="edit-panel"><label>Test de app als vaste speler</label><select id="testPick"><option value="">Kies speler…</option>${players.map(p=>`<option value="${esc(p.id)}">${esc(p.name||p.id)}</option>`).join('')}</select><button id="startTest">Start testweergave</button></div>`;$('startTest').onclick=()=>{const p=players.find(x=>x.id===$('testPick').value);if(!p)return;testPlayer={...p,playerId:p.id,participantType:'fixed'};go('home')}};
+ host.querySelectorAll('[data-removeadmin]').forEach(b=>b.onclick=async()=>{await updateDoc(doc(db,'users',b.dataset.removeadmin),{role:'player'});renderAdminsAdmin()})
 }
-function setProductPhoto(value=""){
-  productPhotoData.value=value;
-  if(value){ productPhotoPreview.src=value; productPhotoPreviewWrap.classList.remove("hidden"); }
-  else { productPhotoPreview.removeAttribute("src"); productPhotoPreviewWrap.classList.add("hidden"); }
-}
-function compressProductPhoto(file){
-  if(!file||!file.type.startsWith("image/")) return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const max=500, scale=Math.min(1,max/Math.max(img.width,img.height));
-      const canvas=document.createElement("canvas");
-      canvas.width=Math.round(img.width*scale); canvas.height=Math.round(img.height*scale);
-      canvas.getContext("2d").drawImage(img,0,0,canvas.width,canvas.height);
-      setProductPhoto(canvas.toDataURL("image/jpeg",0.72));
-    };
-    img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-}
-function renderStores(){
-  storesList.innerHTML=(data.stores||[]).map((s,i)=>`<div class="store-row"><span>${escapeHtml(s)}</span><button type="button" onclick="removeStore(${i})">🗑️</button></div>`).join("");
-}
-window.removeStore=i=>{
-  const s=data.stores[i];
-  if(!confirm(`Winkel "${s}" uit de keuzelijst verwijderen?`)) return;
-  data.stores.splice(i,1); renderStores(); saveData();
-};
-manageStoresBtn.onclick=()=>{renderStores();newStoreName.value="";storesDialog.showModal();};
-addStoreBtn.onclick=()=>{
-  const s=newStoreName.value.trim();
-  if(!s) return;
-  if(data.stores.some(x=>x.toLowerCase()===s.toLowerCase())){alert("Deze winkel bestaat al.");return;}
-  data.stores.push(s);data.stores.sort((a,b)=>a.localeCompare(b,"nl"));newStoreName.value="";renderStores();saveData();
-};
-productPhotoInput.onchange=()=>compressProductPhoto(productPhotoInput.files[0]);
-removeProductPhotoBtn.onclick=()=>setProductPhoto("");
-
-function openProductDialog(id=""){
-  const p=(data.products||[]).find(x=>x.id===id);
-  productEditId.value=p?.id||"";
-  productDialogTitle.textContent=p?"Product bewerken":"Product toevoegen";
-  productName.value=p?.name||"";
-  productBrand.value=p?.brand||"";
-  productAmount.value=p?.amount||"";
-  productUnit.value=p?.unit||"";
-  productCategory.value=p?.category||"Overig";
-  productStore.value=p?.store||"";
-  productOtherStores.value=p?.otherStores||"";
-  productPrice.value=p?.price||"";
-  productNote.value=p?.note||"";
-  productFavorite.checked=!!p?.favorite;
-  productStock.value=Number(p?.stock||0);
-  productMinStock.value=Number(p?.minStock||0);
-  productPhotoInput.value="";
-  setProductPhoto(p?.photo||"");
-  deleteProductBtn.classList.toggle("hidden",!p);
-  productDialog.showModal();
-}
-addProductBtn.onclick=()=>openProductDialog("");
-window.editProduct=id=>openProductDialog(id);
-productForm.onsubmit=async e=>{
-  e.preventDefault();
-  const id=productEditId.value;
-  const existing=(data.products||[]).find(p=>p.id===id);
-  const productId=id||crypto.randomUUID();
-  let productPhoto=productPhotoData.value||"";
-  try{
-    if(isInlineImage(productPhoto)){
-      setSyncStatus("Productfoto uploaden…");
-      productPhoto=await uploadSharedImage(productPhoto,"products",productId);
-    }
-  }catch(error){
-    console.error(error);
-    showSaveWarning("De productfoto kon niet naar Firebase Storage worden geüpload. Probeer opnieuw.");
-    return;
-  }
-  const record={
-    id:productId,
-    name:productName.value.trim(),
-    brand:productBrand.value.trim(),
-    amount:productAmount.value.trim(),
-    unit:productUnit.value,
-    category:productCategory.value,
-    store:productStore.value.trim(),
-    otherStores:productOtherStores.value.trim(),
-    price:productPrice.value,
-    note:productNote.value.trim(),
-    favorite:productFavorite.checked,
-    stock:Number(productStock.value||0),
-    minStock:Number(productMinStock.value||0),
-    photo:productPhoto,
-    timesUsed:existing?.timesUsed||0,
-    lastUsedAt:existing?.lastUsedAt||"",
-    updatedBy:currentPersonName(),
-    updatedAt:new Date().toISOString()
-  };
-  if(!record.name) return;
-  data.products=data.products||[];
-  const duplicate=data.products.find(p=>p.id!==id && normalizeProductKey(p)===normalizeProductKey(record));
-  if(duplicate){
-    const useExisting=confirm(`Dit product bestaat mogelijk al als "${productLabel(duplicate)}".\n\nDruk op OK om het bestaande product te openen, of Annuleren om toch apart op te slaan.`);
-    if(useExisting){ openProductDialog(duplicate.id); return; }
-  }
-  const pos=data.products.findIndex(p=>p.id===id);
-  if(pos>=0) data.products[pos]=record; else data.products.unshift(record);
-  if(record.store && !data.stores.some(s=>s.toLowerCase()===record.store.toLowerCase())) data.stores.push(record.store);
-  productDialog.close();
-  addNotification({text:`${currentPersonName()} heeft product “${record.name}” ${pos>=0?"aangepast":"toegevoegd"}.`});
-  saveData();
-};
-deleteProductBtn.onclick=()=>{
-  const id=productEditId.value;
-  const p=(data.products||[]).find(x=>x.id===id);
-  if(!p||!confirm(`Product "${p.name}" verwijderen?`)) return;
-  data.products=data.products.filter(x=>x.id!==id);
-  productDialog.close();
-  saveData();
-};
-window.addProductToGroceries=id=>{
-  const p=(data.products||[]).find(x=>x.id===id);
-  if(!p||!currentHousehold) return;
-  p.timesUsed=Number(p.timesUsed||0)+1;
-  p.lastUsedAt=new Date().toISOString();
-  data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text:productLabel(p),store:p.store||"",productId:p.id,done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
-  addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${productLabel(p)}” toegevoegd aan de boodschappenlijst${p.store?` voor ${p.store}`:""}.`});
-  saveData();
-};
-productSearch.oninput=renderProducts;
-productStoreFilter.onchange=renderProducts;
-productCategoryFilter.onchange=renderProducts;
-
-recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
-groceryHousehold.onchange=()=>{currentHousehold=groceryHousehold.value;renderGroceries();};
-
-function openSimple(title, fields, mode){
-  simpleTitle.textContent=title; simpleMode=mode;
-  simpleFields.innerHTML=fields; simpleDialog.showModal();
-}
-addGroceryBtn.onclick=()=>{
-  const options=(data.products||[]).sort((a,b)=>(Number(b.favorite)-Number(a.favorite))||(Number(b.timesUsed||0)-Number(a.timesUsed||0))).map(p=>`<option value="${p.id}">${escapeHtml(productLabel(p))}${p.store?` — ${escapeHtml(p.store)}`:""}</option>`).join("");
-  openSimple("Product toevoegen",`<label>Zoek of kies product<select name="productId"><option value="">Zelf invoeren</option>${options}</select></label><label>Of typ product<input name="text" list="productNameSuggestions" placeholder="Begin met typen..."></label><datalist id="productNameSuggestions">${(data.products||[]).map(p=>`<option value="${escapeHtml(productLabel(p))}"></option>`).join("")}</datalist><label>Winkel<input name="store" list="storeOptions" placeholder="Bijv. Jumbo"></label>`,"grocery");
-};
-addHouseholdBtn.onclick=()=>openHouseholdEditor("");
-simpleForm.onsubmit=e=>{
-  e.preventDefault(); const f=new FormData(simpleForm);
-  if(simpleMode==="editGrocery"){
-    const g=data.groceries.find(x=>x.id===String(f.get("id")||""));
-    if(g){
-      g.text=String(f.get("text")||"").trim();
-      g.store=String(f.get("store")||"").trim();
-      g.note=String(f.get("note")||"").trim();
-      addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” aangepast op de boodschappenlijst.`});
-    }
-  } else if(simpleMode==="grocery"){
-    const selected=String(f.get("productId")||"");
-    const product=(data.products||[]).find(p=>p.id===selected);
-    const text=(product?productLabel(product):String(f.get("text")||"").trim());
-    if(!text){ alert("Kies of typ eerst een product."); return; }
-    const store=String(f.get("store")||product?.store||"").trim();
-    if(product){ product.timesUsed=Number(product.timesUsed||0)+1; product.lastUsedAt=new Date().toISOString(); }
-    data.groceries.push({id:crypto.randomUUID(),householdId:currentHousehold,text,store,productId:product?.id||"",done:false,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
-    addNotification({householdId:currentHousehold,text:`${currentPersonName()} heeft “${text}” toegevoegd aan de boodschappenlijst${store?` voor ${store}`:""}.`});
-  }
-  simpleForm.reset(); simpleDialog.close(); saveData();
-};
-
-window.deleteWish=id=>{
-  const wish=data.wishes.find(w=>w.id===id);
-  if(!wish || !canManageWish(wish)) return;
-  if(!confirm(`Wens "${wish.title}" verwijderen?`)) return;
-  data.wishes=data.wishes.filter(w=>w.id!==id);
-  saveData();
-};
-
-window.toggleGrocery=id=>{
-  const g=data.groceries.find(x=>x.id===id);
-  if(!g) return;
-  const p=(data.products||[]).find(x=>x.id===g.productId);
-  if(p && !g.stockProcessed){ p.stock=Number(p.stock||0)+1; g.stockProcessed=true; }
-  addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” afgevinkt.`});
-  data.groceries=data.groceries.filter(x=>x.id!==id);
-  saveData();
-};
-window.deleteGrocery=id=>{const g=data.groceries.find(x=>x.id===id); if(g)addNotification({householdId:g.householdId,text:`${currentPersonName()} heeft “${g.text}” verwijderd van de boodschappenlijst.`}); data.groceries=data.groceries.filter(x=>x.id!==id);saveData();};
-window.editGrocery=id=>{
-  const g=data.groceries.find(x=>x.id===id); if(!g)return;
-  const stores=(data.stores||[]).map(s=>`<option value="${escapeHtml(s)}"></option>`).join("");
-  openSimple("Boodschap bewerken",`<input type="hidden" name="id" value="${g.id}"><label>Product<input name="text" required value="${escapeHtml(g.text)}"></label><label>Winkel<input name="store" list="groceryStoreOptions" value="${escapeHtml(g.store||"")}"></label><datalist id="groceryStoreOptions">${stores}</datalist><label>Notitie<input name="note" value="${escapeHtml(g.note||"")}" placeholder="Bijv. 2 pakken"></label>`,"editGrocery");
-};
-
-let pendingRecipeGroceriesId="";
-window.addRecipeToGroceries=id=>{
-  const r=data.recipes.find(x=>x.id===id);
-  if(!r) return;
-  const households=accessibleHouseholds();
-  if(!households.length){ alert("Je account is nog niet aan een huishouden gekoppeld."); return; }
-  pendingRecipeGroceriesId=id;
-  recipeGroceriesTitle.textContent=`Producten kiezen voor ${r.name}`;
-  recipeGroceriesHousehold.innerHTML=households.map(h=>`<option value="${h.id}">${escapeHtml(h.name)}</option>`).join("");
-  recipeGroceriesHousehold.value=households.some(h=>h.id===currentHousehold)?currentHousehold:households[0].id;
-  recipeGroceriesIngredients.innerHTML=r.ingredients.map((raw,index)=>{
-    const i=normalizeIngredient(raw);
-    const text=[i.amount,i.unit,i.name].filter(Boolean).join(" ");
-    return `<label class="recipe-grocery-choice"><input type="checkbox" name="ingredient" value="${index}" checked><span>${escapeHtml(text)}</span></label>`;
-  }).join("");
-  recipeGroceriesError.textContent="";
-  recipeGroceriesDialog.showModal();
-};
-selectAllRecipeIngredients.onclick=()=>recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]').forEach(x=>x.checked=true);
-selectNoRecipeIngredients.onclick=()=>recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]').forEach(x=>x.checked=false);
-recipeGroceriesForm.onsubmit=e=>{
-  e.preventDefault();
-  const r=data.recipes.find(x=>x.id===pendingRecipeGroceriesId);
-  const householdId=recipeGroceriesHousehold.value;
-  const selected=[...recipeGroceriesIngredients.querySelectorAll('input[type="checkbox"]:checked')].map(x=>Number(x.value));
-  if(!r || !householdId) return;
-  if(!selected.length){ recipeGroceriesError.textContent="Kies minimaal één product."; return; }
-  selected.forEach(index=>{
-    const i=normalizeIngredient(r.ingredients[index]);
-    const text=[i.amount,i.unit,i.name].filter(Boolean).join(" ");
-    const match=(data.products||[]).find(p=>String(p.name).toLowerCase()===String(i.name).toLowerCase());
-    data.groceries.push({id:crypto.randomUUID(),householdId,text,store:match?.store||"",productId:match?.id||"",done:false,source:`Recept ${r.name}`,addedBy:currentPersonName(),addedAt:new Date().toISOString()});
-  });
-  currentHousehold=householdId;
-  addNotification({householdId,text:`${currentPersonName()} heeft ${selected.length} product${selected.length===1?"":"en"} van ${r.name} toegevoegd aan de boodschappenlijst.`});
-  recipeGroceriesDialog.close();
-  pendingRecipeGroceriesId="";
-  saveData();
-  navigate("boodschappen");
-};
-window.openRecipe=id=>{
-  const r=data.recipes.find(x=>x.id===id); if(!r)return;
-  let portions=r.servings;
-  const render=()=>{
-    viewRecipeTitle.textContent=r.name;
-    viewRecipeBody.innerHTML=`${r.photo?`<img class="recipe-photo" src="${r.photo}" alt="">`:""}
-      <div class="portion-control"><button id="minusPortion">−</button><strong>Voor ${portions} personen</strong><button id="plusPortion">+</button></div>
-      <div class="recipe-view-actions"><button class="secondary-btn wide" type="button" onclick="editRecipe('${r.id}')">✏️ Recept bewerken</button></div>
-      ${r.updatedAt?`<p class="meta">Laatst gewijzigd ${new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(new Date(r.updatedAt))}${r.updatedBy?` door ${escapeHtml(r.updatedBy)}`:""}</p>`:""}
-      <h3>Ingrediënten</h3><ul class="ingredient-list">${r.ingredients.map(rawIngredient=>{
-        const i=normalizeIngredient(rawIngredient);
-        const factor=portions/Math.max(1,Number(r.servings)||1);
-        const amount=formatScaledAmount(i.amount,factor);
-        const quantity=[amount,i.unit].filter(Boolean).join(" ");
-        return `<li><input type="checkbox"><span>${quantity?`<strong>${quantity}</strong> `:""}${i.name}</span></li>`;
-      }).join("")}</ul><h3>Bereiding</h3><ol class="steps">${r.steps.map(s=>`<li>${s}</li>`).join("")}</ol>`;
-    minusPortion.onclick=()=>{if(portions>1){portions--;render();}}; plusPortion.onclick=()=>{portions++;render();};
-  }; render(); recipeViewDialog.showModal();
-};
-
-
-function isAdmin(){ return (currentUser?.email || "").toLowerCase()===ADMIN_EMAIL; }
-
-async function loadAdminSettings(){
-  if(!db || !firebase.auth().currentUser) return;
-  try{
-    const ref=db.doc(ADMIN_DOC);
-    const snap=await ref.get();
-    if(snap.exists){
-      const remote=snap.data();
-      const accounts=Array.isArray(remote.accounts)?remote.accounts:[];
-      const emailsFromAccounts=accounts
-        .filter(a=>a && a.active!==false && a.email)
-        .map(a=>String(a.email).trim().toLowerCase());
-      const allowedEmails=Array.isArray(remote.allowedEmails)
-        ? remote.allowedEmails.map(x=>String(x).trim().toLowerCase())
-        : emailsFromAccounts;
-      if(!allowedEmails.includes(ADMIN_EMAIL)) allowedEmails.push(ADMIN_EMAIL);
-      adminSettings={allowedEmails:Array.from(new Set(allowedEmails)),accounts};
-      // v1.3.14: oudere settings-documenten automatisch aanvullen vanuit accounts.
-      // Daardoor blijven Firebase-regels en accountbeheer dezelfde bron gebruiken.
-      const needsMigration=!Array.isArray(remote.allowedEmails)
-        || adminSettings.allowedEmails.length!==remote.allowedEmails.length;
-      if(isAdmin() && needsMigration){
-        await ref.set(adminSettings,{merge:true});
-      }
-    }else if((firebase.auth().currentUser.email||"").toLowerCase()===ADMIN_EMAIL){
-      await ref.set(adminSettings);
-    }
-    const mapped=adminSettings.accounts?.find(a=>(a.email||"").toLowerCase()===(firebase.auth().currentUser.email||"").toLowerCase());
-    if(mapped && currentUser){ currentUser.displayName=mapped.name; }
-    renderProfile();
-    renderAccountManagement();
-  }catch(err){ console.warn("Accountinstellingen laden mislukt",err); }
-}
-
-async function saveAdminSettings(){
-  if(!db || !isAdmin()) throw new Error("Alleen de beheerder kan dit wijzigen.");
-  adminSettings.allowedEmails=adminSettings.accounts.filter(a=>a.active!==false && a.email).map(a=>a.email.toLowerCase());
-  if(!adminSettings.allowedEmails.includes(ADMIN_EMAIL)) adminSettings.allowedEmails.push(ADMIN_EMAIL);
-  await db.doc(ADMIN_DOC).set(adminSettings,{merge:false});
-  renderAccountManagement();
-}
-
-function renderAccountManagement(){
-  const adminVisible=isAdmin();
-  document.querySelectorAll('.admin-only').forEach(el=>el.classList.toggle('visible',adminVisible));
-  if(!window.inviteName || !window.accountList) return;
-  inviteName.innerHTML=data.family.map(p=>`<option>${p.name}</option>`).join('');
-  accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
-}
-
-
-
-window.openHouseholdEditor=id=>{
-  if(!isAdmin()) return;
-
-  const household=id ? data.households.find(h=>h.id===id) : null;
-  householdEditId.value=household?.id || "";
-  householdEditTitle.textContent=household ? "Huishouden bewerken" : "Huishouden toevoegen";
-  householdEditName.value=household?.name || "";
-  householdEditMessage.textContent="";
-
-  householdMemberChecks.innerHTML=data.family.map(person=>`
-    <label class="member-check">
-      <input type="checkbox" value="${person.name}" ${household?.members?.includes(person.name)?"checked":""}>
-      <span>${person.name}</span>
-    </label>
-  `).join("");
-
-  deleteHouseholdBtn.classList.toggle("hidden",!household);
-  householdEditDialog.showModal();
-};
-
-householdEditForm.onsubmit=e=>{
-  e.preventDefault();
-  if(!isAdmin()) return;
-
-  const id=householdEditId.value;
-  const name=householdEditName.value.trim();
-  const members=[...householdMemberChecks.querySelectorAll('input[type="checkbox"]:checked')].map(x=>x.value);
-
-  if(!name){
-    householdEditMessage.textContent="Vul een naam in.";
-    return;
-  }
-  if(!members.length){
-    householdEditMessage.textContent="Kies minimaal één lid.";
-    return;
-  }
-  if(data.households.some(h=>h.id!==id && h.name.toLowerCase()===name.toLowerCase())){
-    householdEditMessage.textContent="Er bestaat al een huishouden met deze naam.";
-    return;
-  }
-
-  if(id){
-    const household=data.households.find(h=>h.id===id);
-    if(!household) return;
-    household.name=name;
-    household.members=members;
-  }else{
-    data.households.push({
-      id:crypto.randomUUID(),
-      name,
-      members
-    });
-  }
-
-  householdEditDialog.close();
-  saveData();
-};
-
-deleteHouseholdBtn.onclick=()=>{
-  if(!isAdmin()) return;
-  const id=householdEditId.value;
-  const household=data.households.find(h=>h.id===id);
-  if(!household) return;
-
-  if(!confirm(`Huishouden "${household.name}" verwijderen? Weekmenu's, afspraken en boodschappen van dit huishouden worden ook verwijderd.`)){
-    return;
-  }
-
-  data.households=data.households.filter(h=>h.id!==id);
-  data.weekMenus=(data.weekMenus || []).filter(m=>m.householdId!==id);
-  data.events=(data.events || []).filter(e=>e.householdId!==id);
-  data.groceries=(data.groceries || []).filter(g=>g.householdId!==id);
-
-  householdEditDialog.close();
-  saveData();
-};
-
-window.openFamilyEditor=name=>{
-  if(!isAdmin()) return;
-  const member=data.family.find(p=>p.name===name);
-  if(!member) return;
-  familyEditOriginalName.value=member.name;
-  familyEditName.value=member.name;
-  familyEditBirth.value=member.birth;
-  familyEditEmail.value=member.email||"";
-  familyEditMessage.textContent="";
-  familyEditDialog.showModal();
-};
-
-familyEditForm.onsubmit=e=>{
-  e.preventDefault();
-  if(!isAdmin()){
-    familyEditMessage.textContent="Alleen Rinze kan familiegegevens aanpassen.";
-    return;
-  }
-  const original=familyEditOriginalName.value;
-  const member=data.family.find(p=>p.name===original);
-  if(!member) return;
-
-  const newName=familyEditName.value.trim();
-  if(!newName){
-    familyEditMessage.textContent="Vul een naam in.";
-    return;
-  }
-  if(data.family.some(p=>p!==member && p.name.toLowerCase()===newName.toLowerCase())){
-    familyEditMessage.textContent="Deze naam bestaat al.";
-    return;
-  }
-
-  data.households.forEach(h=>{
-    h.members=h.members.map(m=>m===original?newName:m);
-  });
-  if(adminSettings.accounts){
-    adminSettings.accounts.forEach(a=>{
-      if(a.name===original) a.name=newName;
-    });
-  }
-
-  member.name=newName;
-  member.birth=familyEditBirth.value;
-  member.email=familyEditEmail.value.trim().toLowerCase();
-
-  saveData();
-  if(db && isAdmin()) saveAdminSettings().catch(err=>console.warn(err));
-  familyEditDialog.close();
-};
-
-window.toggleAccountAccess=async email=>{
-  const a=adminSettings.accounts.find(x=>x.email===email); if(!a)return;
-  a.active=a.active===false?true:false;
-  try{await saveAdminSettings();}catch(e){alert(e.message);}
-};
-window.removeInvite=async email=>{
-  if(!confirm('Uitnodiging verwijderen?'))return;
-  adminSettings.accounts=adminSettings.accounts.filter(x=>x.email!==email);
-  try{await saveAdminSettings();}catch(e){alert(e.message);}
-};
-
-inviteForm.onsubmit=async e=>{
-  e.preventDefault();
-  const name=inviteName.value, email=inviteEmail.value.trim().toLowerCase();
-  inviteMessage.textContent='Uitnodiging opslaan…';
-  const existing=adminSettings.accounts.find(a=>a.email.toLowerCase()===email);
-  if(existing){ existing.name=name; existing.active=true; }
-  else adminSettings.accounts.push({name,email,active:true});
-  const member=data.family.find(p=>p.name===name); if(member) member.email=email;
-  try{
-    await saveAdminSettings();
-    saveData();
-    inviteMessage.textContent=`Klaar. Stuur ${name} nu de link van Hogeterpjes. ${name} kiest zelf een wachtwoord.`;
-    inviteForm.reset();
-  }catch(err){ inviteMessage.textContent=err.message; }
-};
-
-showSignupBtn.onclick=()=>{ signupMessage.textContent=''; signupDialog.showModal(); };
-forgotPasswordBtn.onclick=async()=>{
-  const email=loginEmail.value.trim();
-  if(!email){ loginMessage.textContent='Vul eerst je e-mailadres in.'; return; }
-  try{ await auth.sendPasswordResetEmail(email); loginMessage.textContent='Er is een e-mail verstuurd waarmee je zelf een nieuw wachtwoord kiest.'; }
-  catch(err){ loginMessage.textContent='De resetmail kon niet worden verstuurd. Controleer het e-mailadres.'; }
-};
-signupForm.onsubmit=async e=>{
-  e.preventDefault();
-  const email=signupEmail.value.trim().toLowerCase(), p1=signupPassword.value, p2=signupPassword2.value;
-  if(p1!==p2){ signupMessage.textContent='De wachtwoorden zijn niet hetzelfde.'; return; }
-  signupMessage.textContent='Uitnodiging controleren…'; let result=null; signupVerificationInProgress=true;
-  try{
-    result=await auth.createUserWithEmailAndPassword(email,p1);
-    const allowed=await verifyInvitedUser(result.user);
-    if(!allowed){
-      try{await result.user.delete();}catch(_){await auth.signOut();}
-      signupVerificationInProgress=false;
-      signupMessage.textContent='Je bent nog niet uitgenodigd voor deze familie. Vraag Rinze om jouw e-mailadres eerst bij Beheer toe te voegen.';
-      return;
-    }
-    signupVerificationInProgress=false;
-    signupDialog.close(); loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
-    showLoggedIn(provisionalProfile(result.user));
-    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{currentUser=profile;renderAll();});
-  }catch(err){
-    signupVerificationInProgress=false;
-    if(result?.user){try{await result.user.delete();}catch(_){try{await auth.signOut();}catch(__){}}}
-    const msgs={"auth/email-already-in-use":"Voor dit e-mailadres bestaat al een account. Log hiermee in.","auth/weak-password":"Kies een wachtwoord van minimaal 6 tekens.","auth/invalid-email":"Dit e-mailadres is niet geldig."};
-    signupMessage.textContent=msgs[err.code]||'Account aanmaken lukt niet. Controleer of Rinze dit e-mailadres heeft uitgenodigd.';
-  }
-};
-
-profilePhotoInput.onchange=()=>{
-  const file=profilePhotoInput.files?.[0];
-  if(!file) return;
-  if(file.size>3*1024*1024){
-    alert("Kies een foto kleiner dan 3 MB.");
-    profilePhotoInput.value="";
-    return;
-  }
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const img=new Image();
-    img.onload=()=>{
-      const canvas=document.createElement("canvas");
-      const size=320;
-      canvas.width=size;
-      canvas.height=size;
-      const ctx=canvas.getContext("2d");
-      const scale=Math.max(size/img.width,size/img.height);
-      const w=img.width*scale,h=img.height*scale;
-      ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);
-      localStorage.setItem(PROFILE_PHOTO_KEY,canvas.toDataURL("image/jpeg",0.82));
-      renderProfile();
-    };
-    img.src=reader.result;
-  };
-  reader.readAsDataURL(file);
-};
-
-removeProfilePhotoBtn.onclick=()=>{
-  localStorage.removeItem(PROFILE_PHOTO_KEY);
-  profilePhotoInput.value="";
-  renderProfile();
-};
-
-themeBtn.onclick=()=>{document.body.classList.toggle("dark");localStorage.setItem("hogeterpjes-theme",document.body.classList.contains("dark")?"dark":"light");themeBtn.textContent=document.body.classList.contains("dark")?"☀️":"🌙";};
-if(localStorage.getItem("hogeterpjes-theme")==="dark"){document.body.classList.add("dark");themeBtn.textContent="☀️";}
-resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recepten en wensen worden verwijderd.")){data=cloneDefaults();saveData();}};
-
-profileBtn.onclick=()=>navigate("profiel");
-logoutBtn.onclick=async()=>{
-  if(auth){ await auth.signOut(); }
-  if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
-  if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
-  if(diaryUnsubscribe){ diaryUnsubscribe(); diaryUnsubscribe=null; }
-  if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
-  if(privateTodosUnsubscribe){ privateTodosUnsubscribe(); privateTodosUnsubscribe=null; }
-  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
-  coupleIdeas={campings:[],books:[]};
-  diaryEntries=[];
-  privateGiftIdeas=[];
-  privateTodos=[];
-  cloudReady=false;
-  currentUser=null;
-  loginScreen.classList.remove("hidden");
-  setSyncStatus("Nog niet ingelogd");
-  renderProfile();
-};
-
-async function verifyInvitedUser(user){
-  const email=(user?.email||"").trim().toLowerCase();
-  if(email===ADMIN_EMAIL) return true;
-  try{
-    const snap=await db.doc(ADMIN_DOC).get();
-    if(!snap.exists) return false;
-    const settings=snap.data()||{};
-    return (settings.accounts||[]).some(a=>a&&a.active!==false&&String(a.email||"").trim().toLowerCase()===email)
-      || (settings.allowedEmails||[]).some(x=>String(x).trim().toLowerCase()===email);
-  }catch(err){
-    return false;
-  }
-}
-function showLoggedIn(user){
-  const firstOpen=!currentUser;
-  currentUser=user;
-  loginScreen.classList.add("hidden");
-  loginMessage.textContent="";
-  fillSelects();
-  renderProfile();
-  if(!accessibleHouseholds().some(h=>h.id===currentHousehold)) currentHousehold=accessibleHouseholds()[0]?.id || "";
-  renderWishes();
-  renderAgenda();
-  renderWeekmenu();
-  updateDiaryAccess();
-  updateCalendarPreferenceUi();
-
-  if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
-  }
-}
-
-loginForm.onsubmit=async e=>{
-  e.preventDefault();
-  loginMessage.textContent="Bezig met inloggen…";
-
-  if(!auth){
-    loginMessage.textContent="Firebase kon niet worden gestart.";
-    return;
-  }
-
-  try{
-    const result=await withTimeout(
-      auth.signInWithEmailAndPassword(
-        loginEmail.value.trim(),
-        loginPassword.value
-      ),
-      12000,
-      "Firebase reageert niet op tijd"
-    );
-
-    loginMessage.textContent="Toegang controleren…";
-  }catch(err){
-    console.error("Firebase login error:", err.code, err.message);
-
-    const messages={
-      "auth/invalid-credential":"E-mailadres of wachtwoord is niet juist.",
-      "auth/wrong-password":"Het wachtwoord is niet juist.",
-      "auth/user-not-found":"Er bestaat geen account met dit e-mailadres.",
-      "auth/invalid-email":"Dit is geen geldig e-mailadres.",
-      "auth/user-disabled":"Dit account is uitgeschakeld.",
-      "auth/too-many-requests":"Te vaak geprobeerd. Wacht even en probeer later opnieuw.",
-      "auth/network-request-failed":"Geen goede internetverbinding. Probeer opnieuw.",
-      "auth/unauthorized-domain":"Dit webadres is nog niet toegestaan in Firebase.",
-    };
-
-    loginMessage.textContent=
-      messages[err.code] ||
-      (err.message==="Firebase reageert niet op tijd"
-        ? "Firebase reageert niet. Controleer internet en probeer opnieuw."
-        : `Inloggen lukt niet (${err.code || "onbekende fout"}).`);
-  }
-};
-
-async function loadUserProfile(user){
-  const fallback=provisionalProfile(user);
-
-  if(!db) return fallback;
-
-  try{
-    const ref=db.collection("profielen").doc(user.uid);
-    const snap=await withTimeout(ref.get(),8000,"Profiel laden duurde te lang");
-
-    if(snap.exists){
-      return {uid:user.uid,email:user.email,...snap.data()};
-    }
-
-    const displayName=fallback.displayName;
-    await withTimeout(ref.set({
-      displayName,
-      email:user.email || "",
-      createdAt:firebase.firestore.FieldValue.serverTimestamp()
-    }),8000,"Profiel opslaan duurde te lang");
-
-    return {...fallback,displayName};
-  }catch(err){
-    console.warn("Profiel laden overgeslagen:",err);
-    return fallback;
-  }
-}
-
-
-// ===== Gezinskluis Rinze & Christa (v1.3.14) =====
-const VAULT_ID="rinze-christa";
-const VAULT_LIMIT_BYTES=5*1024*1024*1024;
-const VAULT_MAX_FILE_BYTES=100*1024*1024;
-const VAULT_CATEGORIES=[
-  {name:"Documenten",icon:"📄",hint:"Algemene documenten"},
-  {name:"Huis",icon:"🏠",hint:"Woning, energie en onderhoud"},
-  {name:"Auto",icon:"🚗",hint:"APK, verzekering en onderhoud"},
-  {name:"Caravan",icon:"🚐",hint:"Papieren en handleidingen"},
-  {name:"Verzekeringen",icon:"🛡️",hint:"Polissen en correspondentie"},
-  {name:"Garanties & bonnen",icon:"🧾",hint:"Aankoopbonnen en garanties"},
-  {name:"Vakantie",icon:"✈️",hint:"Boekingen en reisdocumenten"},
-  {name:"Overig",icon:"📂",hint:"Alles wat nergens anders past"}
-];
-let vaultFiles=[];
-let vaultConfig=null;
-let currentVaultCategory="";
-let currentVaultSpecial="";
-let selectedVaultUploadFiles=[];
-let vaultReplaceId="";
-let vaultAppendGroup="";
-const VAULT_SUBFOLDERS={"Verzekeringen":["Verzekeringen/Univé","Verzekeringen/a.s.r."],"Verzekeringen/Univé":["Verzekeringen/Univé/Algemeen","Verzekeringen/Univé/Reisverzekering","Verzekeringen/Univé/Aansprakelijkheidsverzekering","Verzekeringen/Univé/Woonverzekering"],"Verzekeringen/a.s.r.":["Verzekeringen/a.s.r./Algemeen","Verzekeringen/a.s.r./Overlijdensrisicoverzekering","Verzekeringen/a.s.r./Spaarhypotheekverzekering"]};
-let vaultFolders={};let vaultFoldersUnsubscribe=null;
-const vaultBasePaths=()=>[...VAULT_CATEGORIES.map(c=>c.name),...Object.values(VAULT_SUBFOLDERS).flat()];
-function vaultAllPaths(){return [...new Set([...vaultBasePaths(),...Object.keys(vaultFolders).filter(p=>!vaultFolders[p]?.deleted)])].sort((a,b)=>a.localeCompare(b,'nl'));}
-function vaultChildren(path){return vaultAllPaths().filter(p=>vaultFolderParent(p)===path&&p!==path);}
-function vaultFolderRef(path){return db.collection('vaults').doc(VAULT_ID).collection('folders').doc(encodeURIComponent(path));}
-function vaultPathSafe(path){return path&&!path.split('/').some(s=>!s.trim()||s==='.'||s==='..')&&path.length<=350;}
-function vaultFolderActions(path){return `<span class="vault-folder-actions"><button class="vault-small-btn" type="button" data-vault-action="note" data-vault-path="${encodeURIComponent(path)}">✎ Opmerking</button><button class="vault-small-btn" type="button" data-vault-action="menu" data-vault-path="${encodeURIComponent(path)}">⋯</button></span>`;}
-function vaultFolderCard(path,root=false){const c=categoryInfo(path);const count=vaultActiveFilesInTree(path).length;const bytes=vaultActiveFilesInTree(path).reduce((n,f)=>n+(Number(f.size)||0),0);return `<div class="vault-folder-container"><button class="vault-folder-card" type="button" data-vault-open="${encodeURIComponent(path)}"><span class="vault-folder-icon">${root?c.icon:'📂'}</span><strong>${escapeHtml(vaultFolderLabel(path))}</strong><small>${count} ${count===1?'bestand':'bestanden'}${root?' · '+formatBytes(bytes):''}</small>${root?`<em>${escapeHtml(c.hint)}</em>`:''}</button>${vaultFolderActions(path)}</div>`;}
-function vaultAsk(text,initial=''){const result=prompt(text,initial);return result===null?null:result.trim();}
-async function vaultAddFolder(parent=''){if(!hasVaultAccess())return;const name=vaultAsk('Naam van de nieuwe map:');if(name===null)return;if(!name||name.includes('/')||name.length>100){alert('Gebruik een naam van 1 tot 100 tekens, zonder /.');return;}const path=parent?parent+'/'+name:name;if(!vaultPathSafe(path)||vaultAllPaths().some(p=>p.toLocaleLowerCase('nl')===path.toLocaleLowerCase('nl'))){alert('Deze map bestaat al of de naam is ongeldig.');return;}if(!confirm(`Map “${path}” toevoegen?`))return;try{await vaultFolderRef(path).set({path,note:'',createdBy:currentPersonName(),createdAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert('Map toevoegen mislukt: '+e.message);}}
-async function vaultNote(path){const existing=vaultFolders[path]?.note||'';const note=vaultAsk(`Opmerking bij “${path}” (maximaal 2000 tekens):`,existing);if(note===null||note===existing)return;if(note.length>2000){alert('Maximaal 2000 tekens.');return;}if(!confirm('Opmerking opslaan?'))return;try{await vaultFolderRef(path).set({path,note,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});}catch(e){alert('Opmerking opslaan mislukt: '+e.message);}}
-async function vaultRename(path){if(vaultBasePaths().includes(path)){alert('Deze standaardmap kan niet worden hernoemd. Je eigen mappen kun je wel wijzigen.');return;}const name=vaultAsk('Nieuwe naam voor de map:',vaultFolderLabel(path));if(name===null||name===vaultFolderLabel(path))return;if(!name||name.includes('/')||name.length>100){alert('Ongeldige mapnaam.');return;}const target=(vaultFolderParent(path)?vaultFolderParent(path)+'/':'')+name;const moving=vaultAllPaths().filter(p=>p===path||p.startsWith(path+'/'));if(vaultAllPaths().some(p=>p.toLowerCase()===target.toLowerCase()&&!moving.includes(p))){alert('Deze map bestaat al.');return;}if(!confirm(`Map “${path}” en eventuele inhoud verplaatsen naar “${target}”?`))return;try{const affected=vaultFiles.filter(f=>String(f.category||'')===path||String(f.category||'').startsWith(path+'/'));const batch=db.batch();for(const f of affected)batch.update(db.collection('vaults').doc(VAULT_ID).collection('files').doc(f.id),{category:target+f.category.slice(path.length)});for(const old of moving){const next=target+old.slice(path.length);batch.set(vaultFolderRef(next),{...vaultFolders[old],path:next,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});if(!vaultBasePaths().includes(old))batch.delete(vaultFolderRef(old));else batch.set(vaultFolderRef(old),{path:old,deleted:true},{merge:true});}await batch.commit();if(currentVaultCategory===path||currentVaultCategory.startsWith(path+'/'))currentVaultCategory=target+currentVaultCategory.slice(path.length);renderVault();}catch(e){alert('Hernoemen mislukt: '+e.message);}}
-async function vaultDeleteFolder(path){if(vaultBasePaths().includes(path)){alert('Standaardmappen zijn beschermd tegen verwijderen. Eigen mappen kun je wel verwijderen.');return;}if(vaultChildren(path).length||vaultFiles.some(f=>f.category===path||String(f.category||'').startsWith(path+'/'))){alert('Deze map bevat bestanden (ook archief/prullenbak) of submappen. Maak hem eerst helemaal leeg.');return;}if(!confirm(`Weet je zeker dat je map “${path}” wilt verwijderen?`))return;const typed=vaultAsk(`Typ exact de mapnaam “${vaultFolderLabel(path)}” om definitief te verwijderen:`);if(typed!==vaultFolderLabel(path)){if(typed!==null)alert('Mapnaam komt niet overeen.');return;}try{await vaultFolderRef(path).set({path,deleted:true,updatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});if(currentVaultCategory===path)currentVaultCategory=vaultFolderParent(path);renderVault();}catch(e){alert('Map verwijderen mislukt: '+e.message);}}
-async function vaultFolderMenu(path){const option=vaultAsk(`Map: ${path}\n1 = Submap toevoegen\n2 = Hernoemen\n3 = Verwijderen`);if(option==='1')await vaultAddFolder(path);else if(option==='2')await vaultRename(path);else if(option==='3')await vaultDeleteFolder(path);}
-document.addEventListener('click',e=>{const btn=e.target.closest('[data-vault-action],[data-vault-open]');if(!btn)return;if(btn.dataset.vaultOpen){openVaultCategory(decodeURIComponent(btn.dataset.vaultOpen));return;}const path=decodeURIComponent(btn.dataset.vaultPath);if(btn.dataset.vaultAction==='note')vaultNote(path);else vaultFolderMenu(path);});
-
-function vaultFolderLabel(path){return path.split("/").at(-1);}
-function vaultFolderParent(path){return path.includes("/")?path.slice(0,path.lastIndexOf("/")):"";}
-function vaultActiveFilesInTree(path){return vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt&&((f.category||"Overig")===path||String(f.category||"").startsWith(path+"/")));}
-
-
-function coupleStatusLabel(status){ return status==="visited"?"✅ Geweest":status==="favorite"?"❤️ Favoriet":"💡 Idee"; }
-function subscribeCoupleIdeas(){
-  if(coupleIdeasUnsubscribe){ coupleIdeasUnsubscribe(); coupleIdeasUnsubscribe=null; }
-  if(!db||!currentUser||!isVaultPerson()){ coupleIdeas={campings:[],books:[]}; renderCoupleIdeas(); return; }
-  coupleIdeasUnsubscribe=db.doc(COUPLE_IDEAS_DOC).onSnapshot(snap=>{
-    const value=snap.exists?(snap.data()||{}):{};
-    coupleIdeas={campings:Array.isArray(value.campings)?value.campings:[],books:Array.isArray(value.books)?value.books:[]};
-    renderCoupleIdeas();
-  },err=>{ console.error("Privé ideeën laden mislukt",err); showSaveWarning("De privé ideeën konden niet worden geladen. Controleer de Firestore-regels van v1.3.45."); });
-}
-async function saveCoupleIdeas(){
-  if(!db||!currentUser||!isVaultPerson()) throw new Error("Geen toegang");
-  await db.doc(COUPLE_IDEAS_DOC).set({campings:coupleIdeas.campings||[],books:coupleIdeas.books||[],updatedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedBy:currentPersonName()},{merge:true});
-}
-function renderCoupleIdeas(){
-  const visible=isVaultPerson();
-  if(window.coupleIdeasMenuBtn) coupleIdeasMenuBtn.classList.toggle("hidden",!visible);
-  if(!window.campingList||!window.bookList) return;
-  if(!visible){ campingList.innerHTML=""; bookList.innerHTML=""; return; }
-  const q=(window.campingSearch?.value||"").trim().toLowerCase();
-  const camps=(coupleIdeas.campings||[]).filter(c=>[c.name,c.country,c.place,c.note].join(" ").toLowerCase().includes(q)).sort((a,b)=>(a.country||"").localeCompare(b.country||"","nl")||(a.name||"").localeCompare(b.name||"","nl"));
-  let last=""; campingList.innerHTML=camps.length?camps.map(c=>{const country=c.country||"Overig";const head=country!==last?(last=country,`<h4 class="couple-country">${escapeHtml(country)}</h4>`):"";return `${head}<article class="couple-item"><div class="couple-item-head"><div><h4>${escapeHtml(c.name)}</h4><div class="meta">${c.place?`📍 ${escapeHtml(c.place)}`:""}</div></div><span class="couple-status">${coupleStatusLabel(c.status)}</span></div>${c.note?`<p>${escapeHtml(c.note).replaceAll("\n","<br>")}</p>`:""}${c.link?`<a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Website bekijken</a>`:""}<div class="couple-actions"><button class="secondary-btn" type="button" onclick="openCampingDialog('${c.id}')">Bewerken</button></div></article>`}).join(""):'<div class="muted">Nog geen campingideeën.</div>';
-  const showRead=window.showReadBooks?.checked!==false;
-  const books=(coupleIdeas.books||[]).filter(b=>showRead||!b.read).sort((a,b)=>Number(a.read)-Number(b.read)||(a.title||"").localeCompare(b.title||"","nl"));
-  bookList.innerHTML=books.length?books.map(b=>`<article class="couple-item ${b.read?"book-read":""}"><div class="couple-item-head"><div><h4>${escapeHtml(b.title)}</h4>${b.author?`<div class="meta">${escapeHtml(b.author)}</div>`:""}</div><span class="couple-status">${b.read?"✅ Gelezen":"📖 Nog lezen"}</span></div>${b.note?`<p>${escapeHtml(b.note).replaceAll("\n","<br>")}</p>`:""}<label class="read-toggle"><input type="checkbox" ${b.read?"checked":""} onchange="toggleBookRead('${b.id}',this.checked)"> Gelezen</label><div class="couple-actions"><button class="secondary-btn" type="button" onclick="openBookDialog('${b.id}')">Bewerken</button></div></article>`).join(""):'<div class="muted">Nog geen boeken op de leeslijst.</div>';
-}
-function openCampingDialog(id=""){
-  if(!isVaultPerson()) return; const c=(coupleIdeas.campings||[]).find(x=>x.id===id);
-  campingForm.reset(); campingEditId.value=c?.id||""; campingDialogTitle.textContent=c?"Camping bewerken":"Camping toevoegen"; campingName.value=c?.name||""; campingCountry.value=c?.country||""; campingPlace.value=c?.place||""; campingLink.value=c?.link||""; campingStatus.value=c?.status||"idea"; campingNote.value=c?.note||""; deleteCampingBtn.classList.toggle("hidden",!c); campingDialog.showModal();
-}
-function openBookDialog(id=""){
-  if(!isVaultPerson()) return; const b=(coupleIdeas.books||[]).find(x=>x.id===id);
-  bookForm.reset(); bookEditId.value=b?.id||""; bookDialogTitle.textContent=b?"Boek bewerken":"Boek toevoegen"; bookTitle.value=b?.title||""; bookAuthor.value=b?.author||""; bookNote.value=b?.note||""; bookRead.checked=!!b?.read; deleteBookBtn.classList.toggle("hidden",!b); bookDialog.showModal();
-}
-async function toggleBookRead(id,read){ const b=(coupleIdeas.books||[]).find(x=>x.id===id); if(!b)return; const old=b.read; b.read=!!read; renderCoupleIdeas(); try{await saveCoupleIdeas();}catch(e){b.read=old;renderCoupleIdeas();showSaveWarning("Gelezen-status kon niet worden opgeslagen.");} }
-
-function normalizeEmail(value){ return String(value||"").trim().toLowerCase(); }
-function isVaultPerson(){
-  const name=(currentPersonName()||"").trim().toLowerCase();
-  return isAdmin() || name==="rinze" || name==="christa";
-}
-function formatBytes(bytes){
-  const n=Number(bytes)||0;
-  if(n<1024) return `${n} B`;
-  if(n<1024**2) return `${(n/1024).toLocaleString("nl-NL",{maximumFractionDigits:1})} KB`;
-  if(n<1024**3) return `${(n/1024**2).toLocaleString("nl-NL",{maximumFractionDigits:2})} MB`;
-  return `${(n/1024**3).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2})} GB`;
-}
-function vaultIcon(file){
-  const t=String(file.contentType||"");
-  if(t.startsWith("image/")) return "🖼️";
-  if(t.includes("pdf")) return "📕";
-  if(t.includes("word")||t.includes("document")) return "📘";
-  if(t.includes("sheet")||t.includes("excel")) return "📗";
-  return "📄";
-}
-function categoryInfo(name){ return VAULT_CATEGORIES.find(c=>c.name===name)||VAULT_CATEGORIES.at(-1); }
-async function ensureVaultConfig(){
-  if(!db||!currentUser||!isAdmin()) return;
-  const ref=db.collection("vaults").doc(VAULT_ID);
-  const snap=await ref.get();
-  const payload={name:"Kluis Rinze & Christa",members:["Rinze","Christa"],updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
-  if(!snap.exists) await ref.set({...payload,createdAt:firebase.firestore.FieldValue.serverTimestamp()});
-  else await ref.set(payload,{merge:true});
-}
-async function initVaultForCurrentUser(){
-  if(!db||!currentUser||!isVaultPerson()){
-    vaultConfig=null;
-    vaultFiles=[];
-    renderVault();
-    return;
-  }
-
-  // Toon de kluis direct. Een ontbrekende configuratie of nog niet gepubliceerde
-  // Firebase-regel mag de tegelweergave en uploadknop niet meer blokkeren.
-  vaultConfig={name:"Kluis Rinze & Christa"};
-  vaultFiles=[];
-  renderVault();
-
-  try{
-    await ensureVaultConfig();
-    const configRef=db.collection("vaults").doc(VAULT_ID);
-    if(vaultFoldersUnsubscribe) vaultFoldersUnsubscribe();
-    vaultFoldersUnsubscribe=configRef.collection('folders').onSnapshot(q=>{vaultFolders={};q.docs.forEach(d=>{const f=d.data();if(f.path)vaultFolders[f.path]=f;});renderVault();},err=>console.error('Kluis mappen laden mislukt',err));
-    if(vaultFilesUnsubscribe) vaultFilesUnsubscribe();
-    vaultFilesUnsubscribe=configRef.collection("files").orderBy("createdAt","desc").onSnapshot(q=>{
-      vaultFiles=q.docs.map(d=>({id:d.id,...d.data()}));
-      if(window.vaultAccessMessage) vaultAccessMessage.classList.add("hidden");
-      renderVault();
-    },err=>{
-      console.error("Kluisbestanden laden mislukt",err);
-      vaultFiles=[];
-      renderVault();
-      if(window.vaultAccessMessage){
-        vaultAccessMessage.innerHTML="⚠️ De mappen zijn klaar, maar Firebase weigert het laden van bestanden. Publiceer de meegeleverde Firestore- en Storage-regels. Je kunt de uploadknop alvast gebruiken; bij een weigering krijg je daar een duidelijke melding.";
-        vaultAccessMessage.classList.remove("hidden");
-      }
-    });
-  }catch(err){
-    console.error("Kluis initialiseren mislukt",err);
-    renderVault();
-    if(window.vaultAccessMessage){
-      vaultAccessMessage.innerHTML="⚠️ De kluis is geopend, maar de Firebase-verbinding is nog niet volledig. Publiceer de regels uit FIREBASE-STAPPEN.txt. De tegelweergave blijft wel beschikbaar.";
-      vaultAccessMessage.classList.remove("hidden");
-    }
-  }
-}
-function hasVaultAccess(){ return !!(currentUser&&isVaultPerson()); }
-function fillVaultCategories(){
-  if(!window.vaultCategory)return;
-  const selected=vaultCategory.value;
-  const paths=vaultAllPaths();
-  vaultCategory.innerHTML=paths.map(path=>`<option value="${escapeHtml(path)}">${'　'.repeat(path.split('/').length-1)}${escapeHtml(path)}</option>`).join('');
-  if(paths.includes(selected))vaultCategory.value=selected;
-}
-
-function vaultRows(){
-  const q=(vaultSearch.value||"").trim().toLowerCase();
-  let rows=vaultFiles.slice();
-  if(currentVaultSpecial==="trash") rows=rows.filter(f=>f.deletedAt);
-  else if(currentVaultSpecial==="archive") rows=rows.filter(f=>!f.deletedAt&&f.archivedAt);
-  else rows=rows.filter(f=>!f.deletedAt&&!f.archivedAt);
-  if(currentVaultCategory) rows=rows.filter(f=>f.category===currentVaultCategory);
-  if(currentVaultSpecial==="favorites") rows=rows.filter(f=>f.favorite);
-  if(currentVaultSpecial==="recent") rows=rows.slice().sort((a,b)=>Number(b.createdAt?.seconds||0)-Number(a.createdAt?.seconds||0)).slice(0,20);
-  if(q) rows=rows.filter(f=>[f.title,f.description,f.originalName,f.uploadedBy,f.category].join(" ").toLowerCase().includes(q));
-  const sort=window.vaultSort?.value||"newest";
-  const stamp=f=>Number((f.deletedAt||f.createdAt)?.seconds||0);
-  if(sort==="oldest") rows.sort((a,b)=>stamp(a)-stamp(b));
-  else if(sort==="name") rows.sort((a,b)=>String(a.title||a.originalName||"").localeCompare(String(b.title||b.originalName||""),"nl"));
-  else if(sort==="size") rows.sort((a,b)=>(Number(b.size)||0)-(Number(a.size)||0));
-  else rows.sort((a,b)=>stamp(b)-stamp(a));
-  return rows;
-}
-function renderVaultFolders(){
-  const folderCards=vaultChildren('').map(path=>vaultFolderCard(path,true)).join('');
-  const activeFiles=vaultFiles.filter(f=>!f.deletedAt&&!f.archivedAt);
-  const archiveCount=vaultFiles.filter(f=>!f.deletedAt&&f.archivedAt).length;
-  const favoriteCount=activeFiles.filter(f=>f.favorite).length;
-  const trashCount=vaultFiles.filter(f=>f.deletedAt).length;
-  vaultFolderGrid.innerHTML=`
-    <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('favorites')"><span class="vault-folder-icon">⭐</span><strong>Favorieten</strong><small>${favoriteCount} ${favoriteCount===1?"bestand":"bestanden"}</small><em>Snel terugvinden</em></button>
-    <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('recent')"><span class="vault-folder-icon">🕒</span><strong>Recent</strong><small>Laatste 20 bestanden</small><em>Nieuw toegevoegd</em></button>
-    ${folderCards}
-    <button class="vault-folder-card vault-special-card" type="button" onclick="openVaultSpecial('archive')"><span class="vault-folder-icon">🗄️</span><strong>Archief</strong><small>${archiveCount} ${archiveCount===1?"bestand":"bestanden"}</small><em>Oude polissen en andere bewaarde documenten</em></button>
-    <button class="vault-folder-card vault-trash-card" type="button" onclick="openVaultSpecial('trash')"><span class="vault-folder-icon">🗑️</span><strong>Prullenbak</strong><small>${trashCount} ${trashCount===1?"bestand":"bestanden"}</small><em>Herstellen of definitief verwijderen</em></button>`;
-}
-function formatVaultDate(value){
-  const date=value?.toDate?value.toDate():value?new Date(value):null;
-  if(!date||Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}).format(date);
-}
-function renderVault(){
-  if(!window.vaultMenuBtn) return;
-  const visible=isVaultPerson();
-  vaultMenuBtn.classList.toggle("hidden",!visible);
-  if(window.coupleIdeasMenuBtn) coupleIdeasMenuBtn.classList.toggle("hidden",!visible);
-  if(!visible){ if(document.querySelector('.page.active')?.dataset.page==="kluis") navigate("home"); return; }
-  fillVaultCategories();
-  const access=hasVaultAccess();
-  vaultContent.classList.toggle("hidden",!access);
-  vaultUploadBtn.classList.toggle("hidden",!access);
-  if(!access){
-    vaultAccessMessage.innerHTML="Je hebt geen toegang tot deze kluis.";
-    vaultAccessMessage.classList.remove("hidden");
-    return;
-  }
-  const total=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
-  const pct=Math.min(100,total/VAULT_LIMIT_BYTES*100);
-  vaultStorageText.textContent=`${formatBytes(total)} / 5,00 GB`;
-  vaultStoragePercent.textContent=`${pct.toLocaleString("nl-NL",{maximumFractionDigits:1})}% gebruikt`;
-  vaultStorageRemaining.textContent=`${formatBytes(Math.max(0,VAULT_LIMIT_BYTES-total))} beschikbaar`;
-  vaultStorageBar.style.width=`${pct}%`;
-  vaultStorageBar.className=pct>=95?"danger":pct>=80?"warning":"";
-  vaultStorageWarning.classList.toggle("hidden",pct<90);
-  vaultStorageWarning.textContent=pct>=100?"De ingestelde limiet van 5,00 GB is bereikt. Verwijder eerst bestanden.":"Let op: de kluis is bijna vol.";
-
-  const inFolder=!!currentVaultCategory||!!currentVaultSpecial||!!(vaultSearch.value||"").trim();
-  const children=vaultChildren(currentVaultCategory);
-  vaultFolderGrid.classList.toggle("hidden",inFolder&&!children.length);
-  vaultHomeBtn.classList.toggle("hidden",!inFolder);
-  vaultViewTitle.classList.toggle("hidden",!inFolder);
-  if(!inFolder){
-    vaultViewTitle.textContent="";
-    renderVaultFolders();
-    if(window.vaultAddFolderBtn)vaultAddFolderBtn.classList.remove('hidden');
-    if(window.vaultFolderNoteBtn)vaultFolderNoteBtn.classList.add('hidden');
-    vaultList.innerHTML="";
-    return;
-  }
-  if(children.length){
-    vaultFolderGrid.innerHTML=children.map(path=>vaultFolderCard(path)).join('');
-  }
-  const title=currentVaultCategory?`📂 ${currentVaultCategory}`:currentVaultSpecial==="favorites"?"⭐ Favorieten":currentVaultSpecial==="recent"?"🕒 Recent toegevoegd":currentVaultSpecial==="trash"?"🗑️ Prullenbak":currentVaultSpecial==="archive"?"🗄️ Archief":"🔎 Zoekresultaten";
-  const rows=vaultRows();
-  const treeCount=currentVaultCategory?vaultActiveFilesInTree(currentVaultCategory).length:rows.length;
-  const countLabel=currentVaultCategory&&children.length?`${treeCount} ${treeCount===1?"bestand":"bestanden"} incl. submappen`:`${rows.length} gevonden`;
-  vaultViewTitle.innerHTML=`<strong>${escapeHtml(title)}</strong><span>${countLabel}</span>`;
-  if(window.vaultAddFolderBtn){vaultAddFolderBtn.classList.toggle('hidden',!!currentVaultSpecial||!!vaultSearch.value.trim());}
-  if(window.vaultFolderNoteBtn){vaultFolderNoteBtn.classList.toggle('hidden',!currentVaultCategory);vaultFolderNoteBtn.textContent=vaultFolders[currentVaultCategory]?.note?'✎ Opmerking ●':'✎ Opmerking';}
-  const seenGroups=new Set();
-  const displayRows=rows.filter(f=>{const key=f.photoGroupId;if(!key)return true;if(seenGroups.has(key))return false;seenGroups.add(key);return true;});
-  vaultList.innerHTML=displayRows.length?displayRows.map(f=>{
-    const group=f.photoGroupId?vaultFiles.filter(x=>x.photoGroupId===f.photoGroupId&&!x.deletedAt&&!x.archivedAt):[];
-    const gallery=group.length?`<div class="vault-gallery">${group.map(x=>`<div><button type="button" onclick="openVaultFile('${x.id}')"><img data-vault-gallery="${x.id}" alt="Foto"></button><button class="vault-small-btn" type="button" onclick="removeVaultPhoto('${x.id}')">Foto verwijderen</button></div>`).join('')}</div><button class="secondary-btn" type="button" onclick="addVaultPhotos('${f.photoGroupId}')">+ Foto’s toevoegen</button>`:String(f.contentType||'').startsWith('image/')&&!f.deletedAt&&!f.archivedAt?`<button class="secondary-btn" type="button" onclick="addVaultPhotos('${f.id}')">+ Foto’s toevoegen</button>`:'';
-    const isTrash=!!f.deletedAt;
-    const imagePreview=String(f.contentType||"").startsWith("image/")&&!isTrash
-      ? `<div class="vault-thumb-wrap"><div class="vault-thumb-placeholder">🖼️</div><img class="vault-thumb" data-vault-thumb="${f.id}" alt=""></div>`:"";
-    const isArchived=!!f.archivedAt;
-    const actions=isTrash
-      ? `<button class="secondary-btn" onclick="restoreVaultFile('${f.id}')">Herstellen</button><button class="secondary-btn danger-mini" onclick="purgeVaultFile('${f.id}')">Definitief verwijderen</button>`
-      : `<button class="secondary-btn" onclick="openVaultFile('${f.id}')">Openen</button><button class="secondary-btn" onclick="downloadVaultFile('${f.id}')">Download</button>${!isArchived?`<button class="secondary-btn" onclick="newVaultVersion('${f.id}')">Nieuwe versie</button>`:""}<button class="secondary-btn" onclick="${isArchived?"restoreArchivedVaultFile":"archiveVaultFile"}('${f.id}')">${isArchived?"Terugzetten":"Archiveren"}</button><button class="secondary-btn danger-mini" onclick="deleteVaultFile('${f.id}')">Naar prullenbak</button>`;
-    return `<article class="item-card vault-file-card ${isTrash?"is-trash":""}">
-      ${group.length?"":imagePreview}
-      ${gallery}
-      <div class="vault-file-head"><div><span class="vault-icon">${vaultIcon(f)}</span><h3>${f.favorite&&!isTrash?"⭐ ":""}${escapeHtml(f.title||f.originalName)}</h3><div class="meta">${escapeHtml(f.category||"Overig")}${isArchived?" · 🗄️ Gearchiveerd":""} · ${formatBytes(f.size)}${f.uploadedBy?` · door ${escapeHtml(f.uploadedBy)}`:""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)?` · ${isTrash?"verwijderd ":""}${formatVaultDate(isTrash?f.deletedAt:f.createdAt)}`:""}</div></div>${isTrash?"":`<button class="mini-btn" onclick="toggleVaultFavorite('${f.id}')">${f.favorite?"★":"☆"}</button>`}</div>
-      ${f.description?`<p>${escapeHtml(f.description)}</p>`:""}<div class="meta">Bestand: ${escapeHtml(f.originalName||"")}</div>
-      <div class="vault-file-actions">${actions}</div>
-    </article>`;
-  }).join(""):(children.length?'<div class="card muted">De bestanden staan in de submappen hierboven.</div>':'<div class="card muted">Nog geen bestanden gevonden.</div>');
-  hydrateVaultThumbnails(rows);hydrateVaultGallery(rows);
-}
-window.openVaultCategory=name=>{currentVaultCategory=name;currentVaultSpecial="";vaultSearch.value="";renderVault();};
-window.openVaultSpecial=type=>{currentVaultCategory="";currentVaultSpecial=type;vaultSearch.value="";renderVault();};
-function resetVaultView(){currentVaultCategory="";currentVaultSpecial="";vaultSearch.value="";renderVault();}
-function safeFileName(name){ return String(name||"bestand").replace(/[^a-zA-Z0-9._-]+/g,"_").slice(-120); }
-async function getVaultDownloadUrl(file){ if(!storage||!file?.storagePath) throw new Error("Bestandspad ontbreekt."); return storage.ref(file.storagePath).getDownloadURL(); }
-window.openVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);window.open(url,"_blank","noopener");}catch(e){alert("Bestand openen mislukt: "+e.message);} };
-window.downloadVaultFile=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);const url=await getVaultDownloadUrl(f);const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener";a.download=f.originalName||"bestand";a.click();}catch(e){alert("Downloaden mislukt: "+e.message);} };
-window.toggleVaultFavorite=async id=>{ try{const f=vaultFiles.find(x=>x.id===id);await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({favorite:!f.favorite,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}catch(e){alert("Favoriet wijzigen mislukt: "+e.message);} };
-window.archiveVaultFile=async id=>{
-  const f=vaultFiles.find(x=>x.id===id);
-  if(!f||f.deletedAt||f.archivedAt) return;
-  if(!confirm(`“${f.title||f.originalName}” naar het archief verplaatsen? Het bestand blijft bewaard.`)) return;
-  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({archivedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
-  catch(e){alert("Archiveren mislukt: "+e.message);}
-};
-window.restoreArchivedVaultFile=async id=>{
-  const f=vaultFiles.find(x=>x.id===id);
-  if(!f||!f.archivedAt) return;
-  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({archivedAt:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
-  catch(e){alert("Terugzetten mislukt: "+e.message);}
-};
-window.deleteVaultFile=async id=>{
-  const f=vaultFiles.find(x=>x.id===id);
-  if(!f||!confirm(`“${f.title||f.originalName}” naar de prullenbak verplaatsen?`)) return;
-  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({deletedAt:firebase.firestore.FieldValue.serverTimestamp(),deletedBy:currentPersonName(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
-  catch(e){alert("Verplaatsen naar prullenbak mislukt: "+e.message);}
-};
-window.restoreVaultFile=async id=>{
-  try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).update({deletedAt:firebase.firestore.FieldValue.delete(),deletedBy:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
-  catch(e){alert("Herstellen mislukt: "+e.message);}
-};
-window.purgeVaultFile=async id=>{
-  const f=vaultFiles.find(x=>x.id===id);
-  if(!f||!confirm(`“${f.title||f.originalName}” definitief verwijderen? Dit kan niet ongedaan worden gemaakt.`)) return;
-  try{await storage.ref(f.storagePath).delete();await db.collection("vaults").doc(VAULT_ID).collection("files").doc(id).delete();}
-  catch(e){alert("Definitief verwijderen mislukt: "+e.message);}
-};
-async function hydrateVaultThumbnails(rows){
-  const images=rows.filter(f=>!f.deletedAt&&String(f.contentType||"").startsWith("image/"));
-  await Promise.all(images.map(async f=>{
-    const img=document.querySelector(`[data-vault-thumb="${CSS.escape(f.id)}"]`);
-    if(!img||img.src) return;
-    try{img.src=await getVaultDownloadUrl(f);img.onload=()=>img.closest(".vault-thumb-wrap")?.classList.add("loaded");}
-    catch(_){ }
-  }));
-}
-
-
-window.addVaultPhotos=id=>{const f=vaultFiles.find(x=>(x.photoGroupId||x.id)===id);if(f)openVaultUpload(f.category||'Documenten','',id);};
-window.removeVaultPhoto=async id=>{const f=vaultFiles.find(x=>x.id===id);if(!f||!confirm(`Foto “${f.originalName}” naar de prullenbak verplaatsen?`))return;try{await db.collection('vaults').doc(VAULT_ID).collection('files').doc(id).update({deletedAt:firebase.firestore.FieldValue.serverTimestamp(),deletedBy:currentPersonName()});}catch(e){alert('Foto verwijderen mislukt: '+e.message);}};
-async function hydrateVaultGallery(rows){const ids=new Set(rows.map(f=>f.photoGroupId).filter(Boolean));const pictures=vaultFiles.filter(f=>ids.has(f.photoGroupId)&&!f.deletedAt&&!f.archivedAt);await Promise.all(pictures.map(async f=>{const img=document.querySelector(`[data-vault-gallery="${CSS.escape(f.id)}"]`);if(img)try{img.src=await getVaultDownloadUrl(f);}catch(_){}}));}
-function setSelectedVaultFiles(files){
-  selectedVaultUploadFiles=Array.from(files||[]);
-  const count=selectedVaultUploadFiles.length;
-  vaultChosenFile.textContent=count===0?"Nog geen bestand gekozen.":count===1?`${selectedVaultUploadFiles[0].name} · ${formatBytes(selectedVaultUploadFiles[0].size)}`:`${count} bestanden gekozen · ${formatBytes(selectedVaultUploadFiles.reduce((n,f)=>n+f.size,0))}`;
-  vaultTitle.required=count<=1;
-  if(count===1&&!vaultTitle.value) vaultTitle.value=selectedVaultUploadFiles[0].name.replace(/\.[^.]+$/," ").trim();
-  if(count>1){vaultTitle.placeholder="Leeg laten: bestandsnamen gebruiken";vaultTitle.required=false;}
-  else vaultTitle.placeholder="";
-}
-function openVaultUpload(category="",replaceId="",appendGroup=""){
-  vaultAppendGroup=appendGroup;
-  vaultUploadForm.reset();vaultReplaceId=replaceId;setSelectedVaultFiles([]);
-  vaultFileInput.value="";vaultCameraInput.value="";
-  vaultUploadMessage.textContent="";fillVaultCategories();
-  if(category) vaultCategory.value=category;
-  if(appendGroup){const old=vaultFiles.find(f=>(f.photoGroupId||f.id)===appendGroup);if(old){vaultTitle.value=old.title||"";vaultCategory.value=old.category||"Documenten";}vaultPhotoGroup.checked=true;}
-  if(replaceId){
-    const old=vaultFiles.find(f=>f.id===replaceId);
-    if(old){vaultTitle.value=old.title||old.originalName||"";vaultDescription.value=old.description||"";vaultCategory.value=old.category||"Documenten";}
-  }
-  document.getElementById("vaultReplaceNotice").textContent=appendGroup?"Extra foto’s toevoegen aan dit document.":replaceId?"Nieuwe versie: de vorige polis wordt na succesvol uploaden automatisch gearchiveerd.":"";
-  vaultUploadDialog.showModal();
-}
-if(window.vaultAddFolderBtn)vaultAddFolderBtn.onclick=()=>vaultAddFolder(currentVaultCategory);
-if(window.vaultFolderNoteBtn)vaultFolderNoteBtn.onclick=()=>vaultNote(currentVaultCategory);
-if(window.vaultUploadBtn) vaultUploadBtn.onclick=()=>openVaultUpload(currentVaultCategory||"Documenten");
-window.newVaultVersion=id=>{const old=vaultFiles.find(f=>f.id===id);if(old&&!old.deletedAt&&!old.archivedAt)openVaultUpload(old.category||"Documenten",id);};
-if(window.vaultFileInput) vaultFileInput.onchange=()=>{if(vaultFileInput.files?.length){vaultCameraInput.value="";setSelectedVaultFiles(vaultFileInput.files);}};
-if(window.vaultCameraInput) vaultCameraInput.onchange=()=>{if(vaultCameraInput.files?.length){vaultFileInput.value="";setSelectedVaultFiles(vaultCameraInput.files);}};
-if(window.vaultSearch) vaultSearch.oninput=()=>{if(vaultSearch.value.trim()){currentVaultCategory="";currentVaultSpecial="";}renderVault();};
-if(window.vaultSort) vaultSort.onchange=renderVault;
-if(window.vaultHomeBtn) vaultHomeBtn.onclick=()=>{if(currentVaultCategory){currentVaultCategory=vaultFolderParent(currentVaultCategory);renderVault();}else resetVaultView();};
-if(window.vaultUploadForm) vaultUploadForm.onsubmit=async e=>{
-  e.preventDefault();
-  const files=selectedVaultUploadFiles;
-  if(!files.length){vaultUploadMessage.textContent="Kies eerst één of meer bestanden of maak een foto.";return;}
-  if(vaultAppendGroup&&files.some(f=>!f.type.startsWith("image/"))){vaultUploadMessage.textContent="Kies alleen foto’s.";return;}
-  if(vaultReplaceId&&files.length!==1){vaultUploadMessage.textContent="Kies één bestand voor een nieuwe versie.";return;}
-  const used=vaultFiles.reduce((sum,f)=>sum+(Number(f.size)||0),0);
-  if(files.some(f=>f.size>VAULT_MAX_FILE_BYTES)){vaultUploadMessage.textContent="Elk bestand mag maximaal 100 MB zijn.";return;}
-  if(used+files.reduce((n,f)=>n+f.size,0)>VAULT_LIMIT_BYTES){vaultUploadMessage.textContent="De geselecteerde bestanden passen niet binnen de ingestelde limiet van 5 GB.";return;}
-  vaultUploadSubmit.disabled=true;
-  let completed=0;let failed=0;
-  const folder=vaultCategory.value;
-  const grouped=!!vaultAppendGroup||(!!vaultPhotoGroup.checked&&files.every(f=>f.type.startsWith('image/')));
-  const groupId=vaultAppendGroup||(grouped?db.collection('vaults').doc(VAULT_ID).collection('files').doc().id:'');
-  for(const file of files){
-    const ref=db.collection("vaults").doc(VAULT_ID).collection("files").doc();
-    const storagePath=`vaults/${VAULT_ID}/${ref.id}/${safeFileName(file.name)}`;
-    vaultUploadMessage.textContent=`Uploaden ${completed+failed+1} van ${files.length}: ${file.name}`;
-    try{
-      await storage.ref(storagePath).put(file,{contentType:file.type||"application/octet-stream",customMetadata:{vaultId:VAULT_ID,documentId:ref.id}});
-      await ref.set({...(grouped?{photoGroupId:groupId}:{}),title:grouped?(vaultTitle.value.trim()||"Fotoalbum"):files.length===1?(vaultTitle.value.trim()||file.name):file.name.replace(/\.[^.]+$/," ").trim(),description:vaultDescription.value.trim(),category:folder,originalName:file.name,storagePath,size:file.size,contentType:file.type||"application/octet-stream",favorite:vaultFavorite.checked,deletedAt:null,uploadedBy:currentPersonName(),uploadedByEmail:normalizeEmail(currentUser.email),createdAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),...(vaultReplaceId?{previousVersionId:vaultReplaceId}:{})});
-      completed++;
-      if(vaultReplaceId){
-        try{await db.collection("vaults").doc(VAULT_ID).collection("files").doc(vaultReplaceId).update({archivedAt:firebase.firestore.FieldValue.serverTimestamp(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});}
-        catch(archiveErr){vaultUploadMessage.textContent="Nieuwe polis opgeslagen, maar oude polis niet automatisch gearchiveerd: "+archiveErr.message;vaultUploadSubmit.disabled=false;return;}
-      }
-    }catch(err){
-      failed++;console.error("Kluisupload mislukt",err);
-      try{await storage.ref(storagePath).delete();}catch(_){}
-      vaultUploadMessage.textContent=`${completed} gelukt, ${failed} mislukt. ${err.message||"Upload geweigerd"}`;
-    }
-  }
-  vaultUploadSubmit.disabled=false;
-  if(failed){vaultUploadMessage.textContent=`${completed} bestand(en) opgeslagen, ${failed} mislukt. Probeer de mislukte bestanden opnieuw.`;return;}
-  if(vaultAppendGroup){const original=vaultFiles.find(f=>f.id===vaultAppendGroup&&!f.photoGroupId);if(original)try{await db.collection('vaults').doc(VAULT_ID).collection('files').doc(original.id).update({photoGroupId:vaultAppendGroup});}catch(e){alert('Foto’s opgeslagen, maar koppelen van de oorspronkelijke foto is mislukt: '+e.message);}}
-  vaultAppendGroup="";vaultUploadDialog.close();currentVaultCategory=folder;currentVaultSpecial="";renderVault();
-};
-
-
-function diaryCollection(){
-  return db && currentUser && isDiaryOwner() ? db.collection("diaries").doc(currentUser.uid).collection("entries") : null;
-}
-function diaryDateLabel(value){
-  if(!value) return "";
-  return new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"long",year:"numeric"}).format(new Date(value+"T12:00:00"));
-}
-function diaryPhotoPaths(entry){
-  if(Array.isArray(entry?.photoPaths)) return entry.photoPaths.filter(Boolean);
-  return entry?.photoPath ? [entry.photoPath] : [];
-}
-function cleanupDiaryPreviewUrls(){
-  diaryPreviewObjectUrls.forEach(url=>URL.revokeObjectURL(url));
-  diaryPreviewObjectUrls=[];
-}
-function renderDiaryPhotoEditor(){
-  if(!window.diaryPhotoPreview) return;
-  cleanupDiaryPreviewUrls();
-  const existing=diaryExistingPhotoPaths.map((path,index)=>({kind:"existing",path,index}));
-  const added=selectedDiaryPhotos.map((file,index)=>({kind:"new",file,index}));
-  const items=[...existing,...added];
-  diaryPhotoPreview.innerHTML=items.length?items.map(item=>{
-    if(item.kind==="existing") return `<div class="diary-edit-photo"><div class="diary-edit-photo-image" data-existing-diary-photo="${escapeHtml(item.path)}">🖼️</div><button type="button" onclick="removeExistingDiaryPhoto(${item.index})" aria-label="Foto verwijderen">✕</button></div>`;
-    const url=URL.createObjectURL(item.file); diaryPreviewObjectUrls.push(url);
-    return `<div class="diary-edit-photo"><img src="${url}" alt="Voorbeeld"><button type="button" onclick="removeNewDiaryPhoto(${item.index})" aria-label="Foto verwijderen">✕</button><small>${escapeHtml(item.file.name)} · ${formatBytes(item.file.size)}</small></div>`;
-  }).join(""):`<p class="muted">Nog geen foto's toegevoegd.</p>`;
-  document.querySelectorAll("[data-existing-diary-photo]").forEach(async el=>{try{const url=await storage.ref(el.dataset.existingDiaryPhoto).getDownloadURL();el.innerHTML=`<img src="${url}" alt="Bestaande foto">`;}catch(_){el.textContent="Foto niet beschikbaar";}});
-  diaryPhotoInfo.textContent=`${items.length} ${items.length===1?"foto":"foto's"} toegevoegd`;
-}
-window.removeExistingDiaryPhoto=index=>{diaryExistingPhotoPaths.splice(index,1);renderDiaryPhotoEditor();};
-window.removeNewDiaryPhoto=index=>{selectedDiaryPhotos.splice(index,1);renderDiaryPhotoEditor();};
-function addDiarySelectedFiles(fileList){
-  const files=Array.from(fileList||[]).filter(f=>f.type.startsWith("image/"));
-  const tooLarge=files.find(f=>f.size>10*1024*1024);
-  if(tooLarge){diaryMessage.textContent=`${tooLarge.name} is groter dan 10 MB.`;return;}
-  selectedDiaryPhotos.push(...files); renderDiaryPhotoEditor();
-}
-function renderDiary(){
-  if(!window.diaryList) return;
-  if(!currentUser){ diaryList.innerHTML='<div class="card muted">Log in om het dagboek te openen.</div>'; return; }
-  if(!isDiaryOwner()){ diaryList.innerHTML='<div class="card muted">Het dagboek is alleen beschikbaar voor Rinze.</div>'; return; }
-  const q=(diarySearch?.value||"").trim().toLowerCase();
-  const sort=diarySort?.value||"newest";
-  let rows=diaryEntries.filter(x=>!q||`${x.title||""} ${x.text||""}`.toLowerCase().includes(q));
-  rows=rows.slice().sort((a,b)=>{
-    if(sort==="oldest") return String(a.date||a.createdAt||"").localeCompare(String(b.date||b.createdAt||""));
-    if(sort==="name") return String(a.title||"").localeCompare(String(b.title||""),"nl",{sensitivity:"base"});
-    if(sort==="favorites") return Number(b.favorite)-Number(a.favorite)||String(b.date||"").localeCompare(String(a.date||""));
-    return String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""));
-  });
-  diaryList.innerHTML=rows.length?rows.map(x=>{
-    const paths=diaryPhotoPaths(x);
-    return `<article class="item-card diary-card diary-timeline-card">
-      <div class="diary-date-badge"><span>${new Intl.DateTimeFormat("nl-NL",{day:"2-digit"}).format(new Date((x.date||new Date().toISOString().slice(0,10))+"T12:00:00"))}</span><small>${new Intl.DateTimeFormat("nl-NL",{month:"short",year:"numeric"}).format(new Date((x.date||new Date().toISOString().slice(0,10))+"T12:00:00"))}</small></div>
-      <div class="diary-card-content">
-        <div class="diary-card-head"><div><h3>${x.favorite?"⭐ ":""}${escapeHtml(x.title||"Zonder titel")}</h3><div class="meta">${diaryDateLabel(x.date)}${paths.length?` · 📷 ${paths.length}`:""}</div></div><button class="mini-btn" onclick="editDiaryEntry('${x.id}')">Bewerken</button></div>
-        ${paths.length?`<div class="diary-gallery">${paths.map((path,i)=>`<button type="button" class="diary-gallery-item" data-diary-photo="${escapeHtml(path)}" data-diary-title="${escapeHtml(x.title||"Dagboekfoto")}" data-diary-index="${i}"><span>🖼️</span></button>`).join("")}</div>`:""}
-        <p class="diary-preview">${escapeHtml(x.text||"").replaceAll("\n","<br>")}</p>
-      </div>
-    </article>`;
-  }).join(""):'<div class="card muted">Nog geen dagboeknotities. Tik op <strong>+ Notitie</strong> om te beginnen.</div>';
-  document.querySelectorAll("[data-diary-photo]").forEach(async el=>{try{const url=await storage.ref(el.dataset.diaryPhoto).getDownloadURL();el.innerHTML=`<img src="${url}" alt="${escapeHtml(el.dataset.diaryTitle)}">`;el.onclick=()=>openDiaryLightbox(url,el.dataset.diaryTitle);}catch(_){el.remove();}});
-}
-function openDiaryLightbox(url,title="Dagboekfoto"){
-  diaryLightboxImage.src=url; diaryLightboxImage.alt=title; diaryLightboxTitle.textContent=title; diaryLightbox.showModal();
-}
-function initDiaryForCurrentUser(){
-  if(diaryUnsubscribe){diaryUnsubscribe();diaryUnsubscribe=null;}
-  diaryEntries=[]; renderDiary();
-  updateDiaryAccess();
-  const col=diaryCollection(); if(!col) return;
-  diaryUnsubscribe=col.onSnapshot(snap=>{
-    diaryEntries=snap.docs.map(d=>({id:d.id,...d.data(),createdAt:d.data().createdAt?.toDate?.()?.toISOString?.()||d.data().createdAt||""}));
-    renderDiary();
-    renderHome();
-  },err=>{console.error(err);diaryList.innerHTML='<div class="card muted">Dagboek kon niet worden geladen. Controleer de Firebase-regels.</div>';});
-}
-function openDiaryDialog(entry=null){
-  if(!isDiaryOwner()){ alert("Het dagboek is alleen beschikbaar voor Rinze."); return; }
-  diaryForm.reset(); selectedDiaryPhotos=[]; diaryExistingPhotoPaths=diaryPhotoPaths(entry); diaryPhotoCameraInput.value=""; diaryPhotoGalleryInput.value=""; diaryMessage.textContent="";
-  diaryEditId.value=entry?.id||""; diaryDialogTitle.textContent=entry?"Dagboeknotitie bewerken":"Nieuwe dagboeknotitie";
-  diaryTitle.value=entry?.title||""; diaryDate.value=entry?.date||new Date().toISOString().slice(0,10); diaryText.value=entry?.text||""; diaryFavorite.checked=!!entry?.favorite;
-  renderDiaryPhotoEditor();
-  diaryDeleteBtn.classList.toggle("hidden",!entry); diaryDialog.showModal();
-}
-window.editDiaryEntry=id=>openDiaryDialog(diaryEntries.find(x=>x.id===id));
-if(window.addDiaryBtn) addDiaryBtn.onclick=()=>openDiaryDialog();
-if(window.diarySearch) diarySearch.oninput=renderDiary;
-if(window.diarySort) diarySort.onchange=renderDiary;
-if(window.diaryPhotoCameraInput) diaryPhotoCameraInput.onchange=()=>addDiarySelectedFiles(diaryPhotoCameraInput.files);
-if(window.diaryPhotoGalleryInput) diaryPhotoGalleryInput.onchange=()=>addDiarySelectedFiles(diaryPhotoGalleryInput.files);
-if(window.diaryForm) diaryForm.onsubmit=async e=>{
-  e.preventDefault(); if(!currentUser||!db||!isDiaryOwner()){ diaryMessage.textContent="Alleen Rinze kan het dagboek gebruiken."; return; }
-  const id=diaryEditId.value||diaryCollection().doc().id; const existing=diaryEntries.find(x=>x.id===id); let photoPaths=[...diaryExistingPhotoPaths];
-  diarySaveBtn.disabled=true; diaryMessage.textContent="Opslaan…";
-  try{
-    for(let i=0;i<selectedDiaryPhotos.length;i++){
-      const file=selectedDiaryPhotos[i];
-      const path=`diaries/${currentUser.uid}/${id}/${Date.now()}-${i}-${safeFileName(file.name)}`;
-      await storage.ref(path).put(file,{contentType:file.type||"image/jpeg"}); photoPaths.push(path);
-    }
-    const removed=diaryPhotoPaths(existing).filter(path=>!diaryExistingPhotoPaths.includes(path));
-    await Promise.all(removed.map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
-    await diaryCollection().doc(id).set({title:diaryTitle.value.trim(),date:diaryDate.value,text:diaryText.value.trim(),favorite:diaryFavorite.checked,photoPaths,photoPath:firebase.firestore.FieldValue.delete(),updatedAt:firebase.firestore.FieldValue.serverTimestamp(),createdAt:existing?.createdAt||firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
-    diaryDialog.close(); cleanupDiaryPreviewUrls();
-  }catch(err){console.error(err);
-    const code=String(err?.code||"");
-    diaryMessage.textContent=(code.includes("permission-denied")||String(err?.message||"").toLowerCase().includes("insufficient permissions"))
-      ? "Firebase weigert toegang. Publiceer de nieuwe Firestore- en Storage-regels uit v1.3.21."
-      : (err.message||"Opslaan mislukt.");
-  }
-  finally{diarySaveBtn.disabled=false;}
-};
-if(window.diaryDeleteBtn) diaryDeleteBtn.onclick=async()=>{
-  if(!isDiaryOwner()) return;
-  const id=diaryEditId.value, entry=diaryEntries.find(x=>x.id===id); if(!id||!confirm("Deze dagboeknotitie verwijderen?"))return;
-  await Promise.all(diaryPhotoPaths(entry).map(async path=>{try{await storage.ref(path).delete();}catch(_){}}));
-  await diaryCollection().doc(id).delete(); diaryDialog.close(); cleanupDiaryPreviewUrls();
-};
-
-function initFirebase(){
-  const settings=window.HOGETERPJES_FIREBASE;
-  if(!settings?.useFirebase) return false;
-  try{
-    firebase.initializeApp(settings.config);
-    auth=firebase.auth();
-    db=firebase.firestore();
-    storage=firebase.storage();
-    auth.onAuthStateChanged(async user=>{
-      if(signupVerificationInProgress) return;
-      if(!user){ currentUser=null; loginScreen.classList.remove("hidden"); return; }
-      loginScreen.classList.remove("hidden"); loginMessage.textContent="Toegang controleren…";
-      const allowed=await verifyInvitedUser(user);
-      if(!allowed){
-        await auth.signOut();
-        loginMessage.textContent="Dit account is niet uitgenodigd voor Hogeterpjes. Vraag Rinze om toegang.";
-        return;
-      }
-      showLoggedIn(provisionalProfile(user));
-      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{currentUser=profile;renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
-    });
-    firebaseStatus.textContent="Firebase gekoppeld";
-    loginMessage.textContent="";
-    setSyncStatus("Wachten op inloggen");
-    return true;
-  }catch(e){
-    firebaseStatus.textContent="Firebase-configuratie bevat een fout";
-    firebaseStatus.classList.add("error");
-    return false;
-  }
-}
-
-
-if(window.addCampingBtn) addCampingBtn.onclick=()=>openCampingDialog();
-if(window.campingSearch) campingSearch.oninput=renderCoupleIdeas;
-if(window.campingForm) campingForm.onsubmit=async e=>{e.preventDefault();const id=campingEditId.value,existing=(coupleIdeas.campings||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),name:campingName.value.trim(),country:campingCountry.value.trim(),place:campingPlace.value.trim(),link:campingLink.value.trim(),status:campingStatus.value,note:campingNote.value.trim()};if(existing)Object.assign(existing,record);else coupleIdeas.campings.push(record);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.45.");}};
-if(window.deleteCampingBtn) deleteCampingBtn.onclick=async()=>{const id=campingEditId.value;if(!id||!confirm("Deze camping verwijderen?"))return;coupleIdeas.campings=coupleIdeas.campings.filter(x=>x.id!==id);campingDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Camping verwijderen mislukt.");}};
-if(window.addBookBtn) addBookBtn.onclick=()=>openBookDialog();
-if(window.showReadBooks) showReadBooks.onchange=renderCoupleIdeas;
-if(window.bookForm) bookForm.onsubmit=async e=>{e.preventDefault();const id=bookEditId.value,existing=(coupleIdeas.books||[]).find(x=>x.id===id);const record={id:existing?.id||crypto.randomUUID(),title:bookTitle.value.trim(),author:bookAuthor.value.trim(),note:bookNote.value.trim(),read:bookRead.checked};if(existing)Object.assign(existing,record);else coupleIdeas.books.push(record);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek kon niet worden opgeslagen. Publiceer de Firestore-regels van v1.3.45.");}};
-if(window.deleteBookBtn) deleteBookBtn.onclick=async()=>{const id=bookEditId.value;if(!id||!confirm("Dit boek verwijderen?"))return;coupleIdeas.books=coupleIdeas.books.filter(x=>x.id!==id);bookDialog.close();renderCoupleIdeas();try{await saveCoupleIdeas();}catch(err){showSaveWarning("Boek verwijderen mislukt.");}};
-
-bindNav();
-
-try{
-  resetIngredientEditor();
-  renderAll();
-}catch(error){
-  console.error("Scherm initialiseren mislukt:",error);
-}
-
-const firebaseActive=initFirebase();
-if(!firebaseActive){
-  loginMessage.textContent="Firebase kon niet worden gestart.";
-}
-if("serviceWorker" in navigator){
-  window.addEventListener("load", async ()=>{
-    try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.45");
-      await registration.update();
-      let refreshing=false;
-      navigator.serviceWorker.addEventListener("controllerchange",()=>{
-        if(refreshing)return;
-        refreshing=true;
-        window.location.reload();
-      });
-      if(registration.waiting) registration.waiting.postMessage({type:"SKIP_WAITING"});
-    }catch(e){
-      console.warn("Service worker kon niet worden bijgewerkt.",e);
-    }
-  });
-}
+function renderAdminHelp(){const host=$('ap');host.innerHTML=`<div class="admin-card help"><h2>📚 Handboek voor de beheerder</h2><div class="help-nav"><a href="#a-season">Seizoen</a><a href="#a-plan">Planning</a><a href="#a-lineup">Indeling</a><a href="#a-results">Uitslagen</a><a href="#a-pay">Betalen</a><a href="#a-admin">Beheerders</a></div><h3 id="a-season">Nieuw seizoen</h3><p><b>Na de testfase:</b> gebruik als hoofdbeheerder eerst de knop <b>Testgegevens wissen en op 0 starten</b> onder Beheer → Seizoen. Deze wist alleen wedstrijd-/testgegevens van het huidige seizoen (spelerskeuzes, vervangers, baanindelingen, uitslagen, stand, speelhistorie en betalingen). Spelers, koppels, reserves, accounts, speeldata, speelsterktes, voorkeuren en seizoeninstellingen blijven staan. De knop vraagt twee keer om bevestiging.</p><p>De knop <b>Start nieuw seizoen</b> staat onderaan Beheer → Seizoen en is alleen voor de hoofdbeheerder. Eerst volgt een waarschuwing; er wordt pas iets gewijzigd bij de laatste bevestiging. Daarna kies je de nieuwe data en instellingen, bepaal je per persoon of die vaste speler, reserve of niet meer deelnemer wordt en stel je de nieuwe koppels samen. Bij definitief aanmaken wordt het huidige seizoen alleen op <b>niet actief</b> gezet. Alle oude spelerskeuzes, baanindelingen, uitslagen, standen, betalingen en statistieken blijven in het archief bewaard. Het nieuwe seizoen begint leeg met 0 punten en nieuwe spelerskeuzes.</p><h3>Algemene instellingen opslaan</h3><p>Gebruik deze knop alleen voor wijzigingen aan de standaard sluitingsdag/-tijd of het standaard aantal banen. Een speelzaterdag aan- of uitzetten wijzigt eerst alleen de selectie op het scherm. Pas na <b>Algemene instellingen opslaan</b> wordt de wijziging bewaard. Bij het uitschakelen van een actieve speeldag volgt eerst een extra bevestiging.</p><h3>Speeltijden</h3><p><b>Inspeeltijd:</b> 10.00 tot 10.15 uur.<br><b>Aanvang wedstrijd:</b> 10.15 uur.</p><h3 id="a-plan">Spelerskeuze</h3><p>Normaal speelt één speler per koppel en staat de partner reserve. Spelers kunnen wijzigen tot de ingestelde deadline. Na de deadline kan alleen een beheerder nog aanpassen. Bij twee afwezige spelers is een vervanger nodig. Het koppel kan dan via WhatsApp een bericht “Vervanger gezocht” maken met koppelnummer en beide namen en daarna een niet-spelende vaste speler, reserve of andere vervanger voorstellen. De beheerder keurt de keuze eerst goed.</p><h3>Vervangers</h3><p>Een voorgestelde vervanger keur je goed bij Beheer → Indeling. Je kunt daar ook zelf een vervanger vastleggen. Als een vaste speler voor een ander koppel invalt, wordt dat ook bij zijn eigen koppel vermeld. Prioriteit: niet-spelende vaste speler → reserve → andere vervanger. Een handmatige vervanger kan met naam en speelsterkte worden ingevoerd en wordt niet automatisch aan de reservelijst toegevoegd. Alleen wanneer beide vaste spelers van een koppel afwezig zijn en een vervanger namens dat koppel speelt, is dat afwezige koppel gemaximeerd op 2 competitiepunten. Is minimaal één vaste speler van het koppel aanwezig, dan geldt deze beperking niet. De andere koppels op de baan worden evenmin beperkt.</p><h3 id="a-lineup">Baanindeling</h3><p>Beheer → Indeling haalt automatisch de spelers op die op <b>Speelt</b> staan. Met <b>Indeling maken</b> worden op basis van speelsterkte én eerdere gepubliceerde indelingen zo gelijkwaardig en gevarieerd mogelijke partijen voorgesteld. De app probeert te voorkomen dat spelers steeds met dezelfde medespeler of tegen dezelfde tegenstanders spelen. Onder de indeling kan de beheerder via ‘Speelhistorie’ controleren hoe vaak iedere speler met en tegen anderen heeft gespeeld en via ‘Waarom deze indeling?’ zien welke herhalingen in het voorstel zitten. Speelsterktes worden nooit in de gepubliceerde indeling getoond. Tik twee namen aan om ze te wisselen. Publiceren maakt de indeling zichtbaar bij Zaterdag en opent daarna direct het WhatsApp-voorbeeld met de baanindeling. Met Publicatie ongedaan maken kun je de indeling weer voor spelers verbergen; de gemaakte indeling blijft voor de beheerder bewaard.</p><h3>Enkelspel</h3><p>Enkelspel is alleen een noodoplossing voor de baanindeling. Controleer de enkelspelvoorkeur van spelers. Enkelspel levert 0 competitiepunten op. Bij 6 spelers is één dubbel plus één enkel mogelijk; bij 4 spelers één dubbel.</p><h3 id="a-results">Uitslagen en punten</h3><p>Gewonnen set = 1 punt. Niet afgemaakte laatste set: ½ punt voor de leider als die minimaal 3 games heeft. Staat het in games gelijk en hebben beide teams minimaal 3 games, dan wordt na de zoemer nog één beslissend punt gespeeld. Dit geldt bijvoorbeeld bij 3–3 en 0–0 én bij 3–3 en 30–30. Leg daarna de puntenstand van dat beslissende punt vast zodat de app het halve punt aan de winnaar toekent. Games altijd registreren. Na het spelen kan iedere speler die die zaterdag daadwerkelijk in de gepubliceerde baanindeling staat een nog ontbrekende uitslag van die zaterdag invoeren. De oorspronkelijke invoerder kan de uitslag vanaf de eerste invoer nog 48 uur corrigeren; daarna kan alleen een beheerder wijzigen. Een beheerder kiest een speeldag en baan; de spelers worden automatisch uit de gepubliceerde baanindeling overgenomen. Extra sets kun je toevoegen. De app bepaalt op basis van de spelers welk vast koppel de punten krijgt en werkt de stand bij. Een beheerder kan opgeslagen uitslagen corrigeren.</p><h3>Stand</h3><p>De stand is per koppel. Individuele spelers krijgen geen eigen competitiepunten. Games blijven bewaard voor eventuele gelijke eindstanden.</p><h3>🏆 Finalezaterdag</h3><p>Activeer de finalezaterdag bij Beheer → Seizoen. De laatste actieve speeldag wordt dan de finale. De app gebruikt de stand na de voorlaatste speeldag voor de indeling: <b>nr. 1 + nr. 4 tegen nr. 2 + nr. 3</b> en <b>nr. 5 + nr. 8 tegen nr. 6 + nr. 7</b>. Op de finale tellen de behaalde competitiepunten dubbel. Alleen een <b>volledig afwezig koppel</b> dat door een invaller wordt vertegenwoordigd blijft maximaal <b>2 punten</b> krijgen; koppels met minimaal één vaste speler aanwezig kunnen de volledige dubbele punten behalen. Enkelspel blijft 0 punten. Controleer de voorgestelde finale-indeling en pas die zo nodig handmatig aan vóór publicatie.</p><h3 id="a-pay">Betalingen</h3><p>Maak per termijn of betaling een apart onderdeel aan en voer het totale bedrag in. De app deelt dat bedrag gelijk over alle actieve vaste spelers. Reserves betalen niet. Markeer per speler betaald/openstaand.</p><h3 id="a-admin">Beheerders</h3><p>De hoofdbeheerder kan een geactiveerd spelersaccount beheerder maken of de rechten intrekken. Een beheerder kan operationele zaken beheren, maar kan geen hoofdbeheerder wijzigen.</p><h3>WhatsApp</h3><p>Bij Beheer → Indeling staan uitnodiging, herinneringen en het delen van de baanindeling samen in één WhatsApp-blok voor de gekozen zaterdag. De app verstuurt nooit automatisch WhatsApp-berichten. Een knop maakt alleen een conceptbericht klaar; de gebruiker kiest zelf de ontvanger en drukt zelf op verzenden.</p><h3>Privacy en techniek</h3><p>Persoonsgegevens staan in Firebase, niet in de openbare GitHub-code. Wachtwoorden worden door Firebase Authentication afgehandeld. Technische Firebase-teksten horen niet in spelersschermen.</p></div>`}
+function ap(t){if(t==='season')return renderSeasonAdmin();if(t==='players')return renderPlayersAdmin();if(t==='lineup')return renderLineupAdmin();if(t==='results')return renderResultsAdmin();if(t==='payments')return renderPaymentsAdmin();if(t==='admins')return renderAdminsAdmin();if(t==='rules')return renderAdminHelp()}
