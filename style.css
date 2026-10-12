@@ -339,3 +339,6 @@ button:disabled{opacity:.58;cursor:wait}
 
 /* v1.3.48: veilig mapbeheer, opmerkingen en fotogalerijen */
 .vault-head-buttons{display:flex;gap:7px;flex-wrap:wrap;justify-content:flex-end}.vault-folder-container{min-width:0;display:flex;flex-direction:column;gap:4px}.vault-folder-container>.vault-folder-card{width:100%;flex:1;min-height:125px}.vault-folder-actions{display:flex;gap:5px;justify-content:flex-end;padding:0 3px 7px}.vault-small-btn{border:1px solid var(--border);border-radius:9px;padding:5px 8px;background:var(--primary-2);color:var(--text);font-size:.78rem;font-weight:700}.vault-gallery{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory}.vault-gallery>div{flex:0 0 min(70%,230px);scroll-snap-align:start}.vault-gallery button:first-child{border:0;padding:0;background:transparent;width:100%}.vault-gallery img{width:100%;height:175px;object-fit:contain;border-radius:12px;background:var(--primary-2)}.vault-gallery .vault-small-btn{width:100%}.vault-folder-grid{align-items:stretch}
+
+/* v1.3.50: terug naar het doorlopende overzicht vanaf vandaag */
+.weekmenu-today-btn{width:100%;margin:0 0 12px}

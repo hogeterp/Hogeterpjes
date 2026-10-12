@@ -39,7 +39,7 @@ data.outings=Array.isArray(data.outings)?data.outings:[];
 data.stores=Array.isArray(data.stores)&&data.stores.length?data.stores:["Jumbo","Albert Heijn","Lidl","Aldi","Plus","Dirk","Vomar","Hoogvliet","Action","Kruidvat","Etos","HEMA"];
 let currentHousehold=data.households[0]?.id || "";
 let currentWeekmenuHousehold="";
-let currentWeekStart=getFriday(new Date());
+let currentWeekStart=calendarDay(new Date());
 let simpleMode="";
 let currentUser=null;
 let auth=null;
@@ -487,6 +487,12 @@ function isoDate(date){
   return `${y}-${m}-${day}`;
 }
 
+function calendarDay(value){
+  const d=new Date(value);
+  d.setHours(12,0,0,0);
+  return d;
+}
+
 function addDays(date,days){
   const d=new Date(date);
   d.setDate(d.getDate()+days);
@@ -506,16 +512,32 @@ function accessibleHouseholds(){
   return data.households.filter(h=>ids.includes(h.id));
 }
 
-function weekMenuKey(){
-  return isoDate(currentWeekStart);
+// Display seven consecutive calendar dates; Firestore retains the original Friday/weekStart schema.
+function weekMenuKey(){ return isoDate(getFriday(currentWeekStart)); }
+function mealSlotForDate(date){
+  const d=calendarDay(date);
+  return {weekStart:isoDate(getFriday(d)),dayIndex:(d.getDay()-5+7)%7};
 }
-
-function getWeekMeals(householdId=currentWeekmenuHousehold,weekStart=weekMenuKey()){
-  return (data.weekMenus || []).filter(m=>m.householdId===householdId && m.weekStart===weekStart);
+function displayedMealDate(index){ return addDays(currentWeekStart,index); }
+function getWeekMeals(householdId=currentWeekmenuHousehold){
+  const slots=Array.from({length:7},(_,i)=>mealSlotForDate(displayedMealDate(i)));
+  return (data.weekMenus||[]).filter(m=>m.householdId===householdId &&
+    slots.some(slot=>slot.weekStart===m.weekStart && slot.dayIndex===Number(m.dayIndex)));
 }
-
-function getMealForDay(dayIndex){
-  return getWeekMeals().find(m=>Number(m.dayIndex)===Number(dayIndex));
+function getMealForDay(index){
+  const slot=mealSlotForDate(displayedMealDate(index));
+  return (data.weekMenus||[]).find(m=>m.householdId===currentWeekmenuHousehold &&
+    m.weekStart===slot.weekStart && Number(m.dayIndex)===slot.dayIndex);
+}
+function weekDayName(date){
+  return new Intl.DateTimeFormat('nl-NL',{weekday:'long'}).format(date);
+}
+function fillWeekMealDays(){
+  weekMealDay.innerHTML=Array.from({length:7},(_,i)=>{
+    const date=displayedMealDate(i);
+    const label=new Intl.DateTimeFormat('nl-NL',{weekday:'long',day:'numeric',month:'short'}).format(date);
+    return `<option value="${i}">${label}</option>`;
+  }).join('');
 }
 
 function recipeMealName(meal){
@@ -549,12 +571,19 @@ function fillWeekmenuHouseholds(){
   weekmenuGroceriesBtn.disabled=!currentWeekmenuHousehold;
 }
 
+let lastWeekmenuRenderDay=isoDate(new Date());
 function renderWeekmenu(){
   if(!window.weekmenuList) return;
+  const today=isoDate(new Date());
+  if(today!==lastWeekmenuRenderDay){
+    if(isoDate(currentWeekStart)===lastWeekmenuRenderDay) currentWeekStart=calendarDay(new Date());
+    lastWeekmenuRenderDay=today;
+  }
   fillWeekmenuHouseholds();
 
-  const weekNumber=getIsoWeek(currentWeekStart);
-  weekmenuWeekLabel.textContent=`Week ${weekNumber}`;
+  weekmenuWeekLabel.textContent=isoDate(currentWeekStart)===isoDate(new Date())
+    ? 'Vandaag en komende 6 dagen' : '7 dagen';
+  if(window.todayWeekBtn) todayWeekBtn.disabled=isoDate(currentWeekStart)===isoDate(new Date());
   weekmenuDateRange.textContent=formatWeekRange();
 
   if(!currentWeekmenuHousehold){
@@ -562,7 +591,8 @@ function renderWeekmenu(){
     return;
   }
 
-  weekmenuList.innerHTML=WEEK_DAYS.map((day,index)=>{
+  weekmenuList.innerHTML=Array.from({length:7},(_,index)=>{
+    const day=weekDayName(displayedMealDate(index));
     const meal=getMealForDay(index);
     const actualDate=addDays(currentWeekStart,index);
     const dateLabel=new Intl.DateTimeFormat("nl-NL",{day:"numeric",month:"short"}).format(actualDate);
@@ -597,6 +627,14 @@ function showWeekMealFields(){
   weekMealRecipe.required=!manual;
 }
 
+// Recheck the date when the app is reopened or remains open across midnight.
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden) renderWeekmenu();
+});
+setInterval(()=>{
+  if(!document.hidden && isoDate(new Date())!==lastWeekmenuRenderDay) renderWeekmenu();
+},60000);
+
 function fillWeekMealRecipes(){
   weekMealRecipe.innerHTML=data.recipes.length
     ? data.recipes.map(r=>`<option value="${r.id}">${r.name}</option>`).join("")
@@ -606,6 +644,7 @@ function fillWeekMealRecipes(){
 function openWeekMealDialog(dayIndex=0,meal=null){
   if(!currentWeekmenuHousehold) return;
   weekMealForm.reset();
+  fillWeekMealDays();
   fillWeekMealRecipes();
   weekMealDay.value=String(dayIndex);
   weekMealEditId.value=meal?.id || "";
@@ -1559,13 +1598,20 @@ nextWeekBtn.onclick=()=>{
   currentWeekStart=addDays(currentWeekStart,7);
   renderWeekmenu();
 };
+if(window.todayWeekBtn) todayWeekBtn.onclick=()=>{
+  currentWeekStart=calendarDay(new Date());
+  renderWeekmenu();
+};
 
 weekMealForm.onsubmit=async e=>{
   e.preventDefault();
   if(!currentWeekmenuHousehold) return;
 
   const f=new FormData(weekMealForm);
-  const dayIndex=Number(f.get("day"));
+  const displayIndex=Number(f.get("day"));
+  const selectedDate=displayedMealDate(displayIndex);
+  const {dayIndex,weekStart:targetWeekStart}=mealSlotForDate(selectedDate);
+  const targetDayName=weekDayName(selectedDate);
   const mealType=f.get("mealType");
   const recipeId=mealType==="recipe" ? String(f.get("recipeId")||"") : "";
   const manualName=mealType==="manual" ? String(f.get("manualName")||"").trim() : "";
@@ -1584,35 +1630,35 @@ weekMealForm.onsubmit=async e=>{
   const existing=data.weekMenus.find(m=>m.id===editId);
   const sameDay=data.weekMenus.find(m=>
     m.householdId===currentWeekmenuHousehold &&
-    m.weekStart===weekMenuKey() &&
+    m.weekStart===targetWeekStart &&
     Number(m.dayIndex)===dayIndex &&
     m.id!==editId
   );
 
   // v1.3.49: nooit eerst een document wissen en daarna pas verplaatsen.
   // Verplaatsen en eventueel omwisselen/vervangen zijn één atomaire transactie.
-  if(existing && (existing.householdId!==currentWeekmenuHousehold || existing.weekStart!==weekMenuKey())){
+  if(existing && existing.householdId!==currentWeekmenuHousehold){
     showSaveWarning("De oorspronkelijke maaltijd hoort niet bij dit weekmenu. Vernieuw de pagina.");
     return;
   }
-  const moving=!!existing && Number(existing.dayIndex)!==dayIndex;
+  const moving=!!existing && (Number(existing.dayIndex)!==dayIndex || existing.weekStart!==targetWeekStart);
   let conflictAction="none";
   if(sameDay){
     if(moving){
-      if(confirm(`Op ${WEEK_DAYS[dayIndex].toLowerCase()} staat al "${recipeMealName(sameDay)}".\n\nOK = gerechten omwisselen.\nAnnuleren = andere keuze bekijken.`)){
+      if(confirm(`Op ${targetDayName} staat al "${recipeMealName(sameDay)}".\n\nOK = gerechten omwisselen.\nAnnuleren = andere keuze bekijken.`)){
         conflictAction="swap";
-      }else if(confirm(`Wil je "${recipeMealName(sameDay)}" op ${WEEK_DAYS[dayIndex].toLowerCase()} vervangen?\n\nOK = vervangen; Annuleren = niets wijzigen.`)){
+      }else if(confirm(`Wil je "${recipeMealName(sameDay)}" op ${targetDayName} vervangen?\n\nOK = vervangen; Annuleren = niets wijzigen.`)){
         conflictAction="replace";
       }else return;
-    }else if(confirm(`Op ${WEEK_DAYS[dayIndex].toLowerCase()} staat al "${recipeMealName(sameDay)}". Wil je dit gerecht vervangen?`)){
+    }else if(confirm(`Op ${targetDayName} staat al "${recipeMealName(sameDay)}". Wil je dit gerecht vervangen?`)){
       conflictAction="replace";
     }else return;
   }
-  const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
+  const stableWeekMenuId=`${currentWeekmenuHousehold}__${targetWeekStart}__${dayIndex}`.replaceAll("/","-");
   const record={
     id:existing?.id || stableWeekMenuId,
     householdId:currentWeekmenuHousehold,
-    weekStart:weekMenuKey(),
+    weekStart:targetWeekStart,
     dayIndex,
     recipeId,
     name:manualName,
@@ -1652,6 +1698,7 @@ weekMealForm.onsubmit=async e=>{
         if(conflictAction==="swap"){
           transaction.update(targetRef,{
             dayIndex:Number(existing.dayIndex),
+            weekStart:existing.weekStart,
             updatedAt:new Date().toISOString(),
             updatedBy:currentPersonName(),
             serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()
@@ -1664,7 +1711,7 @@ weekMealForm.onsubmit=async e=>{
     // Geen lokale verwijdering: de Firestore-listener toont de definitieve situatie.
     void writeChangeLog("weekmenu",moving?"move":beforeValue?"update":"create",beforeValue,record);
     setSyncStatus("✓ Weekmenu opgeslagen in Firebase");
-    addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
+    addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${targetDayName} aangepast.`});
     saveData();
     weekMealDialog.close();
   }catch(error){
@@ -1705,7 +1752,10 @@ window.openWeekMealForDay=dayIndex=>openWeekMealDialog(dayIndex);
 window.editWeekMeal=id=>{
   const meal=(data.weekMenus || []).find(m=>m.id===id);
   if(!meal || !userHouseholdIds().includes(meal.householdId)) return;
-  openWeekMealDialog(meal.dayIndex,meal);
+  const index=Array.from({length:7},(_,i)=>mealSlotForDate(displayedMealDate(i)))
+    .findIndex(slot=>slot.weekStart===meal.weekStart && slot.dayIndex===Number(meal.dayIndex));
+  if(index<0) return;
+  openWeekMealDialog(index,meal);
 };
 
 window.deleteWeekMeal=async id=>{
@@ -1719,35 +1769,28 @@ window.deleteWeekMeal=async id=>{
 
 copyWeekmenuBtn.onclick=async ()=>{
   const source=getWeekMeals();
-  if(!source.length){
-    alert("Deze week bevat nog geen gerechten.");
-    return;
-  }
-
-  const nextStart=isoDate(addDays(currentWeekStart,7));
-  const existingNext=(data.weekMenus || []).filter(m=>
-    m.householdId===currentWeekmenuHousehold && m.weekStart===nextStart
-  );
-
-  if(existingNext.length && !confirm("De volgende week bevat al gerechten. Deze vervangen?")){
-    return;
-  }
-
-  const previous=[...existingNext];
-  const copies=source.map(meal=>({
-    ...meal,id:`${currentWeekmenuHousehold}__${nextStart}__${meal.dayIndex}`.replaceAll("/","-"),weekStart:nextStart,
-    updatedBy:currentPersonName(),updatedAt:new Date().toISOString()
+  if(!source.length){ alert('Deze 7 dagen bevatten nog geen gerechten.'); return; }
+  const targetSlots=source.map(meal=>{
+    const sourceDate=Array.from({length:7},(_,i)=>displayedMealDate(i))
+      .find(d=>{const slot=mealSlotForDate(d);return slot.weekStart===meal.weekStart && slot.dayIndex===Number(meal.dayIndex);});
+    return {meal,slot:mealSlotForDate(addDays(sourceDate,7))};
+  });
+  const targetKeys=new Set(targetSlots.map(({slot})=>`${slot.weekStart}:${slot.dayIndex}`));
+  const previous=(data.weekMenus||[]).filter(m=>m.householdId===currentWeekmenuHousehold && targetKeys.has(`${m.weekStart}:${Number(m.dayIndex)}`));
+  if(previous.length && !confirm('De volgende 7 dagen bevatten al gerechten. Deze vervangen?')) return;
+  const copies=targetSlots.map(({meal,slot})=>({
+    ...meal,id:`${currentWeekmenuHousehold}__${slot.weekStart}__${slot.dayIndex}`.replaceAll('/','-'),
+    weekStart:slot.weekStart,dayIndex:slot.dayIndex,updatedBy:currentPersonName(),updatedAt:new Date().toISOString()
   }));
   try{
-    setSyncStatus("Weekmenu kopiëren…");
+    setSyncStatus('Weekmenu kopiëren…');
     const batch=db.batch();
     previous.forEach(row=>batch.delete(db.collection(WEEK_MENUS_COLLECTION).doc(row.id)));
     copies.forEach(row=>batch.set(db.collection(WEEK_MENUS_COLLECTION).doc(row.id),row));
     await batch.commit();
-    data.weekMenus=(data.weekMenus||[]).filter(m=>!(m.householdId===currentWeekmenuHousehold&&m.weekStart===nextStart)).concat(copies);
-    renderWeekmenu(); setSyncStatus("✓ Weekmenu gekopieerd en opgeslagen");
-    alert("Het weekmenu is naar de volgende week gekopieerd en opgeslagen.");
-  }catch(error){ console.error(error); showSaveWarning("Kopiëren is niet opgeslagen. Probeer opnieuw."); }
+    setSyncStatus('✓ Weekmenu gekopieerd en opgeslagen');
+    alert('De gerechten zijn naar de volgende 7 dagen gekopieerd en opgeslagen.');
+  }catch(error){console.error(error);showSaveWarning('Kopiëren is niet opgeslagen. Probeer opnieuw.');}
 };
 
 weekmenuGroceriesBtn.onclick=()=>{

@@ -1,0 +1,5 @@
+Hogeterpjes v1.3.50
+Upload de 13 app-bestanden naar GitHub Pages.
+firestore.rules en storage.rules zijn ongewijzigd en hoeven niet opnieuw gepubliceerd te worden.
+Het meegestuurde PUSH-INSTALLATIE.txt hoort bij een andere app en is bewust niet opgenomen.
+Test het weekmenu bij de overgang donderdag/vrijdag en na opnieuw laden.

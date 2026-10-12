@@ -1,3 +1,10 @@
+## v1.3.50 – Doorlopend weekmenu
+- Standaard vandaag en de volgende zes dagen; het overzicht schuift automatisch mee.
+- Met Vorige, Volgende en Vandaag kun je terugkijken en vooruit plannen.
+- Bestaande gerechten blijven in Firebase opgeslagen volgens het vrijdag/donderdag-schema.
+- Verplaatsen, omwisselen en kopiëren werken ook over de oude weekgrenzen heen.
+- Firebase-regels en opslagregels ongewijzigd.
+
 ## v1.3.49 – Weekmenu veilig verplaatsen
 - Een gerecht naar een andere dag verplaatsen gebeurt nu in één Firestore-transactie.
 - Als de doeldag al een gerecht heeft: kies omwisselen, vervangen of annuleren.
