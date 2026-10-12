@@ -1589,9 +1589,25 @@ weekMealForm.onsubmit=async e=>{
     m.id!==editId
   );
 
-  // v1.3.45: verplaatsen is een update van hetzelfde Firestore-document.
-  // Sla eerst veilig op; verwijder pas daarna een eventueel gerecht op de doeldag.
-  // Bewaar het bestaande ID, zodat een dagwissel geen nieuw document vereist.
+  // v1.3.49: nooit eerst een document wissen en daarna pas verplaatsen.
+  // Verplaatsen en eventueel omwisselen/vervangen zijn één atomaire transactie.
+  if(existing && (existing.householdId!==currentWeekmenuHousehold || existing.weekStart!==weekMenuKey())){
+    showSaveWarning("De oorspronkelijke maaltijd hoort niet bij dit weekmenu. Vernieuw de pagina.");
+    return;
+  }
+  const moving=!!existing && Number(existing.dayIndex)!==dayIndex;
+  let conflictAction="none";
+  if(sameDay){
+    if(moving){
+      if(confirm(`Op ${WEEK_DAYS[dayIndex].toLowerCase()} staat al "${recipeMealName(sameDay)}".\n\nOK = gerechten omwisselen.\nAnnuleren = andere keuze bekijken.`)){
+        conflictAction="swap";
+      }else if(confirm(`Wil je "${recipeMealName(sameDay)}" op ${WEEK_DAYS[dayIndex].toLowerCase()} vervangen?\n\nOK = vervangen; Annuleren = niets wijzigen.`)){
+        conflictAction="replace";
+      }else return;
+    }else if(confirm(`Op ${WEEK_DAYS[dayIndex].toLowerCase()} staat al "${recipeMealName(sameDay)}". Wil je dit gerecht vervangen?`)){
+      conflictAction="replace";
+    }else return;
+  }
   const stableWeekMenuId=`${currentWeekmenuHousehold}__${weekMenuKey()}__${dayIndex}`.replaceAll("/","-");
   const record={
     id:existing?.id || stableWeekMenuId,
@@ -1609,26 +1625,52 @@ weekMealForm.onsubmit=async e=>{
   const saveButton=weekMealForm.querySelector('[type="submit"]');
   if(saveButton) saveButton.disabled=true;
   try{
-    // Eerst opslaan. Bij een netwerkfout blijven alle oude maaltijden intact.
-    await saveWeekMenuRecord(record,beforeValue);
-    if(sameDay){
-      try{
-        await deleteWeekMenuRecord(sameDay);
-      }catch(deleteError){
-        // Het nieuwe gerecht is opgeslagen; laat een oude maaltijd nooit
-        // onzichtbaar verdwijnen door lokaal te doen alsof verwijderen lukte.
-        console.error("Bestaand gerecht op doeldag verwijderen mislukt",deleteError);
-        showSaveWarning("Het gerecht is verplaatst, maar het oude gerecht op de doeldag kon niet worden verwijderd. Controleer het weekmenu.");
+    if(!db || !currentUser) throw new Error("Firebase is niet beschikbaar");
+    const collection=db.collection(WEEK_MENUS_COLLECTION);
+    const sourceRef=collection.doc(record.id);
+    const targetRef=sameDay ? collection.doc(sameDay.id) : null;
+    setSyncStatus("Weekmenu veilig opslaan…");
+    await withTimeout(db.runTransaction(async transaction=>{
+      // Eerst ALLE benodigde reads, daarna pas writes (Firestore-vereiste).
+      const sourceSnap=await transaction.get(sourceRef);
+      const targetSnap=targetRef && targetRef.path!==sourceRef.path ? await transaction.get(targetRef) : null;
+      if(existing && !sourceSnap.exists) throw new Error("De oorspronkelijke maaltijd is ondertussen verwijderd. Vernieuw het weekmenu.");
+      if(!existing && sourceSnap.exists) throw new Error("Deze dag is ondertussen gewijzigd. Vernieuw het weekmenu.");
+      if(existing){
+        const live=sourceSnap.data();
+        if(live.householdId!==existing.householdId || live.weekStart!==existing.weekStart || Number(live.dayIndex)!==Number(existing.dayIndex)){
+          throw new Error("De maaltijd is ondertussen door iemand anders verplaatst. Vernieuw het weekmenu.");
+        }
       }
-    }
-    // De realtime Firestore-listener verwerkt de definitieve gegevens.
-    // Geen lokale arraymutaties die een onbedoelde her-migratie veroorzaken.
+      if(targetRef && targetRef.path!==sourceRef.path){
+        if(!targetSnap.exists || Number(targetSnap.data().dayIndex)!==dayIndex || targetSnap.data().weekStart!==record.weekStart || targetSnap.data().householdId!==record.householdId){
+          throw new Error("De maaltijd op de doeldag is ondertussen veranderd. Vernieuw het weekmenu.");
+        }
+      }
+      transaction.set(sourceRef,{...record,serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+      if(targetSnap?.exists){
+        if(conflictAction==="swap"){
+          transaction.update(targetRef,{
+            dayIndex:Number(existing.dayIndex),
+            updatedAt:new Date().toISOString(),
+            updatedBy:currentPersonName(),
+            serverUpdatedAt:firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }else if(conflictAction==="replace"){
+          transaction.delete(targetRef);
+        }
+      }
+    }),20000,"Opslaan duurde te lang. Controleer het weekmenu voordat je opnieuw probeert.");
+    // Geen lokale verwijdering: de Firestore-listener toont de definitieve situatie.
+    void writeChangeLog("weekmenu",moving?"move":beforeValue?"update":"create",beforeValue,record);
+    setSyncStatus("✓ Weekmenu opgeslagen in Firebase");
     addNotification({householdId:currentWeekmenuHousehold,text:`${currentPersonName()} heeft het weekmenu voor ${WEEK_DAYS[dayIndex].toLowerCase()} aangepast.`});
     saveData();
     weekMealDialog.close();
   }catch(error){
-    console.error(error);
-    showSaveWarning("Het weekmenu is niet opgeslagen. Het bestaande gerecht is behouden; probeer opnieuw.");
+    console.error("Weekmenu opslaan mislukt",error);
+    showSaveWarning(`Niets gewijzigd: ${error.message||"Opslaan mislukt"}`);
+    setSyncStatus("Weekmenu opslaan mislukt",true);
   }finally{
     if(saveButton) saveButton.disabled=false;
   }

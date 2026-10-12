@@ -1,6 +1,6 @@
-Hogeterpjes v1.3.48 – installatie
+Hogeterpjes v1.3.49 – installatie
 1. Upload alle 16 bestanden uit deze ZIP naar de GitHub Pages repository (vervang bestaande bestanden).
-2. Publiceer de meegeleverde firestore.rules via Firebase Console > Firestore Database > Rules > Publiceren. Nieuw: vaults/rinze-christa/folders/{folderId}.
+2. Firestore- en Storage-regels zijn ongewijzigd ten opzichte van v1.3.48. Publiceer deze alleen als ze nog niet overeenkomen met je huidige Firebase-regels.
 3. Storage Rules zijn niet aangepast; bestaande storage.rules behouden.
-4. Test in Gezinskluis: nieuwe map, notitie, hernoemen, verwijderbeveiliging en fotoalbum.
+4. Test weekmenu: verplaatsen naar lege dag, omwisselen en vervangen bij bezette dag; test ook na herladen.
 5. Bestaande Firebase documenten worden niet verwijderd of gemigreerd.

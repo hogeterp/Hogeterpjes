@@ -1,3 +1,9 @@
+## v1.3.49 – Weekmenu veilig verplaatsen
+- Een gerecht naar een andere dag verplaatsen gebeurt nu in één Firestore-transactie.
+- Als de doeldag al een gerecht heeft: kies omwisselen, vervangen of annuleren.
+- Bij mislukken blijven de oorspronkelijke gerechten ongewijzigd.
+- Firestore- en Storage-regels zijn ongewijzigd; de overige appfuncties zijn behouden.
+
 ## v1.3.48 – Gezinskluis
 - Eigen mappen en submappen aanmaken, hernoemen en veilig verwijderen.
 - Verwijderen alleen als map geen documenten (ook archief/prullenbak) en submappen bevat; bevestigen en mapnaam intypen.
