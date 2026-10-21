@@ -27,6 +27,15 @@ class ReleaseTests(unittest.TestCase):
         self.env.stop()
         self.output.__exit__(None, None, None)
 
+    def test_rule_comparison_ignores_formatting_and_comments(self):
+        self.assertEqual(m.rule_tokens('allow read: if true; // note\n'),
+                         m.rule_tokens('/* comment */ allow read : if true ;'))
+
+    def test_rule_comparison_preserves_strings_and_changes(self):
+        self.assertEqual(m.rule_tokens("'https://example.test'"), ["'https://example.test'"])
+        self.assertNotEqual(m.rule_tokens("'a b'"), m.rule_tokens("'ab'"))
+        self.assertNotEqual(m.rule_tokens('if true'), m.rule_tokens('if false'))
+
     def test_inspect_both_targets_uses_only_get(self):
         for target, (_, release) in m.TARGETS.items():
             with self.subTest(target=target), patch.object(m, 'api', side_effect=[{'rulesetName': OLD}, self.live]) as api:

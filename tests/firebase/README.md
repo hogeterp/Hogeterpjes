@@ -6,7 +6,8 @@ and identities are synthetic. The test job has no Google credentials.
 
 Pushes affecting rules or this infrastructure test and then inspect both live
 releases using GET requests only. Pull requests run only the emulator and mocked
-publication tests. Inspection reads rule source, never application records.
+publication tests. Inspection reads rule source, never application records. It compares exact contents
+and tokens ignoring comments/formatting, and shows a diff for token differences.
 
 To publish reviewed rules, manually run this workflow on main with mode `publish`,
 a target (`firestore` or `storage`), the exact file SHA256 and current live ruleset

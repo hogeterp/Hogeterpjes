@@ -2,6 +2,8 @@
 import hashlib
 import json
 import os
+import re
+import difflib
 from pathlib import Path
 import urllib.request
 
@@ -12,6 +14,13 @@ TARGETS = {
     'storage': ('storage.rules', 'firebase.storage/hogeterpjes.firebasestorage.app'),
 }
 
+
+
+def rule_tokens(source):
+    # Preserve quoted strings; ignore only whitespace and comments outside strings.
+    pattern = r''''(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|//[^\n]*|/\*.*?\*/|[A-Za-z_][A-Za-z_0-9]*|[0-9]+|[^\s]'''
+    return [match.group() for match in re.finditer(pattern, source, re.DOTALL)
+            if not match.group().startswith(('//', '/*'))]
 
 def api(method, resource, body=None):
     request = urllib.request.Request(
@@ -36,7 +45,11 @@ def run(mode, target, expected_sha='', expected_live=''):
     files = api('GET', old)['source']['files']
     same = len(files) == 1 and files[0]['content'] == content
     lines = [f'Target: {target}', f'Rules SHA256: `{digest}`',
-             f'Current live ruleset: `{old}`', f'Exact contents match live: {same}']
+             f'Current live ruleset: `{old}`', f'Exact contents match live: {same}',
+             f'Rule tokens match ignoring comments and formatting: {len(files) == 1 and rule_tokens(files[0]["content"]) == rule_tokens(content)}']
+    if len(files) == 1 and rule_tokens(files[0]['content']) != rule_tokens(content):
+        difference = ''.join(difflib.unified_diff(files[0]['content'].splitlines(True), content.splitlines(True), fromfile='live', tofile=filename))
+        lines.append('Live versus repository differences:\n\n```diff\n' + difference + '\n```')
     if mode == 'publish':
         if old != expected_live:
             raise ValueError('Live rules changed; inspect and review again')
