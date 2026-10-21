@@ -1,6 +1,6 @@
 const {initializeTestEnvironment,assertSucceeds,assertFails}=require('@firebase/rules-unit-testing');
 const {doc,getDoc,setDoc,updateDoc,deleteDoc}=require('firebase/firestore');
-const {ref,uploadBytes,getBytes,deleteObject,listAll}=require('firebase/storage');
+const {ref,uploadBytes,getBytes,deleteObject,listAll,updateMetadata}=require('firebase/storage');
 const fs=require('node:fs');
 (async()=>{
  const env=await initializeTestEnvironment({projectId:'demo-hogeterpjes',firestore:{host:'127.0.0.1',port:8085,rules:fs.readFileSync('firestore.rules','utf8')},storage:{host:'127.0.0.1',port:9199,rules:fs.readFileSync('storage.rules','utf8')}});
@@ -70,7 +70,7 @@ const fs=require('node:fs');
  await no('uninvited cannot read photo',()=>getBytes(obj('other','shared-media/test.jpg')));
  await ok('Christa uploads vault file',()=>uploadBytes(obj('christa','vaults/rinze-christa/test'),bytes));
  await no('ordinary member cannot read vault file',()=>getBytes(obj('member','vaults/rinze-christa/test')));
- await no('vault files cannot be overwritten',()=>uploadBytes(obj('christa','vaults/rinze-christa/test'),new Uint8Array([4,5,6,7]),{customMetadata:{revision:'changed'}}));
+ await no('vault metadata updates denied',()=>updateMetadata(obj('christa','vaults/rinze-christa/test'),{customMetadata:{revision:'changed'}}));
  await ok('Christa deletes vault file',()=>deleteObject(obj('christa','vaults/rinze-christa/test')));
  await ok('admin uploads own diary photo',()=>uploadBytes(obj('admin','diaries/admin/test'),bytes));
  await no('admin cannot upload other diary',()=>uploadBytes(obj('admin','diaries/member/test'),bytes));

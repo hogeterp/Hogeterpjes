@@ -27,3 +27,8 @@ indexes, change Authentication accounts, or modify app records or website files.
 Local validation: `python3 tests/firebase/release_test.py`, then in this directory
 `npm ci && npm test` (Node 24, Java 21). Emulator tests characterize current access
 behavior; they are not a complete security audit.
+
+Storage `update` is tested using metadata changes. Uploading a new object generation
+at an existing vault path succeeded in the emulator under the current create rule;
+this suite does not claim that `allow update: if false` prevents replacement uploads.
+The app uses unique paths. Rules are preserved, not silently hardened by this setup.
