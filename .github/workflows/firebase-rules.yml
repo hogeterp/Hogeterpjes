@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - wish-purchases.js
+      - tests/app/wish-purchases-state.cjs
       - firestore.rules
       - storage.rules
       - scripts/firebase_rules_release.py
@@ -12,6 +13,7 @@ on:
   pull_request:
     paths:
       - wish-purchases.js
+      - tests/app/wish-purchases-state.cjs
       - firestore.rules
       - storage.rules
       - scripts/firebase_rules_release.py
@@ -59,6 +61,8 @@ jobs:
           java-version: '21'
       - name: Test publication safeguards without credentials
         run: python3 tests/firebase/release_test.py
+      - name: Test purchase listener isolation and logout
+        run: node tests/app/wish-purchases-state.cjs
       - name: Install isolated emulator test dependencies
         working-directory: tests/firebase
         run: npm ci --no-audit --no-fund

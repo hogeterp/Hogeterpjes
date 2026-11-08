@@ -37,14 +37,14 @@
   function create(db,user,render){
     const statuses=new Map(), mine=new Map(), ready=new Set(), errors=new Set();
     const listeners=new Map();
-    let active=true, myReady=false;
+    let active=true, myReady=false, myError=false;
     const changed=()=>{if(active)render();};
     const unsubscribe=db.collection("wishPurchaseClaims").doc(user.uid).collection("items").onSnapshot(snapshot=>{
       if(!active)return;
       mine.clear();
       snapshot.docs.forEach(doc=>{const item=doc.data();mine.set(key(item.person,item.wishId),item);});
-      myReady=true;changed();
-    },()=>{if(!active)return;myReady=false;changed();});
+      myReady=true;myError=false;changed();
+    },()=>{if(!active)return;myReady=false;myError=true;changed();});
     return {
       watch(people){
         for(const person of people){
@@ -62,7 +62,7 @@
       },
       state(person,id){
         if(person===user.person)return {hidden:true};
-        return {ready:myReady&&ready.has(person),error:errors.has(person),status:statuses.get(key(person,id))||null,mine:mine.has(key(person,id))};
+        return {ready:myReady&&ready.has(person),error:myError||errors.has(person),status:statuses.get(key(person,id))||null,mine:mine.has(key(person,id))};
       },
       change:(person,id,status)=>change(db,user,person,id,status),
       stop(){active=false;unsubscribe();listeners.forEach(stop=>stop());listeners.clear();statuses.clear();mine.clear();ready.clear();errors.clear();}

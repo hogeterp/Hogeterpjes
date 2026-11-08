@@ -2864,7 +2864,7 @@ signupForm.onsubmit=async e=>{
     signupVerificationInProgress=false;
     signupDialog.close(); loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
     showLoggedIn(provisionalProfile(result.user));
-    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{currentUser=profile;renderAll();});
+    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{if(auth.currentUser?.uid!==profile.uid)return;currentUser=profile;stopWishPurchases();syncWishPurchases();renderAll();});
   }catch(err){
     signupVerificationInProgress=false;
     if(result?.user){try{await result.user.delete();}catch(_){try{await auth.signOut();}catch(__){}}}
@@ -2961,7 +2961,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); syncWishPurchases(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ if(auth.currentUser?.uid!==user.uid)return; subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); syncWishPurchases(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
@@ -3561,7 +3561,7 @@ function initFirebase(){
         return;
       }
       showLoggedIn(provisionalProfile(user));
-      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{currentUser=profile;renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
+      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{if(auth.currentUser?.uid!==profile.uid)return;currentUser=profile;stopWishPurchases();syncWishPurchases();renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
     firebaseStatus.textContent="Firebase gekoppeld";
     loginMessage.textContent="";
