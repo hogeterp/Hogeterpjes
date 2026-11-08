@@ -54,6 +54,9 @@ let diaryExistingPhotoPaths=[];
 let diaryPreviewObjectUrls=[];
 let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
+let giftClaimUnsubscribe=null;
+let giftClaimStatuses={};
+let myGiftClaims={};
 let privateTodos=[];
 let privateTodosUnsubscribe=null;
 let coupleIdeasUnsubscribe=null;
@@ -980,20 +983,91 @@ wishCameraInput.onchange=()=>processWishPhoto(wishCameraInput.files?.[0]);
 wishGalleryInput.onchange=()=>processWishPhoto(wishGalleryInput.files?.[0]);
 removeWishPhotoBtn.onclick=resetWishPhoto;
 
+function giftClaimStatusFor(wish){
+  if(!currentUser || wish.person===currentPersonName()) return null;
+  return giftClaimStatuses[wish.id] || null;
+}
+function giftClaimButtons(wish){
+  if(!window.HOGETERPJES_GIFT_CLAIMS_ENABLED || !currentUser || wish.person===currentPersonName()) return "";
+  const status=giftClaimStatusFor(wish), mine=myGiftClaims[wish.id];
+  const id=JSON.stringify(String(wish.id)).replaceAll("'", "&#39;");
+  if(!status) return `<div class="gift-actions"><button class="secondary-btn" type="button" onclick='setGiftWishClaim(${id},"reserved")'>Reserveren</button><button class="secondary-btn" type="button" onclick='setGiftWishClaim(${id},"bought")'>Gekocht</button></div>`;
+  const label=status==="bought"?"Gekocht":"Gereserveerd";
+  return `<div class="gift-claim-status">${label}</div>`+(mine?`<div class="gift-actions">${status==="reserved"? `<button class="secondary-btn" type="button" onclick='setGiftWishClaim(${id},"bought")'>Markeer gekocht</button>`:""}<button class="text-btn" type="button" onclick='releaseGiftWishClaim(${id})'>Annuleren</button></div>`:"");
+}
 function renderWishes(){
   const selected=wishPersonFilter.value||"";
   const rows=data.wishes.filter(w=>!selected||w.person===selected);
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
   wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${giftClaimButtons(w)}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
+
+// v1.3.52 voorbereiding: status en kopergegevens worden in afzonderlijke documenten gelezen.
+// Deze functie mag pas worden ingeschakeld nadat de bijbehorende Firestore-rules
+// en vertrouwde persoonskoppelingen zijn gepubliceerd.
+function subscribeGiftWishClaims(){
+  if(giftClaimUnsubscribe){giftClaimUnsubscribe();giftClaimUnsubscribe=null;}
+  giftClaimStatuses={};myGiftClaims={};
+  if(!db || !currentUser) return;
+  // Uitgeschakeld totdat de beveiligingsregels live en getest zijn.
+  if(!window.HOGETERPJES_GIFT_CLAIMS_ENABLED) return;
+  const statuses=db.collection("giftWishClaimStatuses");
+  const privateClaims=db.collection("giftWishPrivateClaims").where("buyerUid","==",currentUser.uid);
+  let stopStatus=statuses.onSnapshot(snap=>{
+    giftClaimStatuses={};
+    snap.docs.forEach(doc=>{giftClaimStatuses[doc.id]=doc.data().status;});
+    renderWishes();
+  },error=>console.error("Cadeaustatussen laden mislukt",error));
+  let stopPrivate=privateClaims.onSnapshot(snap=>{
+    myGiftClaims={};
+    snap.docs.forEach(doc=>{myGiftClaims[doc.id]=doc.data();});
+    renderWishes();
+  },error=>console.error("Eigen reserveringen laden mislukt",error));
+  giftClaimUnsubscribe=()=>{stopStatus();stopPrivate();};
+}
+window.setGiftWishClaim=async (wishId,status)=>{
+  if(!window.HOGETERPJES_GIFT_CLAIMS_ENABLED) return;
+  if(!["reserved","bought"].includes(status)||!db||!currentUser) return;
+  const wish=data.wishes.find(w=>w.id===wishId);
+  if(!wish||wish.person===currentPersonName()) return;
+  const publicRef=db.collection("giftWishClaimStatuses").doc(wishId);
+  const privateRef=db.collection("giftWishPrivateClaims").doc(wishId);
+  try{
+    await db.runTransaction(async tx=>{
+      const publicSnap=await tx.get(publicRef);
+      const privateSnap=await tx.get(privateRef);
+      if(publicSnap.exists && (!privateSnap.exists || privateSnap.data().buyerUid!==currentUser.uid))
+        throw new Error("Dit cadeau is al door iemand anders gereserveerd of gekocht.");
+      const updatedAt=firebase.firestore.FieldValue.serverTimestamp();
+      tx.set(publicRef,{status,recipientName:wish.person,updatedAt});
+      tx.set(privateRef,{buyerUid:currentUser.uid,recipientName:wish.person,status,updatedAt});
+    });
+  }catch(error){console.error(error);showSaveWarning(error.message||"Reserveren mislukt.");}
+};
+window.releaseGiftWishClaim=async wishId=>{
+  if(!window.HOGETERPJES_GIFT_CLAIMS_ENABLED || !db || !currentUser) return;
+  const publicRef=db.collection("giftWishClaimStatuses").doc(wishId);
+  const privateRef=db.collection("giftWishPrivateClaims").doc(wishId);
+  try{
+    await db.runTransaction(async tx=>{
+      const publicSnap=await tx.get(publicRef);
+      const privateSnap=await tx.get(privateRef);
+      if(!publicSnap.exists||!privateSnap.exists||privateSnap.data().buyerUid!==currentUser.uid)
+        throw new Error("Alleen de koper kan deze reservering verwijderen.");
+      tx.delete(publicRef);tx.delete(privateRef);
+    });
+  }catch(error){console.error(error);showSaveWarning(error.message||"Annuleren mislukt.");}
+};
 
 function privateGiftIdeasCollection(){
   return db && currentUser ? db.collection("privateGiftIdeas").doc(currentUser.uid).collection("ideas") : null;
 }
 function subscribePrivateGiftIdeas(){
   if(privateGiftIdeasUnsubscribe){ privateGiftIdeasUnsubscribe(); privateGiftIdeasUnsubscribe=null; }
+  if(giftClaimUnsubscribe){giftClaimUnsubscribe();giftClaimUnsubscribe=null;}
+  giftClaimStatuses={};myGiftClaims={};
   privateGiftIdeas=[];
   const collection=privateGiftIdeasCollection();
   if(!collection) return;
@@ -1160,7 +1234,9 @@ function giftEventVisible(event){
   return giftEventCanManage(event) || (event.recipients||[]).includes(person) || (event.buyers||[]).includes(person);
 }
 function giftWishStatus(event,wish){
-  return (event.claims||{})[wish.id] || null;
+  // Oude claims staan in gedeelde appData en zijn niet geschikt voor privé-aankopen.
+  // Toon deze niet meer en maak er geen nieuwe aan.
+  return null;
 }
 function giftStatusLabel(status){
   if(status==="wrapped") return "🎁 Ingepakt";
@@ -1207,17 +1283,10 @@ window.openGiftEventDialog=id=>{
   fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
   giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
 };
-window.claimGiftWish=(eventId,wishId,status)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
-  const person=currentPersonName(); if(!(event.buyers||[]).includes(person))return;
-  event.claims=event.claims||{}; const current=event.claims[wishId];
-  if(current && current.byUid!==currentUser?.uid){ alert("Deze wens is al door iemand anders gereserveerd."); return; }
-  event.claims[wishId]={byUid:currentUser?.uid||"",byName:person,status,updatedAt:new Date().toISOString()}; saveData();
-};
-window.releaseGiftWish=(eventId,wishId)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); const claim=event?.claims?.[wishId];
-  if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
-};
+// De oude cadeau-evenementclaims slaan koperidentiteiten op in gedeelde data.
+// Uitgeschakeld in de ontwikkelversie totdat een veilige migratie gereed is.
+window.claimGiftWish=()=>showSaveWarning("Cadeaureserveringen zijn nog niet beschikbaar.");
+window.releaseGiftWish=()=>showSaveWarning("Cadeaureserveringen zijn nog niet beschikbaar.");
 
 
 function outingStatusLabel(status){
@@ -2922,7 +2991,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribeGiftWishClaims(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
