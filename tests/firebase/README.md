@@ -57,3 +57,14 @@ privacy. New purchases use the protected collections exclusively.
 
 Deployment: publish the reviewed Firestore rules before enabling app v1.3.52.
 Storage rules are unchanged. No data migration or live purchase is part of tests.
+
+## Wish list visibility (v1.3.53)
+
+The UI hides a reserved or bought wish from relatives other than its buyer and
+recipient, both in the wish list and gift events. The recipient continues seeing
+the ordinary wish without purchase information; the buyer can change/release it.
+Other people's wishes wait for status and private-claim listeners to be ready,
+preventing a loading flash. A released wish reappears automatically.
+This is a presentation change, not additional database secrecy: shared wish data
+and anonymous status remain readable by the same accounts as before. Someone
+who saw a wish before can notice its disappearance. No rules migration is needed.

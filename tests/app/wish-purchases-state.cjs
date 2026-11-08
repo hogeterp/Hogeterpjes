@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const {create}=require('../../wish-purchases.js');
+const {create,visible}=require('../../wish-purchases.js');
 const subscriptions=[];
 const db={collection:collection=>({doc:person=>({collection:child=>({onSnapshot:(next,error)=>{
  const entry={collection,person,child,next,error,stopped:false};subscriptions.push(entry);return ()=>{entry.stopped=true;};
@@ -27,3 +27,15 @@ assert.equal(changes,stoppedChanges,'late callbacks cannot restore data after lo
 assert.equal(controller.state('Christa','wish').status,null);
 assert.equal(controller.state('Christa','wish').mine,false);
 console.log('PASS purchase listener isolation, duplicate protection, failure state, logout cleanup and late callbacks');
+
+for(const status of ['reserved','bought']){
+ const claimed={ready:true,error:false,status,mine:false};
+ assert.equal(visible('Christa','Maaike',claimed),false,'other relatives never see occupied wishes');
+ assert.equal(visible('Christa','Tessa',{...claimed,mine:true}),true,'buyer keeps their wish');
+ assert.equal(visible('Christa','Christa',{hidden:true}),true,'recipient always keeps own wish');
+}
+assert.equal(visible('Christa','Maaike',{ready:true,status:null,mine:false}),true,'released wish returns');
+assert.equal(visible('Christa','Maaike',undefined),false,'no loading flash');
+assert.equal(visible('Christa','Maaike',{ready:false,status:null}),false,'no flash while listeners load');
+assert.equal(visible('Christa','Maaike',{ready:true,error:true,status:null}),false,'fail closed on listener errors');
+console.log('PASS owner/buyer/other visibility for reserved, bought, released, loading and error states');

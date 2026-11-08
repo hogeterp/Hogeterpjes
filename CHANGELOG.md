@@ -1,3 +1,10 @@
+## v1.3.53 – Cadeauwensen blijven een verrassing
+- Een bezette wens verdwijnt voor andere familieleden, ook bij cadeau-evenementen.
+- De eigenaar blijft zijn eigen wens zien zonder aankoopinformatie.
+- De reserveerder/koper behoudt de eigen wens en bediening.
+- Na vrijgeven verschijnt de wens weer; tijdens laden worden andermans wensen nog niet getoond.
+- Firebase-regels en bestaande reserveringen blijven ongewijzigd.
+
 ## v1.3.52 – Wensen reserveren en gekocht markeren
 - Reserveren, direct gekocht markeren, terugzetten en vrijgeven op de wensenlijst.
 - Status ook zichtbaar bij cadeau-evenementen, zonder de naam van de koper.

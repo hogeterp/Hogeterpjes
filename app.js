@@ -1004,9 +1004,14 @@ function syncWishPurchases(){
   }
   wishPurchases.watch([...new Set(data.wishes.map(w=>w.person))]);
 }
+function wishVisibleToCurrentUser(wish){
+  if(!currentUser || !window.WishPurchases)return false;
+  return WishPurchases.visible(wish.person,purchasePersonName(),wishPurchases?.state(wish.person,wish.id));
+}
 function wishPurchaseControls(wish){
   if(!currentUser || wish.person===purchasePersonName())return "";
   const state=wishPurchases?.state(wish.person,wish.id);
+  if(!wishVisibleToCurrentUser(wish))return "";
   if(!state?.ready)return `<p class="muted wish-purchase-message">${state?.error?'Aankoopstatus niet beschikbaar. Probeer opnieuw na vernieuwen.':'Aankoopstatus laden…'}</p>`;
   const busy=pendingWishPurchases.has(WishPurchases.key(wish.person,wish.id));
   const button=(label,status,kind="secondary-btn")=>`<button type="button" class="${kind}" data-wish-purchase="${status}" data-wish-id="${escapeHtml(wish.id)}" ${busy?'disabled':''}>${label}</button>`;
@@ -1039,11 +1044,15 @@ document.addEventListener('click',event=>{
 
 function renderWishes(){
   const selected=wishPersonFilter.value||"";
-  const rows=data.wishes.filter(w=>!selected||w.person===selected);
+  const candidates=data.wishes.filter(w=>!selected||w.person===selected);
+  const rows=candidates.filter(wishVisibleToCurrentUser);
+  const pending=candidates.filter(w=>w.person!==purchasePersonName()&&!wishPurchases?.state(w.person,w.id)?.ready);
+  const unavailable=pending.some(w=>wishPurchases?.state(w.person,w.id)?.error);
+  const emptyMessage=pending.length?(unavailable?'Wensen konden niet worden geladen. Vernieuw de pagina om het opnieuw te proberen.':'Wensen laden…'):'Geen wensen om te tonen.';
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
-  wishPrivacyNote.textContent="Alleen de eigenaar kan een wens wijzigen of verwijderen. Reserveringen en aankopen zijn verborgen voor de eigenaar. Andere familieleden zien de status, maar niet wie reserveert of koopt.";
+  wishPrivacyNote.textContent="Je eigen wensen blijven voor jou zichtbaar, zonder aankoopinformatie. Een gereserveerde of gekochte wens is verder alleen zichtbaar voor degene die hem reserveert of koopt. Na vrijgeven verschijnt hij weer voor anderen.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${wishPurchaseControls(w)}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${wishPurchaseControls(w)}</article>`}).join(""):`<div class="card muted">${emptyMessage}</div>`;
 }
 
 function privateGiftIdeasCollection(){
@@ -1223,7 +1232,7 @@ function renderGiftEvents(){
   giftEventList.innerHTML=events.length?events.map(event=>{
     const canBuy=(event.buyers||[]).includes(person);
     const recipients=event.recipients||[];
-    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person));
+    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person)&&wishVisibleToCurrentUser(w));
     const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>privateIdeaRecipients(i).some(x=>recipients.includes(x)) && (!i.eventId || i.eventId===event.id));
     const publicCard=w=>{
       return `<article class="gift-wish-card"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${wishPurchaseControls(w)}</article>`;
@@ -3600,7 +3609,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.52");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.53");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
