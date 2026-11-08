@@ -988,7 +988,7 @@ function giftClaimStatusFor(wish){
   return giftClaimStatuses[wish.id] || null;
 }
 function giftClaimButtons(wish){
-  if(!currentUser || wish.person===currentPersonName()) return "";
+  if(!window.HOGETERPJES_GIFT_CLAIMS_ENABLED || !currentUser || wish.person===currentPersonName()) return "";
   const status=giftClaimStatusFor(wish), mine=myGiftClaims[wish.id];
   const id=JSON.stringify(wish.id);
   if(!status) return `<div class="gift-actions"><button class="secondary-btn" type="button" onclick='setGiftWishClaim(${id},"reserved")'>Reserveren</button><button class="secondary-btn" type="button" onclick='setGiftWishClaim(${id},"bought")'>Gekocht</button></div>`;
