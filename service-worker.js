@@ -1,5 +1,5 @@
-const CACHE="hogeterpjes-v1.3.51-couple-ideas";
-const ASSETS=["./","./index.html","./style.css?v=1.3.51","./app.js?v=1.3.51","./firebase-config.js?v=1.3.51","./manifest.json?v=1.3.51","./logo.jpg","./icon-192.png","./icon-512.png"];
+const CACHE="hogeterpjes-v1.3.52-couple-ideas";
+const ASSETS=["./","./index.html","./style.css?v=1.3.52","./app.js?v=1.3.52","./wish-purchases.js?v=1.3.52","./firebase-config.js?v=1.3.52","./manifest.json?v=1.3.52","./logo.jpg","./icon-192.png","./icon-512.png"];
 self.addEventListener("install",e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)))});
 self.addEventListener("activate",e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))).then(()=>self.clients.claim())));
 self.addEventListener("message",e=>{if(e.data?.type==="SKIP_WAITING")self.skipWaiting()});

@@ -342,3 +342,5 @@ button:disabled{opacity:.58;cursor:wait}
 
 /* v1.3.50: terug naar het doorlopende overzicht vanaf vandaag */
 .weekmenu-today-btn{width:100%;margin:0 0 12px}
+
+.wish-purchase{margin-top:12px}.wish-purchase .gift-claim-status:empty{display:none}.wish-purchase .gift-actions{margin-top:8px}.wish-purchase button:disabled{opacity:.6;cursor:wait}
