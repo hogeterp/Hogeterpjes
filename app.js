@@ -1234,7 +1234,9 @@ function giftEventVisible(event){
   return giftEventCanManage(event) || (event.recipients||[]).includes(person) || (event.buyers||[]).includes(person);
 }
 function giftWishStatus(event,wish){
-  return (event.claims||{})[wish.id] || null;
+  // Oude claims staan in gedeelde appData en zijn niet geschikt voor privé-aankopen.
+  // Toon deze niet meer en maak er geen nieuwe aan.
+  return null;
 }
 function giftStatusLabel(status){
   if(status==="wrapped") return "🎁 Ingepakt";
@@ -1281,17 +1283,10 @@ window.openGiftEventDialog=id=>{
   fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
   giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
 };
-window.claimGiftWish=(eventId,wishId,status)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
-  const person=currentPersonName(); if(!(event.buyers||[]).includes(person))return;
-  event.claims=event.claims||{}; const current=event.claims[wishId];
-  if(current && current.byUid!==currentUser?.uid){ alert("Deze wens is al door iemand anders gereserveerd."); return; }
-  event.claims[wishId]={byUid:currentUser?.uid||"",byName:person,status,updatedAt:new Date().toISOString()}; saveData();
-};
-window.releaseGiftWish=(eventId,wishId)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); const claim=event?.claims?.[wishId];
-  if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
-};
+// De oude cadeau-evenementclaims slaan koperidentiteiten op in gedeelde data.
+// Uitgeschakeld in de ontwikkelversie totdat een veilige migratie gereed is.
+window.claimGiftWish=()=>showSaveWarning("Cadeaureserveringen zijn nog niet beschikbaar.");
+window.releaseGiftWish=()=>showSaveWarning("Cadeaureserveringen zijn nog niet beschikbaar.");
 
 
 function outingStatusLabel(status){
