@@ -1,3 +1,11 @@
+## v1.3.52 – Wensen reserveren en gekocht markeren
+- Reserveren, direct gekocht markeren, terugzetten en vrijgeven op de wensenlijst.
+- Status ook zichtbaar bij cadeau-evenementen, zonder de naam van de koper.
+- Aankoopstatus verborgen voor de eigenaar via Firestore-regels.
+- Aparte privéclaim en transactie voorkomen dubbele reserveringen.
+- Nieuwe Firestore-regels moeten vóór de app worden gepubliceerd.
+- Oude gedeelde evenementclaims worden niet automatisch gemigreerd.
+
 ## v1.3.49 – Weekmenu veilig verplaatsen
 - Een gerecht naar een andere dag verplaatsen gebeurt nu in één Firestore-transactie.
 - Als de doeldag al een gerecht heeft: kies omwisselen, vervangen of annuleren.

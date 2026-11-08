@@ -52,6 +52,9 @@ let diaryEntries=[];
 let selectedDiaryPhotos=[];
 let diaryExistingPhotoPaths=[];
 let diaryPreviewObjectUrls=[];
+let wishPurchases=null;
+let wishPurchasesUid="";
+const pendingWishPurchases=new Set();
 let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
 let privateTodos=[];
@@ -310,6 +313,7 @@ async function restoreWishesDirectlyFromFirestore(){
     if(Array.isArray(wishes) && wishes.length){
       data.wishes=wishes;
       try{ localStorage.setItem(KEY,JSON.stringify(data)); }catch(e){}
+      syncWishPurchases();
       renderWishes();
       renderHome();
       return true;
@@ -352,6 +356,7 @@ function subscribeToCloudData(){
         };
 
         localStorage.setItem(KEY,JSON.stringify(data));
+        syncWishPurchases();
         renderAll();
         applyingRemote=false;
         cloudReady=true;
@@ -980,13 +985,65 @@ wishCameraInput.onchange=()=>processWishPhoto(wishCameraInput.files?.[0]);
 wishGalleryInput.onchange=()=>processWishPhoto(wishGalleryInput.files?.[0]);
 removeWishPhotoBtn.onclick=resetWishPhoto;
 
+function purchasePersonName(){
+  if(isAdmin()) return "Rinze";
+  const email=normalizeEmail(currentUser?.email);
+  return adminSettings.accounts?.find(a=>a.active!==false && normalizeEmail(a.email)===email)?.name || currentPersonName();
+}
+function stopWishPurchases(){
+  if(wishPurchases) wishPurchases.stop();
+  wishPurchases=null;wishPurchasesUid="";pendingWishPurchases.clear();
+}
+function syncWishPurchases(){
+  if(!db || !currentUser || !window.WishPurchases)return;
+  const identity=currentUser.uid+"|"+purchasePersonName();
+  if(wishPurchasesUid!==identity){
+    stopWishPurchases();
+    wishPurchasesUid=identity;
+    wishPurchases=WishPurchases.create(db,{uid:currentUser.uid,person:purchasePersonName()},()=>{renderWishes();renderGiftEvents();});
+  }
+  wishPurchases.watch([...new Set(data.wishes.map(w=>w.person))]);
+}
+function wishPurchaseControls(wish){
+  if(!currentUser || wish.person===purchasePersonName())return "";
+  const state=wishPurchases?.state(wish.person,wish.id);
+  if(!state?.ready)return `<p class="muted wish-purchase-message">${state?.error?'Aankoopstatus niet beschikbaar. Probeer opnieuw na vernieuwen.':'Aankoopstatus laden…'}</p>`;
+  const busy=pendingWishPurchases.has(WishPurchases.key(wish.person,wish.id));
+  const button=(label,status,kind="secondary-btn")=>`<button type="button" class="${kind}" data-wish-purchase="${status}" data-wish-id="${escapeHtml(wish.id)}" ${busy?'disabled':''}>${label}</button>`;
+  let actions="";
+  if(!state.status)actions=button('Reserveren','reserved')+button('Gekocht','bought');
+  else if(state.mine)actions=(state.status==='reserved'?button('Ik heb het gekocht','bought'):button('Terug naar gereserveerd','reserved'))+button('Vrijgeven','release','text-btn');
+  const label=state.status==='bought'?'✅ Gekocht':state.status==='reserved'?'🛒 Gereserveerd':'';
+  return `<div class="wish-purchase"><p class="gift-claim-status" role="status">${label}${state.mine?' · door jou':''}</p>${actions?`<div class="gift-actions">${actions}</div>`:''}</div>`;
+}
+async function changeWishPurchase(wishId,status){
+  const wish=data.wishes.find(w=>w.id===wishId);
+  if(!wish || wish.person===purchasePersonName() || !wishPurchases)return;
+  const key=WishPurchases.key(wish.person,wish.id);
+  if(pendingWishPurchases.has(key))return;
+  if(status==='release'&&!confirm('Deze wens vrijgeven? Andere familieleden kunnen hem daarna reserveren of kopen.'))return;
+  const controller=wishPurchases;
+  pendingWishPurchases.add(key);renderWishes();renderGiftEvents();
+  try{
+    await controller.change(wish.person,wish.id,status==='release'?null:status);
+  }catch(error){
+    showSaveWarning(error.code==='permission-denied'?'De aankoopstatus is niet beschikbaar of deze wens is al bezet. Vernieuw de pagina en probeer opnieuw.':error.message||'De aankoopstatus kon niet worden opgeslagen.');
+  }finally{
+    pendingWishPurchases.delete(key);renderWishes();renderGiftEvents();
+  }
+}
+document.addEventListener('click',event=>{
+  const button=event.target.closest('[data-wish-purchase]');
+  if(button&&!button.disabled)void changeWishPurchase(button.dataset.wishId,button.dataset.wishPurchase);
+});
+
 function renderWishes(){
   const selected=wishPersonFilter.value||"";
   const rows=data.wishes.filter(w=>!selected||w.person===selected);
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
-  wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
+  wishPrivacyNote.textContent="Alleen de eigenaar kan een wens wijzigen of verwijderen. Reserveringen en aankopen zijn verborgen voor de eigenaar. Andere familieleden zien de status, maar niet wie reserveert of koopt.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${wishPurchaseControls(w)}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
 
 function privateGiftIdeasCollection(){
@@ -1159,14 +1216,6 @@ function giftEventVisible(event){
   const person=currentPersonName();
   return giftEventCanManage(event) || (event.recipients||[]).includes(person) || (event.buyers||[]).includes(person);
 }
-function giftWishStatus(event,wish){
-  return (event.claims||{})[wish.id] || null;
-}
-function giftStatusLabel(status){
-  if(status==="wrapped") return "🎁 Ingepakt";
-  if(status==="bought") return "✅ Gekocht";
-  return "🛒 Gereserveerd";
-}
 function renderGiftEvents(){
   if(!window.giftEventList) return;
   const person=currentPersonName();
@@ -1177,9 +1226,7 @@ function renderGiftEvents(){
     const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person));
     const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>privateIdeaRecipients(i).some(x=>recipients.includes(x)) && (!i.eventId || i.eventId===event.id));
     const publicCard=w=>{
-      const ownWish=w.person===person, claim=giftWishStatus(event,w); let actions="";
-      if(canBuy&&!ownWish){ if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`; else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`; }
-      return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
+      return `<article class="gift-wish-card"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${wishPurchaseControls(w)}</article>`;
     };
     const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
     const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
@@ -1207,17 +1254,7 @@ window.openGiftEventDialog=id=>{
   fillGiftMemberChecks(giftRecipientChecks,event?.recipients||[]); fillGiftMemberChecks(giftBuyerChecks,event?.buyers||data.family.map(p=>p.name));
   giftEventMessage.textContent=""; deleteGiftEventBtn.classList.toggle("hidden",!event); giftEventDialog.showModal();
 };
-window.claimGiftWish=(eventId,wishId,status)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); if(!event)return;
-  const person=currentPersonName(); if(!(event.buyers||[]).includes(person))return;
-  event.claims=event.claims||{}; const current=event.claims[wishId];
-  if(current && current.byUid!==currentUser?.uid){ alert("Deze wens is al door iemand anders gereserveerd."); return; }
-  event.claims[wishId]={byUid:currentUser?.uid||"",byName:person,status,updatedAt:new Date().toISOString()}; saveData();
-};
-window.releaseGiftWish=(eventId,wishId)=>{
-  const event=(data.giftEvents||[]).find(x=>x.id===eventId); const claim=event?.claims?.[wishId];
-  if(!claim || (claim.byUid!==currentUser?.uid && !isAdmin()))return; delete event.claims[wishId]; saveData();
-};
+
 
 
 function outingStatusLabel(status){
@@ -2287,7 +2324,7 @@ if(window.giftEventForm) giftEventForm.onsubmit=e=>{
   if(!recipients.length){giftEventMessage.textContent="Kies minimaal één persoon voor wie de cadeaus zijn.";return;}
   const filteredBuyers=buyers.filter(x=>!recipients.includes(x)); if(!filteredBuyers.length){giftEventMessage.textContent="Kies minimaal één koper die zelf geen cadeau krijgt.";return;}
   data.giftEvents=data.giftEvents||[]; const id=giftEventEditId.value; const existing=data.giftEvents.find(x=>x.id===id);
-  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers:filteredBuyers,claims:existing?.claims||{},ideas:existing?.ideas||[],createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const record={id:existing?.id||crypto.randomUUID(),name:giftEventName.value.trim(),occasion:giftEventOccasion.value,date:giftEventDate.value,budget:giftEventBudget.value,recipients,buyers:filteredBuyers,ideas:existing?.ideas||[],createdByUid:existing?.createdByUid||currentUser?.uid||"",createdByName:existing?.createdByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.giftEvents.push(record);
   giftEventDialog.close(); saveData();
 };
@@ -2827,7 +2864,7 @@ signupForm.onsubmit=async e=>{
     signupVerificationInProgress=false;
     signupDialog.close(); loginMessage.textContent='Account gemaakt. Je bent nu ingelogd.';
     showLoggedIn(provisionalProfile(result.user));
-    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{currentUser=profile;renderAll();});
+    loadAdminSettings().then(()=>loadUserProfile(result.user)).then(profile=>{if(auth.currentUser?.uid!==profile.uid)return;currentUser=profile;stopWishPurchases();syncWishPurchases();renderAll();});
   }catch(err){
     signupVerificationInProgress=false;
     if(result?.user){try{await result.user.delete();}catch(_){try{await auth.signOut();}catch(__){}}}
@@ -2876,6 +2913,7 @@ resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recept
 
 profileBtn.onclick=()=>navigate("profiel");
 logoutBtn.onclick=async()=>{
+  stopWishPurchases();
   if(auth){ await auth.signOut(); }
   if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
   if(vaultFilesUnsubscribe){ vaultFilesUnsubscribe(); vaultFilesUnsubscribe=null; }
@@ -2908,7 +2946,8 @@ async function verifyInvitedUser(user){
   }
 }
 function showLoggedIn(user){
-  const firstOpen=!currentUser;
+  const firstOpen=!currentUser || currentUser.uid!==user.uid;
+  if(currentUser?.uid!==user.uid)stopWishPurchases();
   currentUser=user;
   loginScreen.classList.add("hidden");
   loginMessage.textContent="";
@@ -2922,7 +2961,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ if(auth.currentUser?.uid!==user.uid)return; subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); syncWishPurchases(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
@@ -3513,7 +3552,7 @@ function initFirebase(){
     storage=firebase.storage();
     auth.onAuthStateChanged(async user=>{
       if(signupVerificationInProgress) return;
-      if(!user){ currentUser=null; loginScreen.classList.remove("hidden"); return; }
+      if(!user){ stopWishPurchases(); currentUser=null; renderWishes(); renderGiftEvents(); loginScreen.classList.remove("hidden"); return; }
       loginScreen.classList.remove("hidden"); loginMessage.textContent="Toegang controleren…";
       const allowed=await verifyInvitedUser(user);
       if(!allowed){
@@ -3522,7 +3561,7 @@ function initFirebase(){
         return;
       }
       showLoggedIn(provisionalProfile(user));
-      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{currentUser=profile;renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
+      loadAdminSettings().then(()=>loadUserProfile(user)).then(profile=>{if(auth.currentUser?.uid!==profile.uid)return;currentUser=profile;stopWishPurchases();syncWishPurchases();renderProfile();fillSelects();renderAll();}).catch(err=>console.warn("Profiel bijwerken mislukt:",err));
     });
     firebaseStatus.textContent="Firebase gekoppeld";
     loginMessage.textContent="";
@@ -3561,7 +3600,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.45");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.52");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
