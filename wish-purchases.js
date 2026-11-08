@@ -2,6 +2,11 @@
 (function(root){
   "use strict";
   const key=(person,id)=>`${person}|${id}`;
+  function visible(person,userPerson,state){
+    if(person===userPerson)return true;
+    // Wait for both listeners; never briefly show a claimed wish while loading.
+    return !!state?.ready && !state.error && (state.mine || !state.status);
+  }
   function references(db,uid,person,id){
     if(!person || !id || [person,id].some(x=>/[\/|]/.test(x))) throw new Error("Ongeldige wens.");
     return {
@@ -68,7 +73,7 @@
       stop(){active=false;unsubscribe();listeners.forEach(stop=>stop());listeners.clear();statuses.clear();mine.clear();ready.clear();errors.clear();}
     };
   }
-  const api={key,references,change,create};
+  const api={key,references,change,create,visible};
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
   else root.WishPurchases=api;
 })(typeof window!=="undefined"?window:globalThis);
