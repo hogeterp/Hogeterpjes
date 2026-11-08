@@ -49,8 +49,9 @@ localStorage, notifications or the shared change log. A reservation has no expir
 only its buyer can change or release it. The status applies across all events.
 
 Old giftEvents.claims values predate this protection and may already be in the
-shared document or local backups. This change no longer displays or writes those
-claims and does not silently delete historical data. These legacy values require
+shared document or local backups. This change no longer displays or creates legacy
+claims; existing values can still be persisted with shared app data. It does not
+silently delete historical data. These legacy values require
 a separately reviewed migration/removal before claiming historical purchase
 privacy. New purchases use the protected collections exclusively.
 
