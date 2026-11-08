@@ -982,12 +982,11 @@ removeWishPhotoBtn.onclick=resetWishPhoto;
 
 function renderWishes(){
   const selected=wishPersonFilter.value||"";
-  const occasion=wishOccasionFilter.value||"";
-  const rows=data.wishes.filter(w=>(!selected||w.person===selected)&&(!occasion||w.occasion===occasion));
+  const rows=data.wishes.filter(w=>!selected||w.person===selected);
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
   wishPrivacyNote.textContent="Iedereen binnen Hogeterpjes kan alle wensen bekijken. Alleen de eigenaar kan een wens wijzigen of verwijderen.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${escapeHtml(w.occasion||"")}${w.price?` · € ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}</article>`}).join(""):`<div class="card muted">Geen wensen gevonden.</div>`;
 }
 
 function privateGiftIdeasCollection(){
@@ -1175,12 +1174,12 @@ function renderGiftEvents(){
   giftEventList.innerHTML=events.length?events.map(event=>{
     const canBuy=(event.buyers||[]).includes(person);
     const recipients=event.recipients||[];
-    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person) && (!event.occasion || event.occasion==="Overig" || w.occasion===event.occasion));
+    const personalWishes=(data.wishes||[]).filter(w=>recipients.includes(w.person));
     const myPrivateIdeas=(privateGiftIdeas||[]).filter(i=>privateIdeaRecipients(i).some(x=>recipients.includes(x)) && (!i.eventId || i.eventId===event.id));
     const publicCard=w=>{
       const ownWish=w.person===person, claim=giftWishStatus(event,w); let actions="";
       if(canBuy&&!ownWish){ if(!claim) actions=`<button class="primary-btn" onclick="claimGiftWish('${event.id}','${w.id}','reserved')">Ik koop deze</button>`; else if(claim.byUid===currentUser?.uid) actions=`<button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','bought')">Gekocht</button><button class="secondary-btn" onclick="claimGiftWish('${event.id}','${w.id}','wrapped')">Ingepakt</button><button class="text-btn" onclick="releaseGiftWish('${event.id}','${w.id}')">Vrijgeven</button>`; }
-      return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${escapeHtml(w.occasion||'')}${w.price?` · € ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
+      return `<article class="gift-wish-card ${claim&&!ownWish?'claimed':''}"><div><strong>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</strong><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div>${w.note?`<p>${escapeHtml(w.note)}</p>`:''}${w.link?`<a href="${escapeHtml(w.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}${!ownWish&&claim?`<div class="gift-claim-status">${giftStatusLabel(claim.status)}${claim.byName?` · door ${escapeHtml(claim.byName)}`:''}</div>`:ownWish?`<div class="gift-secret-note">🔒 Aankoopinformatie is voor jou verborgen.</div>`:''}${actions?`<div class="gift-actions">${actions}</div>`:''}</article>`;
     };
     const privateCard=i=>`<article class="gift-wish-card private-gift-idea"><div><strong>${i.favorite?'⭐ ':''}${escapeHtml(privateIdeaRecipients(i).join(', '))} · ${escapeHtml(i.title)}</strong><div class="meta">Alleen voor jou zichtbaar${i.price?` · € ${Number(i.price).toLocaleString('nl-NL',{minimumFractionDigits:2})}`:''}</div></div><div class="gift-secret-note">🔒 ${privateIdeaStatusLabel(i.status)}</div>${i.photo?`<img class="private-idea-photo" src="${i.photo}" alt="${escapeHtml(i.title)}">`:''}${i.note?`<p>${escapeHtml(i.note)}</p>`:''}${i.link?`<a href="${escapeHtml(i.link)}" target="_blank" rel="noopener">Bekijk winkel</a>`:''}<div class="gift-private-toolbar"><button class="secondary-btn" type="button" onclick="openGiftIdeaDialog('${event.id}','${i.id}')">Bewerken</button><button class="text-btn" type="button" onclick="deletePrivateGiftIdea('${i.id}')">Verwijderen</button></div></article>`;
     const publicCards=personalWishes.length?personalWishes.map(publicCard).join(''):(event.occasion==='Verjaardag'?`<p class="muted">Nog geen openbare wensen gevonden voor de verjaardag van ${escapeHtml(recipients[0]||'de jarige')}.</p>`:`<p class="muted">Er zijn nog geen openbare wensen toegevoegd voor de gekozen personen.</p>`);
@@ -2149,7 +2148,7 @@ function openWishDialog(id=""){
   fillSelects(); wishForm.reset(); resetWishPhoto();
   const wish=id ? data.wishes.find(w=>w.id===id) : null;
   wishEditId.value=wish?.id || ""; wishDialogTitle.textContent=wish ? "Wens bewerken" : "Wens toevoegen"; wishPerson.value=currentPersonName();
-  if(wish && canManageWish(wish)){ wishForm.elements.occasion.value=wish.occasion||"Verjaardag"; wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
+  if(wish && canManageWish(wish)){ wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
   wishDialog.showModal();
 }
 window.openWishDialog=openWishDialog;
@@ -2272,7 +2271,7 @@ wishForm.onsubmit=async e=>{
     showSaveWarning("De wensfoto kon niet naar Firebase Storage worden geüpload. Publiceer zo nodig de storage.rules van v1.3.45.");
     return;
   }
-  const record={id,person,occasion:f.get("occasion"),title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  const record={id,person,occasion:existing?.occasion||"",title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.wishes.unshift(record);
   wishForm.reset(); wishEditId.value=""; resetWishPhoto(); wishDialog.close(); saveData();
 };
@@ -2477,7 +2476,7 @@ productSearch.oninput=renderProducts;
 productStoreFilter.onchange=renderProducts;
 productCategoryFilter.onchange=renderProducts;
 
-recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes; wishOccasionFilter.onchange=renderWishes;
+recipeSearch.oninput=renderRecipes; wishPersonFilter.onchange=renderWishes;
 groceryHousehold.onchange=()=>{currentHousehold=groceryHousehold.value;renderGroceries();};
 
 function openSimple(title, fields, mode){
