@@ -33,3 +33,26 @@ Storage `update` is tested using metadata changes. Uploading a new object genera
 at an existing vault path succeeded in the emulator under the current create rule;
 this suite does not claim that `allow update: if false` prevents replacement uploads.
 The app uses unique paths. Rules are preserved, not silently hardened by this setup.
+
+## Wish purchases (v1.3.52)
+
+Anonymous reserved/bought statuses live at wishPurchases/{person}/statuses/{wishId}.
+Recipients cannot read their own status, including the app admin. Buyer UIDs are
+stored only in owner-readable lock documents and buyer-private wishPurchaseClaims.
+Every transition changes all three documents atomically. A caller cannot steal a
+reservation, forge a status with an actor field or partially remove a claim.
+Names are checked against admin-managed accounts, not just self-editable profiles.
+Invitation records use the existing {name,email,active} (or legacy {name,email})
+format. Unmapped profiles fail closed until corrected by the administrator.
+All new statuses are memory-only in the app and never written to shared app data,
+localStorage, notifications or the shared change log. A reservation has no expiry;
+only its buyer can change or release it. The status applies across all events.
+
+Old giftEvents.claims values predate this protection and may already be in the
+shared document or local backups. This change no longer displays or writes those
+claims and does not silently delete historical data. These legacy values require
+a separately reviewed migration/removal before claiming historical purchase
+privacy. New purchases use the protected collections exclusively.
+
+Deployment: publish the reviewed Firestore rules before enabling app v1.3.52.
+Storage rules are unchanged. No data migration or live purchase is part of tests.

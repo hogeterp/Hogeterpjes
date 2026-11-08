@@ -25,6 +25,65 @@ service cloud.firestore {
       );
     }
 
+    // Verify the profile name against invitations that only the admin can edit.
+    // A user changing their own profile must not gain access to their surprises.
+    function purchaseName() {
+      return isAdmin() ? 'Rinze' : profileName();
+    }
+    function purchaseMember() {
+      return signedIn() && (isAdmin() || (isInvited() && (
+        {'name': profileName(), 'email': request.auth.token.email, 'active': true} in settings().accounts ||
+        {'name': profileName(), 'email': request.auth.token.email} in settings().accounts
+      )));
+    }
+    function purchaseViewer(person) {
+      return purchaseMember() && purchaseName() != person;
+    }
+    function purchaseStatus(person, wishId) {
+      return /databases/$(database)/documents/wishPurchases/$(person)/statuses/$(wishId);
+    }
+    function purchaseLock(person, wishId) {
+      return /databases/$(database)/documents/wishPurchases/$(person)/locks/$(wishId);
+    }
+    function purchaseClaim(person, wishId) {
+      return /databases/$(database)/documents/wishPurchaseClaims/$(request.auth.uid)/items/$(person + '|' + wishId);
+    }
+    function validPurchaseAfter(person, wishId) {
+      let status = getAfter(purchaseStatus(person, wishId)).data;
+      let lock = getAfter(purchaseLock(person, wishId)).data;
+      let claim = getAfter(purchaseClaim(person, wishId)).data;
+      return status.keys().hasOnly(['status']) && status.status in ['reserved', 'bought'] &&
+        lock.keys().hasOnly(['buyerUid']) && lock.buyerUid == request.auth.uid &&
+        claim.keys().hasOnly(['person', 'wishId', 'status']) &&
+        claim.person == person && claim.wishId == wishId && claim.status == status.status;
+    }
+    function purchaseReleased(person, wishId) {
+      return !existsAfter(purchaseStatus(person, wishId)) &&
+        !existsAfter(purchaseLock(person, wishId)) && !existsAfter(purchaseClaim(person, wishId));
+    }
+    match /wishPurchases/{person}/statuses/{wishId} {
+      allow read: if purchaseViewer(person);
+      allow create: if purchaseViewer(person) && !exists(purchaseLock(person, wishId)) && validPurchaseAfter(person, wishId);
+      allow update: if purchaseViewer(person) && get(purchaseLock(person, wishId)).data.buyerUid == request.auth.uid && validPurchaseAfter(person, wishId);
+      allow delete: if purchaseViewer(person) && get(purchaseLock(person, wishId)).data.buyerUid == request.auth.uid && purchaseReleased(person, wishId);
+    }
+    match /wishPurchases/{person}/locks/{wishId} {
+      allow get: if purchaseViewer(person) && (!exists(purchaseLock(person, wishId)) || resource.data.buyerUid == request.auth.uid);
+      allow list: if false;
+      allow create: if purchaseViewer(person) && !exists(purchaseStatus(person, wishId)) && validPurchaseAfter(person, wishId);
+      allow update: if purchaseViewer(person) && resource.data.buyerUid == request.auth.uid && validPurchaseAfter(person, wishId);
+      allow delete: if purchaseViewer(person) && resource.data.buyerUid == request.auth.uid && purchaseReleased(person, wishId);
+    }
+    match /wishPurchaseClaims/{userId}/items/{claimId} {
+      allow read: if purchaseMember() && request.auth.uid == userId;
+      allow create, update: if purchaseMember() && request.auth.uid == userId &&
+        claimId == request.resource.data.person + '|' + request.resource.data.wishId &&
+        purchaseViewer(request.resource.data.person) &&
+        validPurchaseAfter(request.resource.data.person, request.resource.data.wishId);
+      allow delete: if purchaseMember() && request.auth.uid == userId &&
+        purchaseViewer(resource.data.person) && purchaseReleased(resource.data.person, resource.data.wishId);
+    }
+
     match /appAdmin/settings {
       allow read: if isAdmin() || isInvited();
       allow create, update, delete: if isAdmin();
