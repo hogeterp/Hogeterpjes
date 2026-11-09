@@ -426,8 +426,22 @@ function updateDiaryAccess(){
   if(!allowed && page?.classList.contains("active")) navigate("home");
 }
 
+function wishEditorPeople(){
+  if(!currentUser)return [];
+  const person=purchasePersonName();
+  return person==="Tessa" ? ["Tessa","Rivaldo"] : (person ? [person] : []);
+}
 function canManageWish(wish){
-  return wish.person===currentPersonName();
+  return !!wish && wishEditorPeople().includes(wish.person);
+}
+function fillWishPeople(selected=wishPerson.value){
+  const editing=data.wishes.find(w=>w.id===wishEditId.value);
+  const people=editing&&canManageWish(editing)?[editing.person]:wishEditorPeople();
+  wishPerson.innerHTML=people.map(person=>`<option value="${escapeHtml(person)}">${escapeHtml(person)}</option>`).join("");
+  wishPerson.value=people.includes(selected)?selected:(people[0]||"");
+  wishPerson.disabled=!!editing || people.length<=1;
+  const note=document.getElementById("wishDelegateNote");
+  if(note)note.classList.toggle("hidden",purchasePersonName()!=="Tessa");
 }
 
 function householdById(id){ return data.households.find(h=>h.id===id); }
@@ -1050,9 +1064,9 @@ function renderWishes(){
   const unavailable=pending.some(w=>wishPurchases?.state(w.person,w.id)?.error);
   const emptyMessage=pending.length?(unavailable?'Wensen konden niet worden geladen. Vernieuw de pagina om het opnieuw te proberen.':'Wensen laden…'):'Geen wensen om te tonen.';
   wishPageTitle.textContent=selected?`Wensen van ${selected}`:"Alle wensen";
-  wishPrivacyNote.textContent="Je eigen wensen blijven voor jou zichtbaar, zonder aankoopinformatie. Een gereserveerde of gekochte wens is verder alleen zichtbaar voor degene die hem reserveert of koopt. Na vrijgeven verschijnt hij weer voor anderen.";
+  wishPrivacyNote.textContent=(purchasePersonName()==="Tessa"?"Je kunt ook wensen voor Rivaldo toevoegen en bewerken. ":"")+"Je eigen wensen blijven voor jou zichtbaar, zonder aankoopinformatie. Een gereserveerde of gekochte wens is verder alleen zichtbaar voor degene die hem reserveert of koopt. Na vrijgeven verschijnt hij weer voor anderen.";
   wishPersonFilter.classList.remove("hidden");
-  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${own?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button><button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button></div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${wishPurchaseControls(w)}</article>`}).join(""):`<div class="card muted">${emptyMessage}</div>`;
+  wishList.innerHTML=rows.length?rows.map(w=>{const own=w.person===currentPersonName();return `<article class="item-card"><div class="wish-card-head"><div><h3>${escapeHtml(w.person)} · ${escapeHtml(w.title)}</h3><div class="meta">${w.price?`€ ${Number(w.price).toLocaleString("nl-NL",{minimumFractionDigits:2})}`:""}</div></div>${canManageWish(w)?`<div class="wish-owner-actions"><button class="mini-btn" type="button" onclick="openWishDialog('${w.id}')">Bewerken</button>${own?`<button class="mini-btn danger-mini" type="button" onclick="deleteWish('${w.id}')">Verwijderen</button>`:""}</div>`:""}</div>${w.photo?`<img class="wish-photo" src="${w.photo}" alt="${escapeHtml(w.title)}">`:""}${w.note?`<p>${escapeHtml(w.note)}</p>`:""}${w.link?`<a href="${w.link}" target="_blank" rel="noopener">Bekijk winkel</a>`:""}${wishPurchaseControls(w)}</article>`}).join(""):`<div class="card muted">${emptyMessage}</div>`;
 }
 
 function privateGiftIdeasCollection(){
@@ -1415,11 +1429,10 @@ function fillSelects(){
   recipeAuthor.innerHTML=opts;
 
   const safeName=currentPersonName() || "Familielid";
-  wishPerson.innerHTML=`<option>${safeName}</option>`;
-  wishPerson.value=safeName;
-  wishPerson.disabled=true;
+  fillWishPeople();
+  const selectedWishPerson=wishPersonFilter.value;
   wishPersonFilter.innerHTML=`<option value="">Alle familieleden</option>`+data.family.map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
-  if(!wishPersonFilter.value) wishPersonFilter.value=safeName;
+  wishPersonFilter.value=data.family.some(p=>p.name===selectedWishPerson)?selectedWishPerson:safeName;
 }
 function renderProfile(){
   const name=currentUser?.displayName || currentUser?.name || "Niet ingelogd";
@@ -2191,14 +2204,19 @@ function openNewRecipeDialog(){
 
 addRecipeBtn.onclick=openNewRecipeDialog;
 function openWishDialog(id=""){
-  fillSelects(); wishForm.reset(); resetWishPhoto();
   const wish=id ? data.wishes.find(w=>w.id===id) : null;
-  wishEditId.value=wish?.id || ""; wishDialogTitle.textContent=wish ? "Wens bewerken" : "Wens toevoegen"; wishPerson.value=currentPersonName();
-  if(wish && canManageWish(wish)){ wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
+  if((id&&!wish) || (wish&&!canManageWish(wish)))return;
+  const selected=wishPersonFilter.value;
+  wishForm.reset(); resetWishPhoto();
+  wishEditId.value=wish?.id||"";
+  fillSelects();
+  fillWishPeople(wish?.person||selected);
+  wishDialogTitle.textContent=wish ? "Wens bewerken" : "Wens toevoegen";
+  if(wish){ wishForm.elements.title.value=wish.title||""; wishForm.elements.price.value=wish.price||""; wishForm.elements.link.value=wish.link||""; wishForm.elements.note.value=wish.note||""; if(wish.photo) setWishPhoto(wish.photo); }
   wishDialog.showModal();
 }
 window.openWishDialog=openWishDialog;
-addWishBtn.onclick=openWishDialog;
+addWishBtn.onclick=()=>openWishDialog();
 document.querySelector('[data-action="add-recipe"]').onclick=()=>setTimeout(openNewRecipeDialog,150);
 document.querySelector('[data-action="add-wish"]').onclick=()=>setTimeout(openWishDialog,150);
 if(window.addOutingBtn) addOutingBtn.onclick=()=>openOutingDialog();
@@ -2300,11 +2318,14 @@ deleteRecipeBtn.onclick=()=>{
 wishForm.onsubmit=async e=>{
   e.preventDefault();
   const f=new FormData(wishForm);
-  const person=wishPerson.value || currentPersonName();
+  const person=wishPerson.value || purchasePersonName();
   if(!person){ alert("Je account is nog niet aan een familielid gekoppeld."); return; }
   const editId=wishEditId.value;
   const existing=editId ? data.wishes.find(w=>w.id===editId) : null;
-  if(existing && !canManageWish(existing)) return;
+  if(!wishEditorPeople().includes(person) || (editId&&!existing) || (existing&&(!canManageWish(existing)||person!==existing.person))){
+    showSaveWarning("Je kunt deze wens niet voor dit familielid opslaan.");
+    return;
+  }
   const id=existing?.id||crypto.randomUUID();
   let photo=wishPhotoData.value;
   try{
@@ -2320,6 +2341,7 @@ wishForm.onsubmit=async e=>{
   const record={id,person,occasion:existing?.occasion||"",title:f.get("title"),price:f.get("price"),link:f.get("link"),note:f.get("note"),photo,createdBy:existing?.createdBy||currentUser?.uid||"",addedByName:existing?.addedByName||currentPersonName(),createdAt:existing?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(existing) Object.assign(existing,record); else data.wishes.unshift(record);
   wishForm.reset(); wishEditId.value=""; resetWishPhoto(); wishDialog.close(); saveData();
+  wishPersonFilter.value=person; renderWishes();
 };
 
 
@@ -2559,7 +2581,7 @@ simpleForm.onsubmit=e=>{
 
 window.deleteWish=id=>{
   const wish=data.wishes.find(w=>w.id===id);
-  if(!wish || !canManageWish(wish)) return;
+  if(!wish || wish.person!==purchasePersonName()) return;
   if(!confirm(`Wens "${wish.title}" verwijderen?`)) return;
   data.wishes=data.wishes.filter(w=>w.id!==id);
   saveData();
@@ -3609,7 +3631,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.53");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.54");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{

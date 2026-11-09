@@ -1,3 +1,9 @@
+## v1.3.54 – Tessa kan Rivaldo helpen met zijn wensen
+- Tessa kan bij + Wens kiezen tussen Tessa en Rivaldo.
+- Tessa kan zichtbare wensen van Rivaldo bewerken; alleen Rivaldo kan ze verwijderen.
+- Een bestaande wens blijft bij bewerken op dezelfde naam staan.
+- Aankoopinformatie blijft gekoppeld aan het eigen account; Firebase-regels zijn ongewijzigd.
+
 ## v1.3.53 – Cadeauwensen blijven een verrassing
 - Een bezette wens verdwijnt voor andere familieleden, ook bij cadeau-evenementen.
 - De eigenaar blijft zijn eigen wens zien zonder aankoopinformatie.
