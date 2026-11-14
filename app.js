@@ -646,12 +646,20 @@ function showWeekMealFields(){
   weekMealRecipe.required=!manual;
 }
 
-// Recheck the date when the app is reopened or remains open across midnight.
+// Recheck local dates when the app is reopened or remains open across midnight.
+let lastTodoRenderDay="";
+function refreshDatedTodos(){
+  if(isoDate(new Date())===lastTodoRenderDay)return;
+  renderPrivateTodos();
+  renderHome();
+}
 document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden) renderWeekmenu();
+  if(!document.hidden){renderWeekmenu();refreshDatedTodos();}
 });
 setInterval(()=>{
-  if(!document.hidden && isoDate(new Date())!==lastWeekmenuRenderDay) renderWeekmenu();
+  if(document.hidden)return;
+  if(isoDate(new Date())!==lastWeekmenuRenderDay)renderWeekmenu();
+  refreshDatedTodos();
 },60000);
 
 function fillWeekMealRecipes(){
@@ -1156,7 +1164,18 @@ function normalizeTodoPriority(priority){
 }
 function todoPriorityLabel(priority){ return ({urgent:"🚨 Dringend",high:"🔴 Hoog",normal:"🟡 Normaal",low:"🟢 Laag"})[normalizeTodoPriority(priority)]; }
 function todoPriorityRank(priority){ return ({urgent:0,high:1,normal:2,low:3})[normalizeTodoPriority(priority)]; }
-function compareTodosByPriorityThenDate(a,b){
+function todoDateReached(todo,today=isoDate(new Date())){
+  return !todo.completed && typeof todo.date==="string" && /^\d{4}-\d{2}-\d{2}$/.test(todo.date) && todo.date<=today;
+}
+function compareTodosByPriorityThenDate(a,b,today=isoDate(new Date())){
+  if(Boolean(a.completed)!==Boolean(b.completed)) return Number(Boolean(a.completed))-Number(Boolean(b.completed));
+  const dueOrder=Number(todoDateReached(b,today))-Number(todoDateReached(a,today));
+  if(dueOrder!==0)return dueOrder;
+  // Keep due tasks chronological; their stored priority and label do not change.
+  if(todoDateReached(a,today)&&todoDateReached(b,today)){
+    const dateOrder=(a.date+" "+(a.time||"")).localeCompare(b.date+" "+(b.time||""));
+    if(dateOrder!==0)return dateOrder;
+  }
   const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
   if(priorityOrder!==0) return priorityOrder;
   const ad=(a.date||"9999-12-31")+" "+(a.time||"");
@@ -1166,10 +1185,9 @@ function compareTodosByPriorityThenDate(a,b){
 function renderPrivateTodos(){
   if(!window.todoList) return;
   const showCompleted=window.todoShowCompleted?.checked ?? true;
-  const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>{
-    if(Boolean(a.completed)!==Boolean(b.completed)) return Number(a.completed)-Number(b.completed);
-    return compareTodosByPriorityThenDate(a,b);
-  });
+  const today=isoDate(new Date());
+  lastTodoRenderDay=today;
+  const rows=(privateTodos||[]).filter(t=>showCompleted || !t.completed).sort((a,b)=>compareTodosByPriorityThenDate(a,b,today));
   todoList.innerHTML=rows.length?rows.map(t=>`<article class="item-card todo-card ${t.completed?"todo-done":""}">
     <label class="todo-check"><input type="checkbox" ${t.completed?"checked":""} onchange="togglePrivateTodo('${t.id}',this.checked)"><span><strong>${escapeHtml(t.title)}</strong><small>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</small></span></label>
     ${t.note?`<p>${escapeHtml(t.note).replaceAll("\n","<br>")}</p>`:""}
@@ -1408,13 +1426,8 @@ function renderHome(){
   `).join("") : `<p class="muted">Alle boodschappen zijn afgevinkt.</p>`;
 
   if(window.dashboardTodos){
-    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>{
-      const priorityOrder=todoPriorityRank(a.priority)-todoPriorityRank(b.priority);
-      if(priorityOrder!==0) return priorityOrder;
-      const ad=(a.date||"9999-12-31")+" "+(a.time||"");
-      const bd=(b.date||"9999-12-31")+" "+(b.time||"");
-      return ad.localeCompare(bd);
-    }).slice(0,5);
+    const today=isoDate(new Date());
+    const upcoming=(privateTodos||[]).filter(t=>!t.completed).sort((a,b)=>compareTodosByPriorityThenDate(a,b,today)).slice(0,5);
     dashboardTodos.innerHTML=upcoming.length ? upcoming.map(t=>`<div class="dashboard-row"><div><strong>${escapeHtml(t.title)}</strong><span>${todoPriorityLabel(t.priority)}${t.date?` · ${fmtDate(t.date)}`:""}${t.time?` · ${escapeHtml(t.time)}`:""}</span></div></div>`).join("") : `<p class="muted">Geen openstaande taken.</p>`;
   }
 
@@ -3631,7 +3644,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.54");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.55");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
