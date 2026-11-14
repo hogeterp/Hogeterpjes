@@ -1,3 +1,10 @@
+## v1.3.55 – Open taken vanaf hun datum bovenaan
+- Open taken met een datum vandaag of eerder komen bovenaan in Mijn taken en op Home.
+- Oudste open taak eerst; afgevinkte taken blijven onderaan en verdwijnen van Home.
+- De ingestelde prioriteit en het label veranderen niet.
+- De volgorde wordt bijgewerkt na een dagwisseling en bij terugkeren naar de app.
+- Geen wijzigingen aan opgeslagen taken of Firebase-regels.
+
 ## v1.3.54 – Tessa kan Rivaldo helpen met zijn wensen
 - Tessa kan bij + Wens kiezen tussen Tessa en Rivaldo.
 - Tessa kan zichtbare wensen van Rivaldo bewerken; alleen Rivaldo kan ze verwijderen.
