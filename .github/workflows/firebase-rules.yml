@@ -4,6 +4,8 @@ on:
     branches: [main]
     paths:
       - wish-purchases.js
+      - family-roster.js
+      - tests/app/family-roster.cjs
       - tests/app/wish-purchases-state.cjs
       - firestore.rules
       - storage.rules
@@ -13,6 +15,8 @@ on:
   pull_request:
     paths:
       - wish-purchases.js
+      - family-roster.js
+      - tests/app/family-roster.cjs
       - tests/app/wish-purchases-state.cjs
       - firestore.rules
       - storage.rules
@@ -63,6 +67,8 @@ jobs:
         run: python3 tests/firebase/release_test.py
       - name: Test purchase listener isolation and logout
         run: node tests/app/wish-purchases-state.cjs
+      - name: Test family roster migration and validation
+        run: node tests/app/family-roster.cjs
       - name: Install isolated emulator test dependencies
         working-directory: tests/firebase
         run: npm ci --no-audit --no-fund

@@ -1,3 +1,9 @@
+## v1.3.56 – Familielid toevoegen, alleen voor Rinze
+- Nieuwe toevoegknop bij Familie en Accountbeheer voor het beheerdersaccount.
+- Naam en geboortedatum invullen; e-mailadres optioneel. Daarna uitnodigen.
+- Beveiligde familielijst in appAdmin/settings.familyMembers, met bestaande admin-only regels.
+- Gedeelde updates kunnen die lijst niet overschrijven. Dubbele namen worden transactioneel voorkomen.
+
 ## v1.3.55 – Open taken vanaf hun datum bovenaan
 - Open taken met een datum vandaag of eerder komen bovenaan in Mijn taken en op Home.
 - Oudste open taak eerst; afgevinkte taken blijven onderaan en verdwijnen van Home.

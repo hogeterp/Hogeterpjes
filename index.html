@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#3f6f5a">
   <title>Hogeterpjes</title>
-  <link rel="manifest" href="manifest.json?v=1.3.55">
-  <link rel="stylesheet" href="style.css?v=1.3.55">
+  <link rel="manifest" href="manifest.json?v=1.3.56">
+  <link rel="stylesheet" href="style.css?v=1.3.56">
 </head>
 <body>
 
@@ -14,7 +14,7 @@
     <div class="login-card">
       <img class="brand-logo login-brand-logo" src="logo.jpg" alt="Hogeterpjes-logo">
       <p class="eyebrow">Familie-app</p>
-      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.55</span></div>
+      <div class="title-with-version"><h1>Hogeterpjes</h1><span class="app-version">v1.3.56</span></div>
       <p class="login-intro">Log in met je eigen account. Daarna weet de app wie je bent en welke gegevens bij jou horen.</p>
 
       <form id="loginForm">
@@ -36,7 +36,7 @@
       <div>
         <p class="eyebrow" id="topGreeting">Familie-app</p>
         <div class="title-with-version">
-          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.55</span></div></div>
+          <div class="top-brand"><img class="brand-logo small-logo" src="logo.jpg" alt=""><div><h1>Hogeterpjes</h1><span class="app-version">v1.3.56</span></div></div>
         </div>
       </div>
       <div class="top-actions">
@@ -148,6 +148,7 @@
       <section class="page" data-page="familie">
         <div class="page-head">
           <div><p class="eyebrow">Onze familie</p><h2>Familieleden</h2></div>
+          <button id="addFamilyBtn" type="button" class="primary-btn hidden">+ Familielid</button>
         </div>
         <div id="familyList" class="list-grid"></div>
       </section>
@@ -418,7 +419,7 @@
 
       <section class="page" data-page="beheer">
         <div class="page-head"><div><p class="eyebrow">Alleen voor Rinze</p><h2>Accountbeheer</h2></div></div>
-        <div class="card settings"><h3>Familielid uitnodigen</h3><p>Vul het e-mailadres in. Het familielid maakt daarna zelf een wachtwoord.</p>
+        <div class="card settings"><h3>Familielid uitnodigen</h3><button id="addFamilyFromAdminBtn" type="button" class="secondary-btn wide hidden">+ Familielid toevoegen</button><p>Vul het e-mailadres in. Het familielid maakt daarna zelf een wachtwoord.</p>
           <form id="inviteForm"><label>Familielid<select id="inviteName" required></select></label><label>E-mailadres<input id="inviteEmail" type="email" required></label><button class="primary-btn wide" type="submit">Uitnodiging klaarzetten</button></form><p id="inviteMessage" class="login-message"></p></div>
         <div class="card settings"><div class="section-head"><div><p class="eyebrow">Toegang</p><h3>Uitgenodigde accounts</h3></div></div><div id="accountList"></div></div>
       </section>
@@ -929,12 +930,13 @@
 
   <dialog id="familyEditDialog" class="modal">
     <form id="familyEditForm" method="dialog">
-      <div class="sheet-head"><h3>Familielid bewerken</h3><button type="button" data-close>✕</button></div>
+      <div class="sheet-head"><h3 id="familyEditTitle">Familielid bewerken</h3><button type="button" data-close>✕</button></div>
       <input id="familyEditOriginalName" type="hidden">
-      <label>Naam<input id="familyEditName" required></label>
+      <label>Naam<input id="familyEditName" required maxlength="80"></label>
       <label>Geboortedatum<input id="familyEditBirth" type="date" required></label>
       <label>E-mailadres<input id="familyEditEmail" type="email"></label>
-      <button class="primary-btn wide" type="submit">Wijzigingen opslaan</button>
+      <p class="muted">Toevoegen maakt nog geen inlogaccount aan. Zet daarna bij Accountbeheer een uitnodiging klaar.</p>
+      <button id="familyEditSaveBtn" class="primary-btn wide" type="submit">Wijzigingen opslaan</button>
       <p id="familyEditMessage" class="login-message"></p>
     </form>
   </dialog>
@@ -995,8 +997,9 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-storage-compat.js"></script>
-  <script src="firebase-config.js?v=1.3.55"></script>
-  <script src="wish-purchases.js?v=1.3.55"></script>
-  <script src="app.js?v=1.3.55"></script>
+  <script src="firebase-config.js?v=1.3.56"></script>
+  <script src="wish-purchases.js?v=1.3.56"></script>
+  <script src="family-roster.js?v=1.3.56"></script>
+  <script src="app.js?v=1.3.56"></script>
 </body>
 </html>

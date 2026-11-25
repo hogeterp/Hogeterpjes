@@ -1,0 +1,31 @@
+const assert=require('node:assert/strict');
+const {member,list,save}=require('../../family-roster.js');
+(async()=>{
+ assert.deepEqual(member({name:' Niels ',birth:'2000-02-29',email:' NIELS@example.test '}),{name:'Niels',birth:'2000-02-29',email:'niels@example.test'});
+ for(const input of [{name:'',birth:'2000-01-01'},{name:'A/B',birth:'2000-01-01'},{name:'X',birth:'2026-02-30'},{name:'X',birth:''},{name:'X',birth:'2000-01-01',email:'geen-adres'}])assert.throws(()=>member(input));
+ assert.deepEqual(list({'1':{name:'B'},'0':{name:'A'}}),[{name:'A'},{name:'B'}]);
+ const original=[{name:'Rinze',birth:'1966-01-01',email:'admin@example.test'},{name:'Tessa',birth:'2000-01-01',email:''}];
+ const store={'appAdmin/settings':{accounts:[{name:'Rinze',email:'admin@example.test',active:true}],allowedEmails:['admin@example.test'],unrelated:'keep'},'appData/hogeterpjes':{family:structuredClone(original),wishes:[{id:'keep-wish'}]}};
+ const db={doc:path=>({path}),runTransaction:async fn=>{
+  const writes=[];
+  const result=await fn({get:async ref=>({data:()=>structuredClone(store[ref.path])}),set:(ref,data,opts)=>writes.push([ref.path,structuredClone(data),opts])});
+  for(const [path,data,opts]of writes)store[path]=opts?.merge?{...store[path],...data}:data;
+  return result;
+ }};
+ const result=await save(db,{name:'Niels',birth:'2001-02-03',email:''});
+ assert.equal(result.family.length,3);
+ assert.deepEqual(store['appData/hogeterpjes'],{family:original,wishes:[{id:'keep-wish'}]},'migration never overwrites shared data');
+ assert.equal(store['appAdmin/settings'].unrelated,'keep');
+ assert.equal(store['appAdmin/settings'].accounts.length,1,'adding family does not create an account');
+ const before=JSON.stringify(store);
+ await assert.rejects(save(db,{name:' nIELs ',birth:'2001-02-03'}),/bestaat al/);
+ assert.equal(JSON.stringify(store),before,'duplicate does not partly update state');
+ await assert.rejects(save(db,{name:'Onbekend',birth:'2001-02-03'},'Missing'),/bestaat niet meer/);
+ await save(db,{name:'Niels',birth:'2001-02-04',email:'niels@example.test'},'Niels');
+ assert.equal(store['appAdmin/settings'].familyMembers.length,3);
+ store['appAdmin/settings'].accounts.push({name:'Niels',email:'niels@example.test',active:true});
+ await save(db,{name:'Niels Nieuw',birth:'2001-02-04',email:'niels@example.test'},'Niels');
+ assert.equal(store['appAdmin/settings'].accounts[1].name,'Niels Nieuw');
+ assert.equal(store['appAdmin/settings'].familyMembers[2].name,'Niels Nieuw');
+ console.log('PASS family validation, legacy migration, preservation, duplicates, edit/rename and no automatic invitation');
+})().catch(e=>{console.error(e);process.exit(1)});
