@@ -78,6 +78,7 @@ const fs=require('node:fs');
  await no('member cannot upload unknown storage path',()=>uploadBytes(obj('member','unknown/test'),bytes));
  await no('member cannot list bucket root',()=>listAll(obj('member','')));
  count+=await require('./wish-purchases.cjs')(env);
+ count+=await require('./family-roster.cjs')(env);
  console.log(`${count} emulator checks passed; only synthetic demo data used.`);
  }finally{await env.cleanup()}
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -68,3 +68,22 @@ preventing a loading flash. A released wish reappears automatically.
 This is a presentation change, not additional database secrecy: shared wish data
 and anonymous status remain readable by the same accounts as before. Someone
 who saw a wish before can notice its disappearance. No rules migration is needed.
+
+## Admin-managed family roster (v1.3.56)
+
+The authoritative roster is appAdmin/settings.familyMembers. Existing deployed
+rules already restrict all writes to that document to Rinze's admin email. No
+new rules or deployment credentials are required. Adding/editing uses a transaction:
+when the protected roster is absent, the latest shared legacy family is copied
+without losing members; otherwise only the protected roster is used. Duplicate
+names are rejected inside the transaction, including concurrent additions.
+
+The app resolves the protected roster before applying shared data and subscribes
+to subsequent changes. Legacy appData.family writes cannot override this source
+in updated clients. New clients omit family from ordinary shared-data writes.
+Older app versions may keep showing the legacy list until refreshed; this change
+does not claim to prohibit all writes to that legacy field. Settings updates use
+merge semantics so that invitations preserve the roster. Adding family is separate
+from creating an invitation or Authentication account. UI actions check the admin
+email, never a self-editable display name; the emulator suite verifies that actual
+non-admin tokens cannot write the protected field even through direct calls.

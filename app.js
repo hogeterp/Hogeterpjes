@@ -57,6 +57,8 @@ let wishPurchasesUid="";
 const pendingWishPurchases=new Set();
 let privateGiftIdeas=[];
 let privateGiftIdeasUnsubscribe=null;
+let managedFamily=null;
+let managedFamilyUnsubscribe=null;
 let privateTodos=[];
 let privateTodosUnsubscribe=null;
 let coupleIdeasUnsubscribe=null;
@@ -178,7 +180,8 @@ async function pushDataToCloud(){
   if(!db || !currentUser || !cloudReady || sharedPhotoMigrationRunning) return;
   try{
     setSyncStatus("Wijzigingen opslaan…");
-    const {events,weekMenus,...sharedData}=data;
+    const {events,weekMenus,family,...sharedData}=data;
+    if(!managedFamily && isAdmin())sharedData.family=family;
     await db.doc(SHARED_DATA_DOC).set({
       ...sharedData,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -341,7 +344,7 @@ function subscribeToCloudData(){
 
         applyingRemote=true;
         data={
-          family:cloudList(remote.family) || cloneDefaults().family,
+          family:managedFamily ? managedFamily.map(p=>({...p})) : (cloudList(remote.family) || cloneDefaults().family),
           households:cloudList(remote.households) || cloneDefaults().households,
           recipes:remoteRecipes || [],
           groceries:cloudList(remote.groceries) || [],
@@ -811,10 +814,11 @@ function closeDialogs(){ document.querySelectorAll("dialog[open]").forEach(d=>d.
 
 function renderFamily(){
   const admin=isAdmin();
+  if(window.addFamilyBtn){addFamilyBtn.classList.toggle("hidden",!admin);addFamilyBtn.disabled=!admin;}
   familyList.innerHTML=data.family.map(p=>`<article class="item-card">
     <div class="family-card-head">
-      <div><h3>${p.name}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar${p.email?`<br>${p.email}`:""}</div></div>
-      ${admin?`<button class="mini-btn" type="button" onclick="openFamilyEditor('${p.name.replaceAll("'","\\'")}')">Bewerken</button>`:""}
+      <div><h3>${escapeHtml(p.name)}</h3><div class="meta">${fmtDate(p.birth)} · ${ageFor(p.birth)} jaar${p.email?`<br>${escapeHtml(p.email)}`:""}</div></div>
+      ${admin?`<button class="mini-btn" type="button" data-family-edit="${escapeHtml(p.name)}">Bewerken</button>`:""}
     </div>
   </article>`).join("");
 }
@@ -2681,11 +2685,15 @@ function isAdmin(){ return (currentUser?.email || "").toLowerCase()===ADMIN_EMAI
 
 async function loadAdminSettings(){
   if(!db || !firebase.auth().currentUser) return;
+  const uid=firebase.auth().currentUser.uid;
   try{
     const ref=db.doc(ADMIN_DOC);
     const snap=await ref.get();
+    if(firebase.auth().currentUser?.uid!==uid)return;
     if(snap.exists){
       const remote=snap.data();
+      const roster=cloudList(remote.familyMembers);
+      if(roster){managedFamily=roster.map(p=>({...p}));data.family=managedFamily.map(p=>({...p}));}
       const accounts=Array.isArray(remote.accounts)?remote.accounts:[];
       const emailsFromAccounts=accounts
         .filter(a=>a && a.active!==false && a.email)
@@ -2712,11 +2720,45 @@ async function loadAdminSettings(){
   }catch(err){ console.warn("Accountinstellingen laden mislukt",err); }
 }
 
-async function saveAdminSettings(){
+function stopManagedFamily(){
+  if(managedFamilyUnsubscribe)managedFamilyUnsubscribe();
+  managedFamilyUnsubscribe=null;managedFamily=null;
+}
+function subscribeManagedFamily(){
+  if(managedFamilyUnsubscribe)managedFamilyUnsubscribe();
+  if(!db||!currentUser)return;
+  const uid=currentUser.uid;
+  let active=true;
+  const unsubscribe=db.doc(ADMIN_DOC).onSnapshot(snapshot=>{
+    if(!active||currentUser?.uid!==uid)return;
+    const remote=snapshot.data()||{};
+    const roster=cloudList(remote.familyMembers);
+    if(!roster)return;
+    managedFamily=roster.map(p=>({...p}));
+    data.family=managedFamily.map(p=>({...p}));
+    if(Array.isArray(remote.accounts))adminSettings.accounts=remote.accounts;
+    const mapped=adminSettings.accounts?.find(a=>normalizeEmail(a.email)===normalizeEmail(currentUser.email));
+    if(mapped)currentUser.displayName=mapped.name;
+    try{localStorage.setItem(KEY,JSON.stringify(data));}catch(_){}
+    syncWishPurchases();renderAll();
+  },()=>{if(active&&currentUser?.uid===uid)showSaveWarning("De familielijst kon niet worden bijgewerkt. Vernieuw de pagina.");});
+  managedFamilyUnsubscribe=()=>{active=false;unsubscribe();};
+}
+async function saveAdminSettings(memberEmail=null){
   if(!db || !isAdmin()) throw new Error("Alleen de beheerder kan dit wijzigen.");
   adminSettings.allowedEmails=adminSettings.accounts.filter(a=>a.active!==false && a.email).map(a=>a.email.toLowerCase());
   if(!adminSettings.allowedEmails.includes(ADMIN_EMAIL)) adminSettings.allowedEmails.push(ADMIN_EMAIL);
-  await db.doc(ADMIN_DOC).set(adminSettings,{merge:false});
+  const payload={allowedEmails:adminSettings.allowedEmails,accounts:adminSettings.accounts};
+  const ref=db.doc(ADMIN_DOC);
+  if(memberEmail){
+    await db.runTransaction(async transaction=>{
+      const remote=(await transaction.get(ref)).data()||{};
+      const roster=cloudList(remote.familyMembers);
+      const fields={...payload};
+      if(roster)fields.familyMembers=roster.map(p=>p.name===memberEmail.name?{...p,email:memberEmail.email}:p);
+      transaction.set(ref,fields,{merge:true});
+    });
+  }else await ref.set(payload,{merge:true});
   renderAccountManagement();
 }
 
@@ -2724,7 +2766,10 @@ function renderAccountManagement(){
   const adminVisible=isAdmin();
   document.querySelectorAll('.admin-only').forEach(el=>el.classList.toggle('visible',adminVisible));
   if(!window.inviteName || !window.accountList) return;
-  inviteName.innerHTML=data.family.map(p=>`<option>${p.name}</option>`).join('');
+  if(window.addFamilyFromAdminBtn){addFamilyFromAdminBtn.classList.toggle("hidden",!adminVisible);addFamilyFromAdminBtn.disabled=!adminVisible;}
+  const selected=inviteName.value;
+  inviteName.innerHTML=data.family.map(p=>`<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
+  if(data.family.some(p=>p.name===selected))inviteName.value=selected;
   accountList.innerHTML=adminVisible ? (adminSettings.accounts||[]).map(a=>`<div class="account-row"><div><strong>${a.name}</strong><span>${a.email}</span><span class="status-invite">${a.active===false?'Toegang geblokkeerd':'Mag zelf een account maken'}</span></div><div class="account-actions">${a.email.toLowerCase()===ADMIN_EMAIL?'👑':`<button class="mini-btn" onclick="toggleAccountAccess('${a.email.replaceAll("'","\\'")}')">${a.active===false?'Activeren':'Blokkeren'}</button><button class="mini-btn" onclick="removeInvite('${a.email.replaceAll("'","\\'")}')">Verwijder</button>`}</div></div>`).join('') : '<p class="muted">Alleen Rinze kan accounts beheren.</p>';
 }
 
@@ -2807,54 +2852,48 @@ deleteHouseholdBtn.onclick=()=>{
   saveData();
 };
 
-window.openFamilyEditor=name=>{
-  if(!isAdmin()) return;
-  const member=data.family.find(p=>p.name===name);
-  if(!member) return;
-  familyEditOriginalName.value=member.name;
-  familyEditName.value=member.name;
-  familyEditBirth.value=member.birth;
-  familyEditEmail.value=member.email||"";
+window.openFamilyEditor=(name="")=>{
+  if(!isAdmin())return;
+  const member=name?data.family.find(p=>p.name===name):null;
+  if(name&&!member)return;
+  familyEditForm.reset();
+  familyEditOriginalName.value=member?.name||"";
+  familyEditName.value=member?.name||"";
+  familyEditBirth.value=member?.birth||"";
+  familyEditEmail.value=member?.email||"";
+  familyEditTitle.textContent=member?"Familielid bewerken":"Familielid toevoegen";
+  familyEditSaveBtn.textContent=member?"Wijzigingen opslaan":"Familielid toevoegen";
   familyEditMessage.textContent="";
   familyEditDialog.showModal();
 };
-
-familyEditForm.onsubmit=e=>{
+if(window.addFamilyBtn)addFamilyBtn.onclick=()=>openFamilyEditor();
+if(window.addFamilyFromAdminBtn)addFamilyFromAdminBtn.onclick=()=>openFamilyEditor();
+familyList.addEventListener('click',event=>{const button=event.target.closest('[data-family-edit]');if(button)openFamilyEditor(button.dataset.familyEdit);});
+familyEditForm.onsubmit=async e=>{
   e.preventDefault();
-  if(!isAdmin()){
-    familyEditMessage.textContent="Alleen Rinze kan familiegegevens aanpassen.";
-    return;
-  }
+  if(!isAdmin()){familyEditMessage.textContent="Alleen Rinze kan familiegegevens aanpassen.";return;}
+  if(familyEditSaveBtn.disabled)return;
+  if(!db){familyEditMessage.textContent="Geen verbinding met Firebase. Probeer het opnieuw.";return;}
+  const uid=currentUser.uid;
   const original=familyEditOriginalName.value;
-  const member=data.family.find(p=>p.name===original);
-  if(!member) return;
-
-  const newName=familyEditName.value.trim();
-  if(!newName){
-    familyEditMessage.textContent="Vul een naam in.";
-    return;
-  }
-  if(data.family.some(p=>p!==member && p.name.toLowerCase()===newName.toLowerCase())){
-    familyEditMessage.textContent="Deze naam bestaat al.";
-    return;
-  }
-
-  data.households.forEach(h=>{
-    h.members=h.members.map(m=>m===original?newName:m);
-  });
-  if(adminSettings.accounts){
-    adminSettings.accounts.forEach(a=>{
-      if(a.name===original) a.name=newName;
-    });
-  }
-
-  member.name=newName;
-  member.birth=familyEditBirth.value;
-  member.email=familyEditEmail.value.trim().toLowerCase();
-
-  saveData();
-  if(db && isAdmin()) saveAdminSettings().catch(err=>console.warn(err));
-  familyEditDialog.close();
+  const input={name:familyEditName.value,birth:familyEditBirth.value,email:familyEditEmail.value};
+  familyEditSaveBtn.disabled=true;familyEditMessage.textContent="Opslaan…";
+  try{
+    const saved=await FamilyRoster.save(db,input,original,data.family);
+    if(currentUser?.uid!==uid)return;
+    managedFamily=saved.family.map(p=>({...p}));data.family=managedFamily.map(p=>({...p}));
+    if(saved.accounts)adminSettings.accounts=saved.accounts;
+    const name=String(input.name).trim();
+    if(original&&original!==name)data.households.forEach(h=>{h.members=h.members.map(m=>m===original?name:m);});
+    saveData();
+    if(!original){
+      inviteName.value=name;inviteEmail.value=input.email.trim().toLowerCase();
+      showSaveWarning(`${name} is toegevoegd. Je kunt nu bij Accountbeheer een uitnodiging klaarzetten.`);
+    }
+    familyEditDialog.close();
+  }catch(error){
+    familyEditMessage.textContent=error.code==='permission-denied'?"Alleen Rinze kan familiegegevens opslaan.":(error.message||"Opslaan mislukt. Probeer het opnieuw.");
+  }finally{familyEditSaveBtn.disabled=false;}
 };
 
 window.toggleAccountAccess=async email=>{
@@ -2870,6 +2909,7 @@ window.removeInvite=async email=>{
 
 inviteForm.onsubmit=async e=>{
   e.preventDefault();
+  if(!isAdmin()){inviteMessage.textContent="Alleen Rinze kan familieleden uitnodigen.";return;}
   const name=inviteName.value, email=inviteEmail.value.trim().toLowerCase();
   inviteMessage.textContent='Uitnodiging opslaan…';
   const existing=adminSettings.accounts.find(a=>a.email.toLowerCase()===email);
@@ -2877,7 +2917,7 @@ inviteForm.onsubmit=async e=>{
   else adminSettings.accounts.push({name,email,active:true});
   const member=data.family.find(p=>p.name===name); if(member) member.email=email;
   try{
-    await saveAdminSettings();
+    await saveAdminSettings({name,email});
     saveData();
     inviteMessage.textContent=`Klaar. Stuur ${name} nu de link van Hogeterpjes. ${name} kiest zelf een wachtwoord.`;
     inviteForm.reset();
@@ -2957,6 +2997,7 @@ resetDataBtn.onclick=()=>{if(confirm("Standaardgegevens herstellen? Eigen recept
 
 profileBtn.onclick=()=>navigate("profiel");
 logoutBtn.onclick=async()=>{
+  stopManagedFamily();
   stopWishPurchases();
   if(auth){ await auth.signOut(); }
   if(cloudUnsubscribe){ cloudUnsubscribe(); cloudUnsubscribe=null; }
@@ -2991,7 +3032,7 @@ async function verifyInvitedUser(user){
 }
 function showLoggedIn(user){
   const firstOpen=!currentUser || currentUser.uid!==user.uid;
-  if(currentUser?.uid!==user.uid)stopWishPurchases();
+  if(currentUser?.uid!==user.uid){stopWishPurchases();stopManagedFamily();}
   currentUser=user;
   loginScreen.classList.add("hidden");
   loginMessage.textContent="";
@@ -3005,7 +3046,7 @@ function showLoggedIn(user){
   updateCalendarPreferenceUi();
 
   if(firstOpen){
-    loadAdminSettings().finally(()=>{ if(auth.currentUser?.uid!==user.uid)return; subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); syncWishPurchases(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
+    loadAdminSettings().finally(()=>{ if(auth.currentUser?.uid!==user.uid)return; subscribeManagedFamily(); subscribeToCloudData(); subscribeSharedCollections(); subscribePrivateGiftIdeas(); syncWishPurchases(); subscribePrivateTodos(); subscribeCoupleIdeas(); initVaultForCurrentUser(); initDiaryForCurrentUser(); });
   }
 }
 
@@ -3596,7 +3637,7 @@ function initFirebase(){
     storage=firebase.storage();
     auth.onAuthStateChanged(async user=>{
       if(signupVerificationInProgress) return;
-      if(!user){ stopWishPurchases(); currentUser=null; renderWishes(); renderGiftEvents(); loginScreen.classList.remove("hidden"); return; }
+      if(!user){ stopManagedFamily(); stopWishPurchases(); currentUser=null; renderWishes(); renderGiftEvents(); loginScreen.classList.remove("hidden"); return; }
       loginScreen.classList.remove("hidden"); loginMessage.textContent="Toegang controleren…";
       const allowed=await verifyInvitedUser(user);
       if(!allowed){
@@ -3644,7 +3685,7 @@ if(!firebaseActive){
 if("serviceWorker" in navigator){
   window.addEventListener("load", async ()=>{
     try{
-      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.55");
+      const registration=await navigator.serviceWorker.register("service-worker.js?v=1.3.56");
       await registration.update();
       let refreshing=false;
       navigator.serviceWorker.addEventListener("controllerchange",()=>{
